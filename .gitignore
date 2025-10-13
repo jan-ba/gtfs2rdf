@@ -1,6 +1,8 @@
 # Prerequisites
 *.d
 
+build/*
+
 # Compiled Object files
 *.slo
 *.lo
@@ -39,3 +41,6 @@
 
 # debug information files
 *.dwo
+
+# vscode settings
+.vscode/*
