@@ -2,6 +2,7 @@
 *.d
 
 build/*
+gcm.cache/*
 
 # Compiled Object files
 *.slo

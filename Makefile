@@ -1,5 +1,5 @@
 # Makefile
-CXX ?= g++
+override CXX := g++-14
 CXXFLAGS := -std=c++20 -O2 -Wall -Wextra -g -fmodules-ts -MMD -MP
 
 # specify directories and target
@@ -31,6 +31,12 @@ $(BIN): $(OBJS)
 
 # build .cpp files only after modules are built
 $(OBJ_CPP): $(OBJ_MODS)
+
+## special dependencies
+# gtfs imports utility  -> utility must be compiled first.
+$(OBJDIR)/gtfs.o: $(OBJDIR)/utility.o
+$(OBJDIR)/turtle.o: $(OBJDIR)/utility.o
+$(OBJDIR)/turtle.o: $(OBJDIR)/gtfs.o
 
 # modules 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cppm
