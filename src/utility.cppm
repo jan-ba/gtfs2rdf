@@ -31,4 +31,5 @@ export namespace util {
         os << "}";
         return os;
     }
-}
+
+} // namespace

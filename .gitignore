@@ -45,3 +45,6 @@ gcm.cache/*
 
 # vscode settings
 .vscode/*
+
+# ignore data files
+*.ttl

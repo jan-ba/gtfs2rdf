@@ -34,9 +34,9 @@ $(OBJ_CPP): $(OBJ_MODS)
 
 ## special dependencies
 # gtfs imports utility  -> utility must be compiled first.
-$(OBJDIR)/gtfs.o: $(OBJDIR)/utility.o
-$(OBJDIR)/turtle.o: $(OBJDIR)/utility.o
-$(OBJDIR)/turtle.o: $(OBJDIR)/gtfs.o
+$(OBJDIR)/gtfs_parser.o: $(OBJDIR)/utility.o
+$(OBJDIR)/gtfs_parser.o: $(OBJDIR)/rdf_schema_templ.o
+$(OBJDIR)/*_schema.o: $(OBJDIR)/rdf_schema_templ.o
 
 # modules 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cppm

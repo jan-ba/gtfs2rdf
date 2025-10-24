@@ -3,8 +3,12 @@
 #include <string>
 #include <vector>
 
-import gtfs;
+import gtfs_parser;
 import utility;
+import rdf_writer;
+import rdf_schema;
+import stops_schema;
+import stop_times_schema;
 
 using namespace util;
 
@@ -30,16 +34,39 @@ int main(int argc, char* argv[]) {
         std::cout << "Creating output directory...\n";
         std::filesystem::create_directories(outputDir);
     }
+
+
+    // rdf_schema::Schema schema = stops_schema::buildStopsSchema();
+    rdf_schema::Schema schema = stop_times_schema::buildStopTimesSchema();
     auto start = std::chrono::high_resolution_clock::now();
     std::cout << "Parsing GTFS data from " << inputPath << "...\n";
     std::vector<std::vector<std::string>> stops = gtfs::parse_file(inputPath, 
-        gtfs::ColumnInfo(gtfs::possible_columns_stop_times));
+        schema);
+
     std::cout << "Converting " << inputPath << " to RDF...\n";
     auto time = std::chrono::duration<double>(
         std::chrono::high_resolution_clock::now() - start).count();
     std::cout << "DONE  - Reading " << stops.size() << " lines took " << time << " seconds.\n";
-    int n = 10;
-    std::cout << "First " << n << " stops:\n"
-              << std::vector<std::vector<std::string>>(stops.begin(), stops.begin() + n) << "\n";
+    
+    std::filesystem::path outPath = outputDir / (inputPath.stem().string() + ".ttl");
+    start = std::chrono::high_resolution_clock::now();
+    std::cout << "Writing RDF data to " << outPath << "...\n";
+    std::ofstream ofs(outPath, std::ios::binary);
+    if (!ofs) {
+        std::cerr << "Error: cannot open '" << outPath << "' for writing.\n";
+        return 1;
+    }
+
+    int out_lines = ttl::write2TTL(schema, stops, ofs);
+    time = std::chrono::duration<double>(
+        std::chrono::high_resolution_clock::now() - start).count();
+    std::cout << "DONE  - Writing RDF data (" << out_lines << " triples) to " << outPath << " took " << time << " seconds.\n";
+
+    // int n = 10;
+    // std::vector<std::vector<std::string>> subvector(stops.begin(), stops.begin() + n);
+    // std::cout << "First " << n << " stops:\n"
+    //           << subvector << "\n";
+    // ttl::write2TTL(schema, subvector, std::cout); std::cout.flush();
+    
     return 0;
 }
