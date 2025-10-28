@@ -1,4 +1,5 @@
 stop_name,parent_station,stop_id,stop_lat,stop_lon,location_type,platform_code
+"Mainz, Nordbahnhof\W. & Mertz",,20793,50.020283,8.247154,1,
 Aachen Central Station (FlixTrain),,70980,50.767788,6.091192,1,
 "Aachen Central Station (FlixTrain)",70980,4844,50.767788,6.091192,,
 Aachen Hbf,432866,121263,50.7678,6.091499,,100000

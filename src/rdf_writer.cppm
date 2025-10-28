@@ -15,7 +15,7 @@ import rdf_schema;
 
 using namespace rdf_schema;
 
-namespace util {
+namespace ttl {
 
 inline bool isUnreserved(char c) {
   return std::isalnum(static_cast<unsigned char>(c)) || c=='-' || c=='.' || c=='_' || c=='~';
@@ -60,13 +60,9 @@ void writePrefixes(std::ostream& os, const Schema& sc) {
   os << "\n";
 }
 
-} // namespace
-
-export namespace ttl {
-
-int write2TTL(const Schema& sc, const std::vector<std::vector<std::string>>& rows,
+// TODO: perhaps this should take write options as parameters?
+export int write2TTL(const Schema& sc, const std::vector<std::vector<std::string>>& rows,
                std::ostream& os) {
-  using namespace util;
   int counter = 0;
   std::vector<Instruction> instructions = sc.getInstructions();
   writePrefixes(os, sc);

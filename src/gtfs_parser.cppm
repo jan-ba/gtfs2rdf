@@ -21,6 +21,61 @@ using util::operator<<;  // only bringing in required operator
 
 namespace gtfs {
 
+const char _hex_upper(unsigned v) {
+  static constexpr char H[] = "0123456789ABCDEF";
+  return H[v & 0xF];
+}
+
+// Gibt ein vollständig gültiges Turtle-Literal zurück, z.B.:
+//   turtle_literal("A\nB", "de")           ->  "A\nB"@de
+//   turtle_literal("3.14", {}, "xsd:decimal")-> "3.14"^^xsd:decimal
+// Regeln:
+//  - Escaped werden: \, ", \n, \r, \t, \b, \f sowie alle ASCII-Steuerzeichen 0x00..0x1F und 0x7F.
+//  - Nicht-ASCII (UTF-8) bleibt unverändert (Turtle erlaubt UTF-8 direkt).
+//  - Falls sowohl lang als auch datatype gesetzt sind, hat lang Vorrang (datatype wird ignoriert).
+export std::string turtle_literal(std::string_view value) {
+  // Schneller Vorscan: Brauchen wir überhaupt Escapes?
+  bool needsEscape = false;
+  for (unsigned char c : value) {
+    if (c < 0x20 || c == 0x7F || c == '\\' || c == '"') { needsEscape = true; break; }
+  }
+
+  // (Worst-Case für ASCII-Steuerzeichen: \u00XX -> 6 Zeichen)
+  std::string out;
+  out.reserve(value.size()+ (needsEscape ? value.size() : 0));
+  if (!needsEscape) {
+    // Direkt übernehmen
+    out.append(value);
+  } else {
+    for (unsigned char c : value) {
+      switch (c) {
+        case '\\': out.append("\\\\"); break;
+        case '"' : out.append("\\\""); break;
+        case '\n': out.append("\\n");  break;
+        case '\r': out.append("\\r");  break;
+        case '\t': out.append("\\t");  break;
+        case '\b': out.append("\\b");  break;
+        case '\f': out.append("\\f");  break;
+        default:
+          if (c < 0x20 || c == 0x7F) {
+            // \u00XX
+            out.push_back('\\'); out.push_back('u');
+            out.push_back('0');  out.push_back('0');
+            out.push_back(_hex_upper((c >> 4) & 0xF));
+            out.push_back(_hex_upper(c & 0xF));
+          } else {
+            // Nicht-ASCII-Bytes (Teil von UTF-8) bleiben unverändert
+            out.push_back(static_cast<char>(c));
+          }
+      }
+    }
+  }
+  return out;
+}
+
+
+
+
 // CSV line splitter for GTFS
 std::vector<std::string> split_line(std::string_view line) {
     // strip UTF-8 BOM if present (only relevant for first header line)
@@ -54,18 +109,19 @@ std::vector<std::string> split_line(std::string_view line) {
             }
         } else {
             if (c == ',') {
-                out.push_back(std::move(cache));
+                // out.push_back(std::move(cache));
+                out.push_back(turtle_literal(cache));
                 cache.clear();
             } else if (c == '"') {
                 in_quotes = true;
             } else if (c == '\r') {
                 // ignore line break characters
             } else {
-                cache.push_back(c);
+                cache.push_back(c);  // used to be std::move(cache)
             }
         }
     }
-    out.push_back(std::move(cache));
+    out.push_back(turtle_literal(cache));
     return out;
 }
 

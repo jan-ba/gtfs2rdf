@@ -39,18 +39,17 @@ int main(int argc, char* argv[]) {
     // rdf_schema::Schema schema = stops_schema::buildStopsSchema();
     rdf_schema::Schema schema = stop_times_schema::buildStopTimesSchema();
     auto start = std::chrono::high_resolution_clock::now();
-    std::cout << "Parsing GTFS data from " << inputPath << "...\n";
+    std::cout << "⌛  Parsing GTFS data from " << inputPath << "..." << std::endl;
     std::vector<std::vector<std::string>> stops = gtfs::parse_file(inputPath, 
         schema);
 
-    std::cout << "Converting " << inputPath << " to RDF...\n";
     auto time = std::chrono::duration<double>(
         std::chrono::high_resolution_clock::now() - start).count();
-    std::cout << "DONE  - Reading " << stops.size() << " lines took " << time << " seconds.\n";
+    std::cout << "✅  Reading " << stops.size() << " lines took " << time << " seconds." << std::endl;
     
     std::filesystem::path outPath = outputDir / (inputPath.stem().string() + ".ttl");
     start = std::chrono::high_resolution_clock::now();
-    std::cout << "Writing RDF data to " << outPath << "...\n";
+    std::cout << "⌛  Writing RDF data to " << outPath << "..." << std::endl;
     std::ofstream ofs(outPath, std::ios::binary);
     if (!ofs) {
         std::cerr << "Error: cannot open '" << outPath << "' for writing.\n";
@@ -60,7 +59,7 @@ int main(int argc, char* argv[]) {
     int out_lines = ttl::write2TTL(schema, stops, ofs);
     time = std::chrono::duration<double>(
         std::chrono::high_resolution_clock::now() - start).count();
-    std::cout << "DONE  - Writing RDF data (" << out_lines << " triples) to " << outPath << " took " << time << " seconds.\n";
+    std::cout << "✅  Writing RDF data (" << out_lines << " triples) to " << outPath << " took " << time << " seconds." << std::endl;
 
     // int n = 10;
     // std::vector<std::vector<std::string>> subvector(stops.begin(), stops.begin() + n);

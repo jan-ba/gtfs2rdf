@@ -31,29 +31,32 @@ Schema buildStopTimesSchema() {
 
   // 
   const std::unordered_map<std::string, std::string> prefixes = {
-    {"base", "https://gtfs.de/öv/"},
-    {"rdf",  "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-    {"xsd",  "http://www.w3.org/2001/XMLSchema#"},
-    {"gtfs", "https://w3id.org/gtfs2rdf#"}
+    { "stops",     "https://gtfs.de/stops/" },
+    { "stoptimes", "https://gtfs.de/stoptimes/" },
+    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
+    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
+    {"gtfs",  "https://w3id.org/gtfs2rdf#"},
+    {"wgs", "http://www.w3.org/2003/01/geo/wgs84_pos#"},
+    {"geo", "http://www.opengis.net/ont/geosparql#"},
+    {"gtfs2rdfgeom", "https://w3id.org/gtfs2rdf/geometry#"} };
+
+  const std::vector<Triple> triples = {
+    { IRI("stoptimes", "{trip_id}_{stop_sequence}"), IRI("rdf", "type"), Object(IRI("gtfs", "StopTime")) },
+    { IRI("stoptimes", "{trip_id}_{stop_sequence}"), IRI("gtfs", "trip"), Object(IRI("stoptimes", "{trip_id}")) },
+    { IRI("stoptimes", "{trip_id}_{stop_sequence}"), IRI("gtfs", "stop"), Object(IRI("stops", "{stop_id}")) },
+
+    { IRI("stoptimes", "{trip_id}_{stop_sequence}"), IRI("gtfs", "stopSequence"), Object("{stop_sequence}") },
+    { IRI("stoptimes", "{trip_id}_{stop_sequence}"), IRI("gtfs", "arrivalTime"), Object("{arrival_time}") },
+    { IRI("stoptimes", "{trip_id}_{stop_sequence}"), IRI("gtfs", "departureTime"), Object("{departure_time}") },
+
+    { IRI("stoptimes", "{trip_id}_{stop_sequence}"), IRI("gtfs", "stopHeadsign"), Object("{stop_headsign}") },
+    { IRI("stoptimes", "{trip_id}_{stop_sequence}"), IRI("gtfs", "pickupType"), Object("{pickup_type}") },
+    { IRI("stoptimes", "{trip_id}_{stop_sequence}"), IRI("gtfs", "dropOffType"), Object("{drop_off_type}") },
+    { IRI("stoptimes", "{trip_id}_{stop_sequence}"), IRI("gtfs", "shapeDistTraveled"), Object("{shape_dist_traveled}") },
+    { IRI("stoptimes", "{trip_id}_{stop_sequence}"), IRI("gtfs", "timepoint"), Object("{timepoint}") }
   };
 
-  const std::vector<std::string> instructions = {
-    "base:stop_times/{trip_id}/{stop_sequence} rdf:type gtfs:StopTime .",
-    "base:stop_times/{trip_id}/{stop_sequence} gtfs:trip base:trips/{trip_id} .",
-    "base:stop_times/{trip_id}/{stop_sequence} gtfs:stop base:stops/{stop_id} .",
-
-    "base:stop_times/{trip_id}/{stop_sequence} gtfs:stopSequence {stop_sequence} .",
-    "base:stop_times/{trip_id}/{stop_sequence} gtfs:arrivalTime {arrival_time} .",
-    "base:stop_times/{trip_id}/{stop_sequence} gtfs:departureTime {departure_time} .",
-
-    "base:stop_times/{trip_id}/{stop_sequence} gtfs:stopHeadsign {stop_headsign} .",
-    "base:stop_times/{trip_id}/{stop_sequence} gtfs:pickupType {pickup_type} .",
-    "base:stop_times/{trip_id}/{stop_sequence} gtfs:dropOffType {drop_off_type} .",
-    "base:stop_times/{trip_id}/{stop_sequence} gtfs:shapeDistTraveled {shape_dist_traveled} .",
-    "base:stop_times/{trip_id}/{stop_sequence} gtfs:timepoint {timepoint} ."
-  };
-
-  Schema sc("stop_times", possible_columns, prefixes, instructions);
+  Schema sc("stoptimes", possible_columns, prefixes, triples);
   return sc;
 }
 
