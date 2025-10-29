@@ -11,9 +11,9 @@ module;
 #include <cctype>
 
 export module rdf_writer;
-import rdf_schema;
+import schema.core;
 
-using namespace rdf_schema;
+using namespace schema;
 
 namespace ttl {
 
@@ -62,10 +62,10 @@ void writePrefixes(std::ostream& os, const Schema& sc) {
 
 // TODO: perhaps this should take write options as parameters?
 export int write2TTL(const Schema& sc, const std::vector<std::vector<std::string>>& rows,
-               std::ostream& os) {
+               std::ostream& os, bool usePrefixes) {
   int counter = 0;
   std::vector<Instruction> instructions = sc.getInstructions();
-  writePrefixes(os, sc);
+  if (usePrefixes) { writePrefixes(os, sc); }
 
   for (const auto& row : rows) {
     for (auto& inst : instructions) {

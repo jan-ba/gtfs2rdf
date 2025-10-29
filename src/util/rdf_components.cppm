@@ -1,0 +1,96 @@
+module;
+
+#include <string>
+#include <unordered_map>
+
+export module rdf_components;
+
+export namespace rdf {
+
+class IRI {
+  private:
+    const std::string prefix_;
+    const std::string local_name_;
+
+  public:
+    IRI(const std::string& prefix, const std::string& local_name)
+      : prefix_(prefix), local_name_(local_name) {}
+
+    IRI() : prefix_(""), local_name_("") {}
+      
+  const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
+                             const bool outputTurtle = true, const bool usePrefixes = true, 
+                             const bool explicitRdfType = true) const {
+    if (usePrefixes && !prefix_.empty()) {
+      return prefix_ + ":" + local_name_;
+    } else if (!prefix_.empty()) {
+      return "<" + prefixes.at(prefix_) + local_name_ + ">";
+      // might add other functionality later
+    } else {
+      return local_name_;
+    }
+  }
+};
+
+class Object {
+  private:
+    const enum class Type { IRI, Literal, BlankNode } type_;
+    const IRI name_;
+    const IRI datatype_;
+    const std::string lang_;
+
+  public:
+    // IRI
+    Object(const IRI& name) : type_(Type::IRI), name_(name) {}
+
+    // literal - only language tag (if any)
+    Object(const std::string& literal, const std::string& lang = "")
+      : type_(Type::Literal), name_(IRI("", literal)), datatype_(IRI("", "")), lang_(lang) {}
+
+    // literal - with datatype
+    Object(const std::string& literal, const IRI& datatype)
+      : type_(Type::Literal), name_(IRI("", literal)), datatype_(datatype) {}
+
+    const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
+                             const bool outputTurtle = true, const bool usePrefixes = true, 
+                             const bool explicitRdfType = true) const {
+      switch (type_) {
+        case Type::IRI:
+          return name_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType);
+        case Type::Literal: {
+          std::string lit = "\"" 
+                + name_.toString(prefixes, outputTurtle, false, explicitRdfType) + "\"";
+          if (!lang_.empty()) {
+            lit += "@" + lang_;
+          } else if (!datatype_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType).empty()) {
+            lit += "^^" + datatype_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType);
+          }
+          return lit;
+        }
+        case Type::BlankNode:  // required?
+          return "_:" + name_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType);
+      }
+      return ""; // should not reach here
+    }
+};
+
+class Triple {
+  private:
+    const IRI subject_;
+    const IRI predicate_;
+    const Object object_;
+
+  public:
+    Triple(const IRI& subject, const IRI& predicate, const Object& object)
+      : subject_(subject), predicate_(predicate), object_(object) {}
+
+    const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
+                             const bool outputTurtle = true, const bool usePrefixes = true, 
+                             const bool explicitRdfType = true) const {
+      return subject_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType) + " " +
+             predicate_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType) + " " +
+             object_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType) + " .";
+    }
+};
+
+} // namespace

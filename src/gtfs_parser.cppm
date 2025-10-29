@@ -14,7 +14,7 @@ module;
 export module gtfs_parser;
 
 import utility;
-import rdf_schema;
+import schema.core;
 
 using namespace util;
 using util::operator<<;  // only bringing in required operator
@@ -127,10 +127,10 @@ std::vector<std::string> split_line(std::string_view line) {
 
 
 export std::vector<std::vector<std::string>> parse_file(const std::filesystem::path& path,
-    rdf_schema::Schema& schema) {
+    schema::Schema& schema) {
     std::ifstream ifs(path);
     if (!ifs) {
-        throw std::runtime_error("gtfs::parse_file: unable to open file: " + path.string());
+        throw std::runtime_error("❌  Parsing error: unable to open file: " + path.string());
     }
 
     std::vector<std::vector<std::string>> result;
@@ -141,9 +141,9 @@ export std::vector<std::vector<std::string>> parse_file(const std::filesystem::p
         if (first_line) {
             // parse header and remember column order
             auto header = split_line(line);
-            std::cout << "GTFS Header Columns: " << header << "\n";
+            // std::cout << "GTFS Header Columns: " << header << "\n";
             schema.setHeader(header);
-            std::cout << "Mappings: \n" << schema.getColumnMap() << std::endl;
+            // std::cout << "Mappings: \n" << schema.getColumnMap() << std::endl;
 
             // TODO: validity checks?
             first_line = false;
