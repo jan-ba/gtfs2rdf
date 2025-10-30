@@ -79,7 +79,7 @@ Schema buildRoutesSchema() {
                                        { "{cemv_support}", IRI("xsd","integer") } }
   };
 
-  Schema sc("routes", possible_columns, prefixes, triples);
+  Schema sc("routes.txt", possible_columns, prefixes, triples);
   return sc;
 }
 

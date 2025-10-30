@@ -5,7 +5,6 @@ module;
 #include <vector>
 #include <optional>
 #include <stdexcept>
-#include <map>
 #include <iostream>
 
 export module schema.core;
@@ -26,7 +25,8 @@ export class Instruction {
     bool is_valid_ = true;  // set to false if instruction is invalid due to missing columns
 
   public:
-    Instruction(const std::string& raw_instruction, const std::map<std::string, int>& column_map) 
+    Instruction(const std::string& raw_instruction, const std::unordered_map<std::string, 
+                int>& column_map) 
       {
         // parse raw_instruction into parts and column_indices
         size_t pos = 0;
@@ -89,7 +89,7 @@ export class Schema {
     const bool explicitRdfType_ = true;     // if true, no 'a', ',' , ';' syntactic ttl sugar
 
     // computed from header
-    std::map<std::string, int> column_map_;  // column name -> index in file, -1 if not found
+    std::unordered_map<std::string, int> column_map_;  // column name -> index in file, -1 if not found
     std::vector<Instruction> instructions_;  // computed instructions 
 
   public:
@@ -146,7 +146,7 @@ export class Schema {
     bool isPrefixes() const { return usePrefixes_; }
     bool isExplicitRdfType() const { return explicitRdfType_; }
     const std::unordered_map<std::string, std::string>& getPrefixes() const { return prefixes_; }
-    const std::map<std::string, int>& getColumnMap() const { return column_map_; }
+    const std::unordered_map<std::string, int>& getColumnMap() const { return column_map_; }
     const std::vector<Instruction>& getInstructions() const { return instructions_; }
 
     // Setters

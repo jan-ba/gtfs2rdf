@@ -60,7 +60,7 @@ Schema buildCalendarSchema() {
                                       { "{end_date}" } }
   };
 
-  Schema sc("calendar", possible_columns, prefixes, triples);
+  Schema sc("calendar.txt", possible_columns, prefixes, triples);
   return sc;
 }
 

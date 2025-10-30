@@ -50,7 +50,7 @@ Schema buildCalendarDatesSchema() {
                                                 { "{exception_type}", IRI("xsd","integer") } }
   };
 
-  Schema sc("caldates", possible_columns, prefixes, triples);
+  Schema sc("calendar_dates.txt", possible_columns, prefixes, triples);
   return sc;
 }
 

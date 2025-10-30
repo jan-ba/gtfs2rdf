@@ -9,7 +9,6 @@ module;
 #include <utility>
 #include <algorithm>
 #include <iostream>
-#include <map>
 
 export module gtfs_parser;
 
@@ -126,35 +125,32 @@ std::vector<std::string> split_line(std::string_view line) {
 }
 
 
-export std::vector<std::vector<std::string>> parse_file(const std::filesystem::path& path,
-    schema::Schema& schema) {
-    std::ifstream ifs(path);
-    if (!ifs) {
-        throw std::runtime_error("❌  Parsing error: unable to open file: " + path.string());
-    }
+export bool parse_file(std::ifstream& ifs, size_t batch_size, bool first_batch, 
+    std::vector<std::vector<std::string>>& result, schema::Schema& schema) {
+    // std::ifstream ifs(path);
+    // if (!ifs) {
+    //     throw std::runtime_error("❌  Parsing error: unable to open file: " + path.string());
+    // }
 
-    std::vector<std::vector<std::string>> result;
+    // std::vector<std::vector<std::string>> result;
     std::string line;
-    bool first_line = true;
-
-    while (std::getline(ifs, line)) {
-        if (first_line) {
+    for (size_t i = 0; i < batch_size; i++) {
+      if (std::getline(ifs, line)) {
+        if (i == 0 && first_batch) {
             // parse header and remember column order
             auto header = split_line(line);
-            // std::cout << "GTFS Header Columns: " << header << "\n";
             schema.setHeader(header);
-            // std::cout << "Mappings: \n" << schema.getColumnMap() << std::endl;
 
             // TODO: validity checks?
-            first_line = false;
+            i = 0;
             continue;
         }
-        first_line = false;
         std::vector<std::string> cols = split_line(line);
-        result.push_back(cols);
+        result.push_back(cols);  // TODO: can this be more efficient?
+      } else { return true; } 
     }
 
-    return result;
+    return false;
 }
 
 } // namespace

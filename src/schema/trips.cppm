@@ -62,7 +62,7 @@ Schema buildTripsSchema() {
                                    { "{cars_allowed}", IRI("xsd","integer") } }
   };
 
-  Schema sc("trips", possible_columns, prefixes, triples);
+  Schema sc("trips.txt", possible_columns, prefixes, triples);
   return sc;
 }
 

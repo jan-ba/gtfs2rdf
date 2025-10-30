@@ -97,7 +97,7 @@ Schema buildStopTimesSchema() {
   };
 
 
-  Schema sc("stoptimes", possible_columns, prefixes, triples);
+  Schema sc("stoptimes.txt", possible_columns, prefixes, triples);
   return sc;
 }
 

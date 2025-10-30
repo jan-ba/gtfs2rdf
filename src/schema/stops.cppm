@@ -66,7 +66,7 @@ Schema buildStopsSchema() {
     { {"stops","{stop_id}"},  {"gtfs","platformCode"},      { "{platform_code}" } }
   };
 
-  Schema sc("stops", possible_columns, prefixes, triples, true, true, true);
+  Schema sc("stops.txt", possible_columns, prefixes, triples, true, true, true);
 
   return sc;
 }

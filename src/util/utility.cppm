@@ -2,6 +2,7 @@ module;
 #include <vector>
 #include <iostream>
 #include <map>
+#include <unordered_map>
 
 export module utility;
 
@@ -32,4 +33,16 @@ export namespace util {
         return os;
     }
 
+    template<typename K, typename V>
+    std::ostream& operator<<(std::ostream& os, const std::unordered_map<K,V>& map) {
+        os << "{";
+        for (auto it = map.begin(); it != map.end(); ++it) {
+            os << it->first << ": " << it->second;
+            if (std::next(it) != map.end()) {
+                os << ", ";
+            }
+        }
+        os << "}";
+        return os;
+    } 
 } // namespace
