@@ -96,7 +96,7 @@ int main(int argc, char* argv[]) {
          cxxopts::value<bool>()->default_value("false"))  // TODO
         ("s,syntactic-sugar", "Enable syntactic .ttl sugar for a more compact file output", 
          cxxopts::value<bool>()->default_value("false"))  // TODO
-        ("d,debug", "Show non-fatal warnings", cxxopts::value<bool>()->default_value("true"))  // TODO
+        ("w,debug", "Show non-fatal warnings", cxxopts::value<bool>()->default_value("true"))  // TODO
         ("h,help", "Show help");
 
     auto result = opts.parse(argc, argv);
