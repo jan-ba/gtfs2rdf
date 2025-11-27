@@ -13,6 +13,7 @@
 #include <vector>
 #include <unordered_map>
 #include "util/cxxopts.hpp"
+#include "zip.h"
 
 import gtfs_parser;
 import utility;
@@ -95,12 +96,14 @@ long long convertFileToStream(const std::filesystem::path& inputPath, schema::Sc
 }
 
 
+
+
 int main(int argc, char* argv[]) {
     cxxopts::Options opts("gtfs2rdf", "GTFS->RDF converter");
     opts.add_options()
-        ("d,dataset", "Path to GTFS directory", cxxopts::value<std::string>())
-        ("o,output",  "Output file or directory", cxxopts::value<std::string>()->default_value("out.ttl"))
-        ("b,batch-size", "Rows per batch", cxxopts::value<unsigned long long>()->default_value("100000"))
+        ("d,dataset", "Path to GTFS .zip archive", cxxopts::value<std::string>())
+        ("o,output",  "Output directory", cxxopts::value<std::string>()->default_value("."))
+        ("b,batch-size", "Batch size in mb", cxxopts::value<unsigned long long>()->default_value("10"))
         ("t,triple", "Store as fully resolved triples, without prefixes or other .ttl syntax", 
          cxxopts::value<bool>()->default_value("false"))  // TODO
         ("s,syntactic-sugar", "Enable syntactic .ttl sugar for a more compact file output", 
@@ -111,19 +114,35 @@ int main(int argc, char* argv[]) {
     auto result = opts.parse(argc, argv);
     if (result.count("help")) { std::cout << opts.help() << '\n'; return 0; }
     if (!result.count("dataset")) { 
-        std::cerr << "Please specify the GTFS dataset to be converted or type --help for "\
+        std::cerr << "Input GTFS dataset required. Type --help for "\
                      "more information!\n"; return 1; 
     }
 
-    std::filesystem::path inputDir = result["dataset"].as<std::string>();
-    std::filesystem::path outputPath = result["output"].as<std::string>();
-    size_t batch_size = result["batch-size"].as<unsigned long long>();
+    std::filesystem::path inputZIP = result["dataset"].as<std::string>();
+    std::filesystem::path outputPath = result["output"].as<std::string>() + "/" + inputZIP.stem().string() + ".ttl";
+    size_t batch_size_mb = result["batch-size"].as<unsigned long long>();
 
-    if (!std::filesystem::exists(inputDir)) {
-        std::cerr << "❌  Error: Input directory '" << inputDir.string() << "' does not exist.\n";
+    // check that file exists and is a zip file
+    if (!std::filesystem::is_regular_file(inputZIP) || inputZIP.extension() != ".zip") {
+        std::cerr << "❌  Error: Input '" << inputZIP.string() << "' doesn't exist or "\
+                                                                   "is not a zip file.\n";
         return 1;
     }
 
+    zip_t *za;
+    int err;
+
+    // try opening the zip file
+    if ((za = zip_open(inputZIP.string().c_str(), ZIP_RDONLY, &err)) == NULL) {
+        zip_error_t error;
+        zip_error_init_with_code(&error, err);
+        fprintf(stderr, "❌  Error: Cannot open zip archive '%s': %s\n",
+	        inputZIP.string().c_str(), zip_error_strerror(&error));
+        zip_error_fini(&error);
+        return 1;
+    }
+
+    // validate output path (and avoid unwanted overwriting)
     if (std::filesystem::exists(outputPath)) {
         std::cout << "Output path '" << outputPath.string() << "' already exists. Overwrite? [y/N]\n";
         std::string a;
@@ -131,21 +150,29 @@ int main(int argc, char* argv[]) {
         if (!(a == "y" || a == "Y" || a == "yes" || a == "YES")) return 1;
     }
 
-    std::vector<std::filesystem::path> files_in_dir;
+    std::vector<std::string> files_in_dir;
     std::vector<schema::Schema> used_schemas;
- 
-    // searches for all files in the specified input directory and creates respective schemas (if possible)
-    for (const auto& entry : std::filesystem::directory_iterator(inputDir)) {
-        const std::string fname = entry.path().filename().string();
 
-        if (auto it = factories.find(fname); it != factories.end()) {
-            files_in_dir.push_back(entry.path());
-            used_schemas.emplace_back(it->second());  // call factory
-        } else {
-            std::cerr << "⚠️  Warning: '" << fname << "' not a valid GTFS file or respective "\
-                         "schema not inmplemented" << std::endl;
+    for ( const auto& [ file, factory ] : factories ) {
+        if (zip_name_locate(za, file.c_str(), ZIP_FL_ENC_GUESS) != -1) {
+            files_in_dir.push_back(file);
+            used_schemas.emplace_back(factory());  // call factory
         }
     }
+
+ 
+    // searches for all files in the specified input directory and creates respective schemas (if possible)
+    // for (const auto& entry : std::filesystem::directory_iterator(inputZIP)) {
+    //     const std::string fname = entry.path().filename().string();
+
+    //     if (auto it = factories.find(fname); it != factories.end()) {
+    //         files_in_dir.push_back(entry.path());
+    //         used_schemas.emplace_back(it->second());  // call factory
+    //     } else {
+    //         std::cerr << "⚠️  Warning: '" << fname << "' not a valid GTFS file or respective "\
+    //                      "schema not inmplemented" << std::endl;
+    //     }
+    // }
 
     std::ofstream out(outputPath, std::ios::binary);
     if (!out) {
@@ -158,11 +185,18 @@ int main(int argc, char* argv[]) {
     auto merged_prefixes = schema::merge_prefixes(used_schemas, true);
     long long total_triples = 0;
     for (size_t i = 0; i < files_in_dir.size(); i++) {
+        zip_file_t* zf = zip_fopen(za, files_in_dir[i].c_str(), 0);
+        if (!zf) {
+            zip_close(za);
+            throw std::runtime_error("❌  Error: cannot open entry inside ZIP: " + files_in_dir[i]);
+        }
         if (i == 0) {
             used_schemas[i].setPrefixes(merged_prefixes);
-            total_triples += convertFileToStream(files_in_dir[i], used_schemas[i], out, batch_size, true);    
+            total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, batch_size_mb, true);
+            // total_triples += convertFileToStream(files_in_dir[i], used_schemas[i], out, batch_size, true);    
         } else {
-        total_triples += convertFileToStream(files_in_dir[i], used_schemas[i], out, batch_size, false);
+            total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, batch_size_mb, false);
+        // total_triples += convertFileToStream(files_in_dir[i], used_schemas[i], out, batch_size, false);
         }
     }
 

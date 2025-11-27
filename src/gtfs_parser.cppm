@@ -18,11 +18,13 @@ module;
 #include <utility>
 #include <algorithm>
 #include <iostream>
+#include <zip.h>
 
 export module gtfs_parser;
 
 import utility;
 import schema.core;
+import rdf_writer;
 
 using namespace util;
 using util::operator<<;  // only bringing in required operator
@@ -136,12 +138,6 @@ std::vector<std::string> split_line(std::string_view line) {
 
 export bool parse_file(std::ifstream& ifs, size_t batch_size, bool first_batch, 
     std::vector<std::vector<std::string>>& result, schema::Schema& schema) {
-    // std::ifstream ifs(path);
-    // if (!ifs) {
-    //     throw std::runtime_error("❌  Parsing error: unable to open file: " + path.string());
-    // }
-
-    // std::vector<std::vector<std::string>> result;
     std::string line;
     for (size_t i = 0; i < batch_size; i++) {
       if (std::getline(ifs, line)) {
@@ -161,5 +157,150 @@ export bool parse_file(std::ifstream& ifs, size_t batch_size, bool first_batch,
 
     return false;
 }
+
+enum class CSVState {
+    UnquotedField,
+    InQuotedField,
+    QuoteInQuotedField  // just saw a " inside a quoted field
+};
+
+export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
+                              std::string filename, std::ostream& outfs, size_t batch_size_mb, 
+                              const bool first_file)
+{
+    using Clock = std::chrono::steady_clock;
+    std::vector<std::vector<std::string>> rows;
+    zip_uint64_t batch_size = batch_size_mb * 1024 * 1024 + 200;  // offset to always fit header in batch
+
+    std::vector<char> buf(batch_size);
+
+    // Counters
+    size_t batch_i     = 0;
+    int64_t total_triples = 0;
+    size_t total_rows  = 0;
+    double parse_s = 0.0;
+    double write_s = 0.0;
+    std::cout << "\n______________________________________________________________\n";
+
+    std::vector<std::string> row; row.reserve(10); // small prealloc
+    std::string cache;            cache.reserve(64);
+    CSVState state = CSVState::UnquotedField;
+    bool header_seen = false;
+
+    // TODO: handle UTF-8 BOM
+    while (true) {
+        auto t0 = Clock::now();  // start file parsing time measurement
+        zip_int64_t n = zip_fread(zf, buf.data(), batch_size);
+        if (n < 0) {
+            // handle error
+            throw std::runtime_error("❌  Error: can't read batch number " + std::to_string(batch_i)
+                                     + " from file '" + filename + "'");
+        }
+        if (n == 0) {
+            // EOF, we're done here
+            parse_s += std::chrono::duration<double>(Clock::now() - t0).count();
+            break;
+        }
+    
+        // now buf[0..n-1] contains valid bytes, buf[n..] is irrelevant.
+        for (zip_int64_t i = 0; i < n; ++i) {
+            char c = buf[i];
+            switch (state) {
+                case CSVState::UnquotedField:
+                    if (c == ',') {  // end of field
+                        row.push_back(turtle_literal(cache));
+                        cache.clear();
+                    } else if (c == '"') {  // start quoted field
+                        state = CSVState::InQuotedField;
+                    } else if (c == '\n') {  // end of field + row
+                        row.push_back(turtle_literal(cache));
+                        cache.clear();
+
+                        if (batch_i == 0 && !header_seen) {  // handle header row
+                            schema.setHeader(row);
+                            row.clear();
+                            header_seen = true;
+                            break;  // continue with next line
+                        }
+
+                        // row is complete
+                        rows.push_back(row);
+                        row.clear();
+                    } else if (c == '\r') {  // ignore (CR part of CRLF)
+                    } else {
+                        cache.push_back(c);
+                    }
+                    break;
+
+                case CSVState::InQuotedField:
+                    if (c == '"') {  // maybe escaped quote, maybe end of quoted field
+                        state = CSVState::QuoteInQuotedField;
+                    } else {
+                        cache.push_back(c);
+                    }
+                    break;
+
+                case CSVState::QuoteInQuotedField:
+                    if (c == '"') {  // "" -> literal "
+                        cache.push_back('"');
+                        state = CSVState::InQuotedField;
+                    } else if (c == ',') {  // closing " followed by comma -> end of field
+                        row.push_back(turtle_literal(cache));
+                        cache.clear();
+                        state = CSVState::UnquotedField;
+                    } else if (c == '\n') {  // closing " followed by newline -> end of field + row
+                        row.push_back(turtle_literal(cache));
+                        cache.clear();
+                        state = CSVState::UnquotedField;
+
+                        // row is complete
+                        rows.push_back(row);
+                        row.clear();
+                    } else if (c == '\r') {
+                        // closing " followed by CR, ignore here;
+                        // next char might be '\n'
+                        state = CSVState::QuoteInQuotedField;
+                    } else {
+                        std::cerr << "⚠️  Warning: unexpected character '" << c
+                                  << "' after closing quote in quoted field\n";  // TODO: add information package
+                        cache.push_back(c);
+                        state = CSVState::UnquotedField;
+                    }
+                    break;
+            }
+        }
+        parse_s += std::chrono::duration<double>(Clock::now() - t0).count();
+
+        // write this batch (prefixes only for the very first batch)
+        t0 = Clock::now();
+        total_triples += ttl::write2TTL(schema, rows, outfs, false);
+        write_s += std::chrono::duration<double>(Clock::now() - t0).count();
+
+        total_rows += rows.size();
+        ++batch_i;
+        rows.clear();
+    }
+
+    // in case file does not end with newline, flush remaining data
+    if (!cache.empty() || !row.empty()) {
+        row.push_back(turtle_literal(cache));
+        cache.clear();
+        rows.push_back(row);
+        row.clear();
+        auto t0 = Clock::now();
+        total_triples += ttl::write2TTL(schema, rows, outfs, first_file && batch_i == 0);
+        write_s += std::chrono::duration<double>(Clock::now() - t0).count();
+        total_rows += rows.size();
+    }
+
+    std::cout << "⌛  Parsed " << filename << " in " << parse_s << " s"
+              << "  (" << total_rows << " rows, " << batch_i
+              << " batches @ " << batch_size << ")\n";
+    std::cout << "✅  Wrote " << total_triples << " triples from "
+              << filename << " in " << write_s << " s\n"
+              << "______________________________________________________________\n";
+    return total_triples;
+}
+
 
 } // namespace

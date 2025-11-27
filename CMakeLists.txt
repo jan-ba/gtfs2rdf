@@ -34,6 +34,9 @@ function(setup_warnings_and_opts target)
     endif()
 endfunction()
 
+# Find libzip (provided by libzip-dev)
+find_package(libzip REQUIRED)
+
 # ------------------------------------------------------------
 # collect source files automatically
 # ------------------------------------------------------------
@@ -83,6 +86,7 @@ add_executable(gtfs2rdf
 target_link_libraries(gtfs2rdf
     PRIVATE
         gtfs_modules
+        libzip::zip
 )
 
 target_include_directories(gtfs2rdf

@@ -135,7 +135,7 @@ export class Schema {
             column_map_[header[file_idx]] = static_cast<int>(file_idx);
         } else {
             throw std::runtime_error("❌  Error: unknown column " + header[file_idx] 
-                                                                          + "for " + name_);
+                                                                          + " for " + name_);
         }
       }
       // build instructions_
