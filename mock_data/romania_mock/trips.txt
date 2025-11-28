@@ -1,0 +1,3 @@
+route_id,service_id,trip_id,trip_headsign,direction_id,block_id,shape_id,bikes_allowed
+R_AB_13,S_AB_13_FWSC,13.1_WDSC_T_01_01,Pasaj C.F. Mehala,0,BL-13-SC-01-1,13.1_T_A,2
+R_AB_13,S_AB_13_FWSC,13.1_WDSC_T_01_02,Pasaj C.F. Mehala,0,BL-13-SC-01-1,13.1_T_B,2

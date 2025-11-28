@@ -165,7 +165,7 @@ enum class CSVState {
 };
 
 export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
-                              std::string filename, std::ostream& outfs, size_t batch_size_mb, 
+                              std::string filename, std::ostream& outfs, double batch_size_mb, 
                               const bool first_file)
 {
     using Clock = std::chrono::steady_clock;
@@ -220,12 +220,11 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
                             schema.setHeader(row);
                             row.clear();
                             header_seen = true;
-                            break;  // continue with next line
+                        } else {
+                            // row is complete
+                            rows.push_back(row);
+                            row.clear();
                         }
-
-                        // row is complete
-                        rows.push_back(row);
-                        row.clear();
                     } else if (c == '\r') {  // ignore (CR part of CRLF)
                     } else {
                         cache.push_back(c);
@@ -249,13 +248,20 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
                         cache.clear();
                         state = CSVState::UnquotedField;
                     } else if (c == '\n') {  // closing " followed by newline -> end of field + row
+                        // finish the last field
                         row.push_back(turtle_literal(cache));
                         cache.clear();
                         state = CSVState::UnquotedField;
 
-                        // row is complete
-                        rows.push_back(row);
-                        row.clear();
+                        // header vs data
+                        if (batch_i == 0 && !header_seen) {
+                            schema.setHeader(row);
+                            row.clear();
+                            header_seen = true;
+                        } else {
+                            rows.push_back(row);
+                            row.clear();
+                        }
                     } else if (c == '\r') {
                         // closing " followed by CR, ignore here;
                         // next char might be '\n'
@@ -273,7 +279,7 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
 
         // write this batch (prefixes only for the very first batch)
         t0 = Clock::now();
-        total_triples += ttl::write2TTL(schema, rows, outfs, false);
+        total_triples += ttl::write2TTL(schema, rows, outfs, first_file && batch_i == 0);
         write_s += std::chrono::duration<double>(Clock::now() - t0).count();
 
         total_rows += rows.size();
@@ -285,7 +291,12 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
     if (!cache.empty() || !row.empty()) {
         row.push_back(turtle_literal(cache));
         cache.clear();
-        rows.push_back(row);
+        if (!header_seen) {
+            schema.setHeader(row);
+            header_seen = true;
+        } else {
+            rows.push_back(row);
+        }
         row.clear();
         auto t0 = Clock::now();
         total_triples += ttl::write2TTL(schema, rows, outfs, first_file && batch_i == 0);
@@ -295,7 +306,7 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
 
     std::cout << "⌛  Parsed " << filename << " in " << parse_s << " s"
               << "  (" << total_rows << " rows, " << batch_i
-              << " batches @ " << batch_size << ")\n";
+              << " batches @ " << batch_size_mb << ")\n";
     std::cout << "✅  Wrote " << total_triples << " triples from "
               << filename << " in " << write_s << " s\n"
               << "______________________________________________________________\n";

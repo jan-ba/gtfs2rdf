@@ -103,7 +103,7 @@ int main(int argc, char* argv[]) {
     opts.add_options()
         ("d,dataset", "Path to GTFS .zip archive", cxxopts::value<std::string>())
         ("o,output",  "Output directory", cxxopts::value<std::string>()->default_value("."))
-        ("b,batch-size", "Batch size in mb", cxxopts::value<unsigned long long>()->default_value("10"))
+        ("b,batch-size", "Batch size in mb", cxxopts::value<double>()->default_value("10.0"))
         ("t,triple", "Store as fully resolved triples, without prefixes or other .ttl syntax", 
          cxxopts::value<bool>()->default_value("false"))  // TODO
         ("s,syntactic-sugar", "Enable syntactic .ttl sugar for a more compact file output", 
@@ -120,7 +120,7 @@ int main(int argc, char* argv[]) {
 
     std::filesystem::path inputZIP = result["dataset"].as<std::string>();
     std::filesystem::path outputPath = result["output"].as<std::string>() + "/" + inputZIP.stem().string() + ".ttl";
-    size_t batch_size_mb = result["batch-size"].as<unsigned long long>();
+    double batch_size_mb = result["batch-size"].as<double>();
 
     // check that file exists and is a zip file
     if (!std::filesystem::is_regular_file(inputZIP) || inputZIP.extension() != ".zip") {
