@@ -121,6 +121,10 @@ int main(int argc, char* argv[]) {
     std::filesystem::path inputZIP = result["dataset"].as<std::string>();
     std::filesystem::path outputPath = result["output"].as<std::string>() + "/" + inputZIP.stem().string() + ".ttl";
     double batch_size_mb = result["batch-size"].as<double>();
+    if (batch_size_mb <= 0.0) {
+        std::cerr << "❌  Error: batch size must be positive.\n";
+        return 1;
+    }
 
     // check that file exists and is a zip file
     if (!std::filesystem::is_regular_file(inputZIP) || inputZIP.extension() != ".zip") {

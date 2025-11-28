@@ -158,6 +158,16 @@ export bool parse_file(std::ifstream& ifs, size_t batch_size, bool first_batch,
     return false;
 }
 
+
+void strip_utf8_bom(std::string& s) {
+    if (s.size() >= 3 &&
+        static_cast<unsigned char>(s[0]) == 0xEF &&
+        static_cast<unsigned char>(s[1]) == 0xBB &&
+        static_cast<unsigned char>(s[2]) == 0xBF) {
+        s.erase(0, 3);
+    }
+}
+
 enum class CSVState {
     UnquotedField,
     InQuotedField,
@@ -170,7 +180,7 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
 {
     using Clock = std::chrono::steady_clock;
     std::vector<std::vector<std::string>> rows;
-    zip_uint64_t batch_size = batch_size_mb * 1024 * 1024 + 200;  // offset to always fit header in batch
+    zip_uint64_t batch_size = batch_size_mb * 1024 * 1024 + 1;  // offset to avoid zero
 
     std::vector<char> buf(batch_size);
 
@@ -187,10 +197,12 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
     CSVState state = CSVState::UnquotedField;
     bool header_seen = false;
 
-    // TODO: handle UTF-8 BOM
+    
     while (true) {
         auto t0 = Clock::now();  // start file parsing time measurement
         zip_int64_t n = zip_fread(zf, buf.data(), batch_size);
+        // std::cout << "Read batch " << batch_i << ":\n" << buf 
+        //           << "\n==============================\n";
         if (n < 0) {
             // handle error
             throw std::runtime_error("❌  Error: can't read batch number " + std::to_string(batch_i)
@@ -201,7 +213,8 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
             parse_s += std::chrono::duration<double>(Clock::now() - t0).count();
             break;
         }
-    
+        batch_i++;
+
         // now buf[0..n-1] contains valid bytes, buf[n..] is irrelevant.
         for (zip_int64_t i = 0; i < n; ++i) {
             char c = buf[i];
@@ -216,7 +229,8 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
                         row.push_back(turtle_literal(cache));
                         cache.clear();
 
-                        if (batch_i == 0 && !header_seen) {  // handle header row
+                        if (!header_seen) {  // handle header row
+                            strip_utf8_bom(row[0]);
                             schema.setHeader(row);
                             row.clear();
                             header_seen = true;
@@ -254,7 +268,8 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
                         state = CSVState::UnquotedField;
 
                         // header vs data
-                        if (batch_i == 0 && !header_seen) {
+                        if (!header_seen) {
+                            strip_utf8_bom(row[0]);
                             schema.setHeader(row);
                             row.clear();
                             header_seen = true;
@@ -279,11 +294,10 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
 
         // write this batch (prefixes only for the very first batch)
         t0 = Clock::now();
-        total_triples += ttl::write2TTL(schema, rows, outfs, first_file && batch_i == 0);
+        total_triples += ttl::write2TTL(schema, rows, outfs, first_file && batch_i == 1);
         write_s += std::chrono::duration<double>(Clock::now() - t0).count();
 
         total_rows += rows.size();
-        ++batch_i;
         rows.clear();
     }
 
@@ -292,6 +306,7 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
         row.push_back(turtle_literal(cache));
         cache.clear();
         if (!header_seen) {
+            strip_utf8_bom(row[0]);
             schema.setHeader(row);
             header_seen = true;
         } else {
@@ -299,7 +314,7 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
         }
         row.clear();
         auto t0 = Clock::now();
-        total_triples += ttl::write2TTL(schema, rows, outfs, first_file && batch_i == 0);
+        total_triples += ttl::write2TTL(schema, rows, outfs, first_file && batch_i == 1);
         write_s += std::chrono::duration<double>(Clock::now() - t0).count();
         total_rows += rows.size();
     }
