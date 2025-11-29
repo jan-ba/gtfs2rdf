@@ -18,13 +18,44 @@ module;
 export module schema.stops;
 import schema.core;
 import rdf_components;
+import field_transforms;
 
 using namespace rdf;
 
-export namespace schema {
+namespace schema {
+
+void location_type_to_enum(std::string& s){
+    int code;
+    try {
+        code = std::stoi(s);
+    } catch (...) {
+        throw std::runtime_error("❌ Transform error: Invalid location_type value: '" + s + "'");
+    }
+
+    switch (code) {
+        case 0: s = "stop"; break;          // Stop / Platform
+        case 1: s = "station"; break;       // Station
+        case 2: s = "entrance_exit"; break; // Entrance/Exit
+        case 3: s = "generic_node"; break;  // Generic Node
+        case 4: s = "boarding_area"; break; // Boarding Area
+        default:
+            throw std::runtime_error("❌ Transform error: Unknown location_type code: " + std::to_string(code));
+    }
+}
+
+void fun_stuff(std::string& s){
+    if (s == "stop") {
+        s = s + " got transformed xD!";
+    }
+}
+
 
 // this gtfs->rdf schema is preliminary and only covers a subset of all possible fields
-Schema buildStopsSchema() {
+export Schema buildStopsSchema(field_transforms::TransformRegistry& registry) {
+
+  // Register field transforms used in this schema
+  registry.registerTransform("fun1", location_type_to_enum);
+  registry.registerTransform("fun2", fun_stuff);
 
   // possibly not required
   const std::vector<std::string> possible_columns = {
@@ -64,7 +95,7 @@ Schema buildStopsSchema() {
                                       { "POINT({stop_lon} {stop_lat})", IRI("geo","wktLiteral") } },
 
     // Hierarchy / location type
-    { {"stops","{stop_id}"},  {"gtfs","locationType"},  { "{location_type}", IRI("xsd","integer") } },
+    { {"stops","{stop_id}"},  {"gtfs","locationType"},  { "{location_type | fun1 | fun2}", IRI("xsd","integer") } },
     { {"stops","{stop_id}"},  {"gtfs","parentStation"}, { IRI("stops","{parent_station}") } },
 
     // Misc
@@ -75,7 +106,7 @@ Schema buildStopsSchema() {
     { {"stops","{stop_id}"},  {"gtfs","platformCode"},      { "{platform_code}" } }
   };
 
-  Schema sc("stops.txt", possible_columns, prefixes, triples, true, true, true);
+  Schema sc("stops.txt", possible_columns, prefixes, triples, registry, true, true, true);
 
   return sc;
 }

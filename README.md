@@ -12,7 +12,9 @@ cmake --build build -j
 ## Testing
 
 To create custom mock data (in a zip archive since this is the expected input) use the command below
-from root. Instead of `stops.txt`, you can specify any files from that directory (!) to make up the final zip
+from root. Instead of `stops.txt`, you can specify any files from that directory (!) to make it into
+the resulting zip file
+
 ```bash
 (cd mock_data && zip romania_mock.zip stops.txt)
 ```

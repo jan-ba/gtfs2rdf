@@ -17,13 +17,14 @@ module;
 export module schema.routes;
 import schema.core;
 import rdf_components;
+import field_transforms;
 
 using namespace rdf;
 
-export namespace schema {
+namespace schema {
 
 // GTFS -> RDF schema for routes.txt
-Schema buildRoutesSchema() {
+export Schema buildRoutesSchema(field_transforms::TransformRegistry& registry) {
   const std::vector<std::string> possible_columns = {
     "route_id", "agency_id",
     "route_short_name", "route_long_name", "route_desc",
@@ -87,7 +88,7 @@ Schema buildRoutesSchema() {
                                        { "{cemv_support}", IRI("xsd","integer") } }
   };
 
-  Schema sc("routes.txt", possible_columns, prefixes, triples);
+  Schema sc("routes.txt", possible_columns, prefixes, triples, registry);
   return sc;
 }
 

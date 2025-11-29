@@ -18,13 +18,14 @@ module;
 export module schema.agency;
 import schema.core;
 import rdf_components;
+import field_transforms;
 
 using namespace rdf;
 
-export namespace schema {
+namespace schema {
 
 // GTFS -> RDF schema for agency.txt
-Schema buildAgencySchema() {
+export Schema buildAgencySchema(field_transforms::TransformRegistry& registry) {
   const std::vector<std::string> possible_columns = {
     "agency_id",
     "agency_name",
@@ -73,7 +74,7 @@ Schema buildAgencySchema() {
                                        { "{cemv_support}", IRI("xsd","integer") } }
   };
 
-  Schema sc("agencies.txt", possible_columns, prefixes, triples);
+  Schema sc("agencies.txt", possible_columns, prefixes, triples, registry);
   return sc;
 }
 

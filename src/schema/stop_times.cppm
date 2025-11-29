@@ -18,13 +18,14 @@ module;
 export module schema.stop_times;
 import schema.core;
 import rdf_components;
+import field_transforms;
 
 using namespace rdf;
 
-export namespace schema {
+namespace schema {
 
 // this gtfs->rdf schema is preliminary and only covers a subset of all possible fields
-Schema buildStopTimesSchema() {
+export Schema buildStopTimesSchema(field_transforms::TransformRegistry& registry) {
 
   const std::vector<std::string> possible_columns = {
     "trip_id", "arrival_time", "departure_time", "stop_id", "location_group_id", "location_id",
@@ -71,6 +72,13 @@ Schema buildStopTimesSchema() {
     { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","arrivalTime"},   { "{arrival_time}" } },
     { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","departureTime"}, { "{departure_time}" } },
 
+    // for testing function pumping (TODO: remove later)
+    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","arrivalTimeSecs"}, 
+                                                { "{arrival_time | time_to_seconds}", IRI("xsd","integer") } },
+    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","departureTimeSecs"}, 
+                                              { "{departure_time | time_to_seconds}", IRI("xsd","integer") } },
+
+
     // Optional headsign override
     { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","stopHeadsign"},  { "{stop_headsign}" } },
 
@@ -106,7 +114,7 @@ Schema buildStopTimesSchema() {
   };
 
 
-  Schema sc("stoptimes.txt", possible_columns, prefixes, triples);
+  Schema sc("stoptimes.txt", possible_columns, prefixes, triples, registry);
   return sc;
 }
 

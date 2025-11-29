@@ -18,13 +18,14 @@ module;
 export module schema.calendar;
 import schema.core;
 import rdf_components;
+import field_transforms;
 
 using namespace rdf;
 
-export namespace schema {
+namespace schema {
 
 // GTFS -> RDF schema for calendar.txt
-Schema buildCalendarSchema() {
+export Schema buildCalendarSchema(field_transforms::TransformRegistry& registry) {
   const std::vector<std::string> possible_columns = {
     "service_id",
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
@@ -69,7 +70,7 @@ Schema buildCalendarSchema() {
                                       { "{end_date}" } }
   };
 
-  Schema sc("calendar.txt", possible_columns, prefixes, triples);
+  Schema sc("calendar.txt", possible_columns, prefixes, triples, registry);
   return sc;
 }
 

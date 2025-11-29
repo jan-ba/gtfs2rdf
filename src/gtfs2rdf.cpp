@@ -26,12 +26,13 @@ import schema.routes;
 import schema.stop_times;
 import schema.stops;
 import schema.trips;
-
-// import schema.registry;
+import field_transforms;
 
 using namespace util;
 
-using Factory = schema::Schema(*)();
+
+
+using Factory = schema::Schema(*)(field_transforms::TransformRegistry&);
 const std::unordered_map<std::string, Factory> factories{
   {"agency.txt",         &schema::buildAgencySchema},
   {"calendar.txt",       &schema::buildCalendarSchema},
@@ -41,61 +42,6 @@ const std::unordered_map<std::string, Factory> factories{
   {"stops.txt",          &schema::buildStopsSchema},
   {"trips.txt",          &schema::buildTripsSchema},
 };
-
-long long convertFileToStream(const std::filesystem::path& inputPath, schema::Schema& schema,
-                              std::ostream& outfs, size_t batch_size, bool first_file)   
-                              // first_file: true only for first file's first batch
-{
-    using Clock = std::chrono::steady_clock;
-
-    std::ifstream ifs(inputPath, std::ios::binary);
-    if (!ifs) {
-        throw std::runtime_error("❌  Parsing error: unable to open file: " + inputPath.string());
-    }
-
-    std::vector<std::vector<std::string>> rows;
-    if (batch_size > 0) rows.reserve(batch_size);
-
-    long long total_triples = 0;
-    size_t total_rows  = 0;
-    size_t batches     = 0;
-    double parse_s = 0.0;
-    double write_s = 0.0;
-    bool eof = false;
-    bool first_batch = true;
-    std::cout << "\n______________________________________________________________\n";
-
-    while (!eof) {
-        rows.clear();
-
-        // Parse next batch (header handled inside on firstBatch=true)
-        auto t0 = Clock::now();
-        eof = gtfs::parse_file(ifs, batch_size, first_batch, rows, schema); // fills 'rows'
-        parse_s += std::chrono::duration<double>(Clock::now() - t0).count();
-
-        // Write this batch (prefixes only for the very first batch)
-        t0 = Clock::now();
-        total_triples += ttl::write2TTL(schema, rows, outfs, first_file && first_batch);
-        write_s += std::chrono::duration<double>(Clock::now() - t0).count();
-
-        total_rows += rows.size();
-        ++batches;
-
-        // Subsequent batches must not emit prefixes nor re-init header logic
-        first_batch = false;
-    }
-
-    std::cout << "⌛  Parsed " << inputPath << " in " << parse_s << " s"
-              << "  (" << total_rows << " rows, " << batches
-              << " batches @ " << batch_size << ")\n";
-    std::cout << "✅  Wrote " << total_triples << " triples from "
-              << inputPath.filename() << " in " << write_s << " s\n"
-              << "______________________________________________________________\n";
-
-    return total_triples;
-}
-
-
 
 
 int main(int argc, char* argv[]) {
@@ -156,27 +102,15 @@ int main(int argc, char* argv[]) {
 
     std::vector<std::string> files_in_dir;
     std::vector<schema::Schema> used_schemas;
+    field_transforms::TransformRegistry registry;
 
     for ( const auto& [ file, factory ] : factories ) {
         if (zip_name_locate(za, file.c_str(), ZIP_FL_ENC_GUESS) != -1) {
             files_in_dir.push_back(file);
-            used_schemas.emplace_back(factory());  // call factory
+            used_schemas.emplace_back(factory(registry));  // call factory
         }
     }
 
- 
-    // searches for all files in the specified input directory and creates respective schemas (if possible)
-    // for (const auto& entry : std::filesystem::directory_iterator(inputZIP)) {
-    //     const std::string fname = entry.path().filename().string();
-
-    //     if (auto it = factories.find(fname); it != factories.end()) {
-    //         files_in_dir.push_back(entry.path());
-    //         used_schemas.emplace_back(it->second());  // call factory
-    //     } else {
-    //         std::cerr << "⚠️  Warning: '" << fname << "' not a valid GTFS file or respective "\
-    //                      "schema not inmplemented" << std::endl;
-    //     }
-    // }
 
     std::ofstream out(outputPath, std::ios::binary);
     if (!out) {
@@ -196,11 +130,9 @@ int main(int argc, char* argv[]) {
         }
         if (i == 0) {
             used_schemas[i].setPrefixes(merged_prefixes);
-            total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, batch_size_mb, true);
-            // total_triples += convertFileToStream(files_in_dir[i], used_schemas[i], out, batch_size, true);    
+            total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, batch_size_mb, true);  
         } else {
             total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, batch_size_mb, false);
-        // total_triples += convertFileToStream(files_in_dir[i], used_schemas[i], out, batch_size, false);
         }
     }
 

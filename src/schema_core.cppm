@@ -15,9 +15,12 @@ module;
 #include <optional>
 #include <stdexcept>
 #include <iostream>
+#include <functional>
 
 export module schema.core;
 import rdf_components;
+import field_transforms;
+
 
 using namespace rdf;
 
@@ -27,15 +30,18 @@ export class Instruction {
   private:
     std::vector<std::string> parts_;
     std::vector<int> column_indices_;
+    std::vector<std::vector<std::function<void(std::string&)>>> transforms_;
     size_t base_len_ = 0;
     std::string out_;
     const std::string empty_ = "";
     int counter_ = 0;
     bool is_valid_ = true;  // set to false if instruction is invalid due to missing columns
+    const field_transforms::TransformRegistry& registry_;
 
   public:
     Instruction(const std::string& raw_instruction, const std::unordered_map<std::string, 
-                int>& column_map) 
+                int>& column_map, const field_transforms::TransformRegistry& registry) 
+        : registry_(registry)
       {
         // parse raw_instruction into parts and column_indices
         size_t pos = 0;
@@ -47,7 +53,13 @@ export class Instruction {
             }
             parts_.push_back(raw_instruction.substr(start, pos - start));
             base_len_ += parts_.back().size();
-            std::string column_name = raw_instruction.substr(pos + 1, end - pos - 1);
+
+            std::string field = raw_instruction.substr(pos + 1, end - pos - 1);
+            field_transforms::ParsedPlaceholder pp = registry_.parse_placeholder_with_functors(field);
+            std::string column_name = pp.field_name;
+
+            // std::string column_name = raw_instruction.substr(pos + 1, end - pos - 1);
+
             if (!column_map.contains(column_name)) {
                 throw std::runtime_error("❌  Error: unknown column in instruction: " + column_name);
             } else if (column_map.at(column_name) == -1) {
@@ -57,6 +69,7 @@ export class Instruction {
                 return;
             }
             column_indices_.push_back(column_map.at(column_name));
+            transforms_.push_back(pp.transforms);
             start = end + 1;
         }
         parts_.push_back(raw_instruction.substr(start));
@@ -76,7 +89,18 @@ export class Instruction {
                 // missing value -> return empty string
                 return empty_;
             }
-            out_.append(c);
+
+            // apply transforms
+            if (!transforms_[k].empty()) {
+                std::string transformed = c;
+                for (const auto& fn : transforms_[k]) {
+                    fn(transformed);
+                }
+                out_.append(transformed);
+            } else {
+                out_.append(c);
+            }
+
             out_.append(parts_[k + 1]);
         }
         counter_++;
@@ -96,21 +120,20 @@ export class Schema {
     const bool outputTurtle_ = true;        // ttl vs. ntriples
     const bool usePrefixes_ = true;         // @prefix Header
     const bool explicitRdfType_ = true;     // if true, no 'a', ',' , ';' syntactic ttl sugar
+    const field_transforms::TransformRegistry& registry_;
 
     // computed from header
     std::unordered_map<std::string, int> column_map_;  // column name -> index in file, -1 if not found
     std::vector<Instruction> instructions_;  // computed instructions 
 
   public:
-    // ~Schema() {}
-    // Schema() {}
     Schema(const std::string name, const std::vector<std::string> possible_columns,
           const std::unordered_map<std::string, std::string> prefixes,
-          const std::vector<Triple> triples,
+          const std::vector<Triple> triples, const field_transforms::TransformRegistry& registry,
           const bool outputTurtle = true, const bool usePrefixes = true, 
           const bool explicitRdfType = true)
         : name_(std::move(name)), possible_columns_(std::move(possible_columns)),
-          prefixes_(std::move(prefixes)),
+          prefixes_(std::move(prefixes)), registry_(registry),
           outputTurtle_(outputTurtle), usePrefixes_(usePrefixes),
           explicitRdfType_(explicitRdfType) {
       for (const auto& col : this->possible_columns_) {
@@ -140,7 +163,7 @@ export class Schema {
       }
       // build instructions_
       for (const auto& raw_inst : raw_instructions_) {
-        Instruction instr(raw_inst, column_map_);
+        Instruction instr(raw_inst, column_map_, registry_);
         if (!instr.isValid()) {
             continue; // skip invalid instructions (due to missing columns)
         }

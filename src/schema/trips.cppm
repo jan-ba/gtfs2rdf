@@ -18,13 +18,14 @@ module;
 export module schema.trips;
 import schema.core;
 import rdf_components;
+import field_transforms;
 
 using namespace rdf;
 
-export namespace schema {
+namespace schema {
 
 // GTFS -> RDF schema for trips.txt (covers common/optional fields)
-Schema buildTripsSchema() {
+export Schema buildTripsSchema(field_transforms::TransformRegistry& registry) {
   const std::vector<std::string> possible_columns = {
     "route_id", "service_id", "trip_id", "trip_headsign", "trip_short_name", "direction_id",
     "block_id", "shape_id", "wheelchair_accessible", "bikes_allowed", "cars_allowed"
@@ -71,7 +72,7 @@ Schema buildTripsSchema() {
                                    { "{cars_allowed}", IRI("xsd","integer") } }
   };
 
-  Schema sc("trips.txt", possible_columns, prefixes, triples);
+  Schema sc("trips.txt", possible_columns, prefixes, triples, registry);
   return sc;
 }
 
