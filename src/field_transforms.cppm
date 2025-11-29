@@ -11,7 +11,7 @@ export module field_transforms;
 
 // library of field transforms that could be useful for multiple schemas
 // functions will need to be registered in the constructor of TransformRegistry in order to be available
-namespace transforms {
+namespace transform_lib {
 
 
     // transforms a time string "HH:MM:SS" into total seconds from midnight as string
@@ -43,7 +43,7 @@ export class TransformRegistry {
   public:
     TransformRegistry() {
         // register built-in transforms
-        registerTransform("time_to_seconds", transforms::time_to_seconds);
+        registerTransform("time_to_seconds", transform_lib::time_to_seconds);
     }
    
     void registerTransform(const std::string& name, fn fn) {
@@ -54,7 +54,7 @@ export class TransformRegistry {
         registry_[name] = fn;
     }
 
-    ParsedPlaceholder parse_placeholder_with_functors(const std::string& raw) const
+    const ParsedPlaceholder parse_placeholder_with_functors(const std::string& raw) const
     {
         ParsedPlaceholder result;
 
@@ -73,7 +73,7 @@ export class TransformRegistry {
         // field name = part before first '|'
         result.field_name = s.substr(0, pos);
 
-        // Parse transform names after the first '|'
+        // parse transform names after the first '|'
         std::size_t start = pos + 1;
         while (start < s.size()) {
             std::size_t next = s.find('|', start);
