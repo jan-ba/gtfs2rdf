@@ -6,47 +6,62 @@ module;
 #include <stdexcept>
 #include <functional>
 #include <algorithm>
+#include <span>
+
+#include <iostream>
 
 export module field_transforms;
+import utility;
+using namespace util;
 
-// library of field transforms that could be useful for multiple schemas
-// functions will need to be registered in the constructor of TransformRegistry in order to be available
-namespace transform_lib {
-
-
-    // transforms a time string "HH:MM:SS" into total seconds from midnight as string
-    void time_to_seconds(std::string& s) {
-        // s is "HH:MM:SS" (or H:MM:SS)
-        int h = 0, m = 0, sec = 0;
-        if (std::sscanf(s.c_str(), "%d:%d:%d", &h, &m, &sec) != 3) {
-            throw std::runtime_error("❌ Transform error: invalid time '" + s + "'");
-        }
-        int total = h * 3600 + m * 60 + sec;
-        s = std::to_string(total);
-    }
-}
-
-
-
-
-using fn = std::function<void(std::string&)>;
 
 namespace field_transforms {
 
+export const int MaxArgs = 5;  // expected maximum number of arguments for field transforms
+
+// expected maximum number of chained transforms per placeholder - if more are needed, consider 
+// chaining transforms inside a single transform function for performance
+export const int MaxTransforms = 3;
+
+export class ArgSpan {
+    private:
+        const std::string* const* const data_;
+        const size_t size_ = 0;
+        
+    public:
+        ArgSpan(const std::string* const* data, size_t size) : data_(data), size_(size) {}
+
+        size_t size() const { return size_; }
+
+        const std::string& operator[](size_t index) const {
+            if (index >= size_) {
+                throw std::out_of_range("Invalid index access to ArgSpan");
+            }
+            return *data_[index];
+        }
+
+        const std::string* const* data() const { return data_; }
+
+        // iterators
+        const std::string* const* begin() const { return data_; }
+        const std::string* const* end()   const { return data_ + size_; }
+};
+
+export using Transform = std::function<void(const ArgSpan&, std::string&)>;
+
     // return type: field name + list of functors.
 export struct ParsedPlaceholder {
-    std::string field_name;
-    std::vector<fn> transforms;
+    std::vector<std::string> field_names;
+    std::vector<Transform> transforms;
 };
 
 export class TransformRegistry {
   public:
     TransformRegistry() {
-        // register built-in transforms
-        registerTransform("time_to_seconds", transform_lib::time_to_seconds);
+
     }
    
-    void registerTransform(const std::string& name, fn fn) {
+    void registerTransform(const std::string& name, Transform fn) {
         if (registry_.contains(name)) {
             throw std::runtime_error("❌  Transform error: field transform already registered: " + name);
         }
@@ -66,26 +81,16 @@ export class TransformRegistry {
         // find first '|'
         std::size_t pos = s.find('|');
         if (pos == std::string::npos) {  // no '|', only field name
-            result.field_name = s;
+            result.field_names.push_back(s);
             return result;
         }
 
         // field name = part before first '|'
-        result.field_name = s.substr(0, pos);
+        result.field_names = util::split(s.substr(0, pos), ',');
 
-        // parse transform names after the first '|'
-        std::size_t start = pos + 1;
-        while (start < s.size()) {
-            std::size_t next = s.find('|', start);
-            std::string name;
-            if (next == std::string::npos) {
-                name = s.substr(start);
-                start = s.size();
-            } else {
-                name = s.substr(start, next - start);
-                start = next + 1;
-            }
+        auto transforms = util::split(s.substr(pos + 1), '|');
 
+        for (const auto& name : transforms) {
             if (name.empty()) {
                 // skip empty transform names
                 continue;
@@ -97,11 +102,10 @@ export class TransformRegistry {
 
             result.transforms.push_back(registry_.at(name));
         }
-
         return result;
     }
 
-    fn getTransform(const std::string& name) const {
+    Transform getTransform(const std::string& name) const {
         if (!registry_.contains(name)) {
             throw std::runtime_error("❌  Error: unknown field transform: " + name);
         }
@@ -109,7 +113,7 @@ export class TransformRegistry {
     }
 
   private:
-    std::unordered_map<std::string, fn> registry_;
+    std::unordered_map<std::string, Transform> registry_;
 };
 
 }  // namespace

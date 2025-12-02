@@ -15,47 +15,70 @@ module;
 #include <optional>
 #include <stdexcept>
 
+#include <iostream> 
+
 export module schema.stops;
 import schema.core;
 import rdf_components;
 import field_transforms;
+import t_lib;
 
 using namespace rdf;
 
 namespace schema {
 
-void location_type_to_enum(std::string& s){
-    int code;
-    try {
-        code = std::stoi(s);
-    } catch (...) {
-        throw std::runtime_error("❌ Transform error: Invalid location_type value: '" + s + "'");
-    }
-
+void location_type_to_enum(const field_transforms::ArgSpan& args, std::string& out) {
+    int code = std::stoi(std::string(args[0]));
     switch (code) {
-        case 0: s = "stop"; break;          // Stop / Platform
-        case 1: s = "station"; break;       // Station
-        case 2: s = "entrance_exit"; break; // Entrance/Exit
-        case 3: s = "generic_node"; break;  // Generic Node
-        case 4: s = "boarding_area"; break; // Boarding Area
+        case 0: out = "stop";           break;
+        case 1: out = "station";        break;
+        case 2: out = "entrance_exit";  break;
+        case 3: out = "generic_node";   break;
+        case 4: out = "boarding_area";  break;
         default:
-            throw std::runtime_error("❌ Transform error: Unknown location_type code: " + std::to_string(code));
+            throw std::runtime_error("❌ Transform error: Unknown location_type code: " 
+                                     + std::to_string(code));
     }
 }
 
-void fun_stuff(std::string& s){
-    if (s == "stop") {
-        s = s + " got transformed xD!";
+void wkt_point_lon_lat(const field_transforms::ArgSpan& args, std::string& out) {
+    // Convert to double
+    double lon = 0.0;
+    double lat = 0.0;
+    try {
+        lon = std::stod(std::string(args[0]));
+        lat = std::stod(std::string(args[1]));
+    } catch (...) {
+        throw std::runtime_error(
+            "❌ Transform error: invalid numeric lon/lat: '" +
+            std::string(args[0]) + "', '" + std::string(args[1]) + "'");
     }
+
+    // Basic range check
+    if (lon < -180.0 || lon > 180.0 || lat < -90.0 || lat > 90.0) {
+        throw std::runtime_error(
+            "❌ Transform error: lon/lat out of range: lon=" +
+            std::to_string(lon) + ", lat=" + std::to_string(lat));
+    }
+
+    // Build WKT POINT(lon lat)
+    out.clear();
+    out.reserve(32);
+    out += "POINT(";
+    out += std::to_string(lon);
+    out.push_back(' ');
+    out += std::to_string(lat);
+    out.push_back(')');
 }
+
 
 
 // this gtfs->rdf schema is preliminary and only covers a subset of all possible fields
 export Schema buildStopsSchema(field_transforms::TransformRegistry& registry) {
 
   // Register field transforms used in this schema
-  registry.registerTransform("fun1", location_type_to_enum);
-  registry.registerTransform("fun2", fun_stuff);
+  registry.registerTransform("loc2Enum", location_type_to_enum);
+  registry.registerTransform("wktPointLonLat", wkt_point_lon_lat);
 
   // possibly not required
   const std::vector<std::string> possible_columns = {
@@ -91,11 +114,20 @@ export Schema buildStopsSchema(field_transforms::TransformRegistry& registry) {
     { {"stops","{stop_id}"},  {"wgs","lat"},         { "{stop_lat}", IRI("xsd","decimal") } },
     { {"stops","{stop_id}"},  {"wgs","long"},        { "{stop_lon}", IRI("xsd","decimal") } },
     { {"stops","{stop_id}"},  {"geo","hasGeometry"}, { IRI("gtfs2rdfgeom","stop_{stop_id}") } },
-    { {"gtfs2rdfgeom","stop_{stop_id}"}, {"geo","asWKT"},
+    { {"stops","{stop_id}"},  {"geo","asWKT"},
                                       { "POINT({stop_lon} {stop_lat})", IRI("geo","wktLiteral") } },
 
+    // Alternative geometry using transform                                      
+    { {"stops","{stop_id}"},  {"geo","asWKT"},
+                              { "{stop_lon, stop_lat | wktPointLonLat}", IRI("geo","wktLiteral") } },
+
+    // Debug info (for testing only)                              
+    { {"stops","{stop_id}"}, {"gtfs","debugInfo"}, { "{stop_id,stop_name,stop_lat,stop_lon,location_type|debug5|debug_wrap}" } },
+                              
+
     // Hierarchy / location type
-    { {"stops","{stop_id}"},  {"gtfs","locationType"},  { "{location_type | fun1 | fun2}", IRI("xsd","integer") } },
+    { {"stops","{stop_id}"},  {"gtfs","locationType"},  { "{location_type}", IRI("xsd","integer") } },
+    { {"stops","{stop_id}"},  {"gtfs","locationTypeEnum"},{ "{location_type|loc2Enum}" } },
     { {"stops","{stop_id}"},  {"gtfs","parentStation"}, { IRI("stops","{parent_station}") } },
 
     // Misc

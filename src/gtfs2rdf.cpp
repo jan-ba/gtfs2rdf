@@ -27,6 +27,7 @@ import schema.stop_times;
 import schema.stops;
 import schema.trips;
 import field_transforms;
+import t_lib;
 
 using namespace util;
 
@@ -103,6 +104,7 @@ int main(int argc, char* argv[]) {
     std::vector<std::string> files_in_dir;
     std::vector<schema::Schema> used_schemas;
     field_transforms::TransformRegistry registry;
+    t_lib::register_lib_transforms(registry);
 
     for ( const auto& [ file, factory ] : factories ) {
         if (zip_name_locate(za, file.c_str(), ZIP_FL_ENC_GUESS) != -1) {

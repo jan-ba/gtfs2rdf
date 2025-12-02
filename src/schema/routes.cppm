@@ -18,6 +18,7 @@ export module schema.routes;
 import schema.core;
 import rdf_components;
 import field_transforms;
+import t_lib;
 
 using namespace rdf;
 

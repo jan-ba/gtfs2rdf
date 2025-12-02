@@ -26,11 +26,20 @@ using namespace rdf;
 
 namespace schema {
 
+struct Datagap {
+    size_t num_fields = 0;
+    size_t num_transforms = 0;
+    std::array<int, field_transforms::MaxArgs> column_indices;
+    std::array<field_transforms::Transform, field_transforms::MaxTransforms> transforms;
+};
+
 export class Instruction {
   private:
     std::vector<std::string> parts_;
-    std::vector<int> column_indices_;
-    std::vector<std::vector<std::function<void(std::string&)>>> transforms_;
+    // std::vector<int> column_indices_;
+    std::vector<Datagap> datagaps_;
+    // std::vector<std::vector<Transform>> transforms_;
+    std::array<const std::string*, field_transforms::MaxArgs> arg_buf_;
     size_t base_len_ = 0;
     std::string out_;
     const std::string empty_ = "";
@@ -56,56 +65,95 @@ export class Instruction {
 
             std::string field = raw_instruction.substr(pos + 1, end - pos - 1);
             field_transforms::ParsedPlaceholder pp = registry_.parse_placeholder_with_functors(field);
-            std::string column_name = pp.field_name;
 
-            // std::string column_name = raw_instruction.substr(pos + 1, end - pos - 1);
+            if (pp.field_names.size() > field_transforms::MaxArgs) {
+                throw std::runtime_error("❌  Error: too many function arguments in instruction: " 
+                                          + raw_instruction + " (max " + std::to_string(field_transforms::MaxArgs) + ")");
+            } 
 
-            if (!column_map.contains(column_name)) {
-                throw std::runtime_error("❌  Error: unknown column in instruction: " + column_name);
-            } else if (column_map.at(column_name) == -1) {
-                std::cerr << "⚠️  Warning: column '" << column_name << "' not found in header for triple: '" 
-                          << raw_instruction << "' . Skipping this triple.\n";
-                is_valid_ = false;
-                return;
+            if (pp.transforms.size() > field_transforms::MaxTransforms) {
+                throw std::runtime_error("❌  Error: too many chained transforms in instruction: " 
+                                          + raw_instruction + " (max " + std::to_string(field_transforms::MaxTransforms) + ")");
             }
-            column_indices_.push_back(column_map.at(column_name));
-            transforms_.push_back(pp.transforms);
-            start = end + 1;
+
+            Datagap dg;
+            dg.num_fields = pp.field_names.size();
+            dg.num_transforms = pp.transforms.size();
+            for (size_t j = 0; j < pp.transforms.size(); ++j) {
+                dg.transforms[j] = pp.transforms[j];
+            }
+
+            for (size_t j = 0; j < dg.num_fields; ++j) {
+                const auto& column_name = pp.field_names[j];
+                if (!column_map.contains(column_name)) {
+                    throw std::runtime_error("❌  Error: unknown column in instruction: " + column_name);
+                } else if (column_map.at(column_name) == -1) {
+                    std::cerr << "⚠️  Warning: column '" << column_name << "' not found in header for triple: '" 
+                              << raw_instruction << "' . Skipping this triple.\n";
+                    is_valid_ = false;
+                    return;
+                }
+                dg.column_indices[j] = column_map.at(column_name);
+            }
+            datagaps_.push_back(std::move(dg));
+            start = end + 1; 
         }
         parts_.push_back(raw_instruction.substr(start));
         parts_.back().append("\n");
         base_len_ += parts_.back().size();
-        // at a later stage: better approximation by incorporating whether prefix on / off 
-        // or depending on type of column
-        out_.reserve(base_len_ + 20 * column_indices_.size());
+        
+        // estimate output size
+        size_t approx_dg_len = 0;
+        for (const auto& dg : datagaps_) {
+            approx_dg_len += 20 * dg.num_fields;
+        }
+
+        out_.reserve(base_len_ + approx_dg_len);
       }
 
-    const std::string& render(const std::vector<std::string>& row) {
-        out_.clear();
-        out_.append(parts_[0]);
-        for (std::size_t k = 0; k < column_indices_.size(); ++k) {
-            const std::string& c = row[column_indices_[k]];
-            if (c.empty()) {
-                // missing value -> return empty string
-                return empty_;
-            }
+      const std::string& render(const std::vector<std::string>& row) {
+          out_.clear();
+          out_.append(parts_[0]);
 
-            // apply transforms
-            if (!transforms_[k].empty()) {
-                std::string transformed = c;
-                for (const auto& fn : transforms_[k]) {
-                    fn(transformed);
-                }
-                out_.append(transformed);
-            } else {
-                out_.append(c);
-            }
+          for (size_t k = 0; k < datagaps_.size(); ++k) {
+              const Datagap& dg = datagaps_[k];
+              for (size_t j = 0; j < dg.num_fields; ++j) {
+                  arg_buf_[j] = &row[dg.column_indices[j]];
+                  if (arg_buf_[j]->empty()) {
+                      // missing value -> return empty string
+                      return empty_;
+                  }
+              }
 
-            out_.append(parts_[k + 1]);
+              // apply transforms
+              if (dg.num_transforms > 0) {
+                  std::string c;
+                  field_transforms::ArgSpan spanN {arg_buf_.data(), dg.num_fields};
+                  dg.transforms[0](spanN, c);
+
+                  if (dg.num_transforms > 1) {
+                      // multiple transforms
+                      std::string d = c;
+                      const std::string* d_ptr = &d;
+                      field_transforms::ArgSpan span1 {&d_ptr, 1};
+                      for (size_t j = 1; j < dg.num_transforms; ++j) {
+                          dg.transforms[j](span1, c);
+                          d = c;
+                      }
+                  }
+
+                  out_.append(c); 
+
+              } else {  // no transforms
+                  out_.append(*arg_buf_[0]);
+              }
+
+              out_.append(parts_[k + 1]);
         }
-        counter_++;
-        return out_;
-    }
+        
+          counter_++;
+          return out_;
+      }
 
     int getCount() const { return counter_; }
     bool isValid() const { return is_valid_; }

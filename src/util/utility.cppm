@@ -12,10 +12,32 @@ module;
 #include <iostream>
 #include <map>
 #include <unordered_map>
+#include <string>
 
 export module utility;
 
 export namespace util {
+
+    std::vector<std::string> split(const std::string& str, const char delimiter) {
+        std::vector<std::string> tokens;
+        std::string current;
+
+        for (char c : str) {
+            if (c == delimiter) {
+                tokens.push_back(current);
+                current.clear();
+            } else {
+                current += c;
+            }
+        }
+
+        // add the last token (even if it's empty)
+        tokens.push_back(current);
+
+        return tokens;
+    }
+
+
     template<typename T>
     std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec) {
         os << "[";

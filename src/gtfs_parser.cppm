@@ -321,7 +321,7 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
 
     std::cout << "⌛  Parsed " << filename << " in " << parse_s << " s"
               << "  (" << total_rows << " rows, " << batch_i
-              << " batches @ " << batch_size_mb << ")\n";
+              << " batches @ " << batch_size_mb << "mb)\n";
     std::cout << "✅  Wrote " << total_triples << " triples from "
               << filename << " in " << write_s << " s\n"
               << "______________________________________________________________\n";
