@@ -55,8 +55,14 @@ int main(int argc, char* argv[]) {
          cxxopts::value<bool>()->default_value("false"))  // TODO
         ("s,syntactic-sugar", "Enable syntactic .ttl sugar for a more compact file output", 
          cxxopts::value<bool>()->default_value("false"))  // TODO
+        ("L,spec-dump", "Dump onthology spec to disk",
+        cxxopts::value<bool>()->default_value("false")->implicit_value("true"))  
         ("w,debug", "Show non-fatal warnings", cxxopts::value<bool>()->default_value("true"))  // TODO
         ("h,help", "Show help");
+
+    opts.positional_help("GTFS_ZIP");
+    opts.parse_positional({"dataset"});
+
 
     auto result = opts.parse(argc, argv);
     if (result.count("help")) { std::cout << opts.help() << '\n'; return 0; }
@@ -137,7 +143,28 @@ int main(int argc, char* argv[]) {
             total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, batch_size_mb, false);
         }
     }
-
+    zip_close(za);
+    out.close();
     std::cout << "🎉  Done. Wrote " << total_triples << " triples to " << outputPath << "\n";
+
+    // dump ontology spec if requested
+    if (result["spec-dump"].as<bool>()) {
+        std::filesystem::path specPath = outputPath;
+        specPath.replace_extension(".spec.txt");
+        std::ofstream specOut(specPath, std::ios::binary);
+        if (!specOut) {
+            std::cerr << "❌  Error: cannot open '" << specPath.string() << "' for writing.\n";
+            return 1;
+        }
+        ttl::writePrefixes(specOut, used_schemas[0]); // prefixes only once
+        for (const auto& schema : used_schemas) {
+            for (const auto& inst : schema.getInstructions()) {
+                specOut << inst.getRawInstruction() << "\n";
+            }
+        }
+        specOut.close();
+        std::cout << "📄  Wrote ontology spec to " << specPath << "\n";
+    }
+
     return 0;
 }

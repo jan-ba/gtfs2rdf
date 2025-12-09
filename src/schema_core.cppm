@@ -35,10 +35,8 @@ struct Datagap {
 
 export class Instruction {
   private:
-    std::vector<std::string> parts_;
-    // std::vector<int> column_indices_;
-    std::vector<Datagap> datagaps_;
-    // std::vector<std::vector<Transform>> transforms_;
+    std::vector<std::string> parts_;  // static parts between datagaps
+    std::vector<Datagap> datagaps_;  // dynamic parts
     std::array<const std::string*, field_transforms::MaxArgs> arg_buf_;
     size_t base_len_ = 0;
     std::string out_;
@@ -46,11 +44,12 @@ export class Instruction {
     int counter_ = 0;
     bool is_valid_ = true;  // set to false if instruction is invalid due to missing columns
     const field_transforms::TransformRegistry& registry_;
+    const std::string raw_instruction_;
 
   public:
     Instruction(const std::string& raw_instruction, const std::unordered_map<std::string, 
                 int>& column_map, const field_transforms::TransformRegistry& registry) 
-        : registry_(registry)
+        : registry_(registry), raw_instruction_(raw_instruction)
       {
         // parse raw_instruction into parts and column_indices
         size_t pos = 0;
@@ -157,6 +156,7 @@ export class Instruction {
 
     int getCount() const { return counter_; }
     bool isValid() const { return is_valid_; }
+    const std::string& getRawInstruction() const { return raw_instruction_; }
 };
 
 export class Schema {

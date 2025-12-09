@@ -11,7 +11,7 @@ import field_transforms;
 using namespace field_transforms;
 
 // library of field transforms that could be useful for multiple schemas
-// functions will need to be registered in the constructor of TransformRegistry in order to be available
+// functions will need to be registered in the TransformRegistry (see below) in order to be available
 namespace t_lib {
 
     // factory for range-checking transform

@@ -39,25 +39,25 @@ export Schema buildCalendarDatesSchema(field_transforms::TransformRegistry& regi
     { "gtfs", "https://w3id.org/gtfs2rdf#" }
   };
 
+  const IRI subject = IRI("caldates","{service_id}_{date}");
+
   // NOTE:
   // - We keep `date` as a plain literal because GTFS uses YYYYMMDD (no dashes); mapping to
   //   xsd:date would require transforming to YYYY-MM-DD during parsing.
   // TODO: add proper parsing of datatypes such as date
   const std::vector<Triple> triples = {
-    // SUBJECT                               PREDICATE         OBJECT
+    // SUBJECT            PREDICATE                   OBJECT
     // Identity / type
-    { {"caldates","{service_id}_{date}"},     {"rdf","type"},   { IRI("gtfs","CalendarDate") } },
+    { subject,            {"rdf","type"},             { IRI("gtfs","CalendarDate") } },
 
     // Link to the service this exception refers to
-    { {"caldates","{service_id}_{date}"},     {"gtfs","service"},
-                                                { IRI("services","{service_id}") } },
+    { subject,            {"gtfs","service"},         { IRI("services","{service_id}") } },
 
     // The date of the exception (plain literal; see note above)
-    { {"caldates","{service_id}_{date}"},     {"gtfs","date"},  { "{date}" } },
+    { subject,            {"gtfs","date"},            { "{date}" } },
 
     // Exception type: 1 = added, 2 = removed
-    { {"caldates","{service_id}_{date}"},     {"gtfs","exceptionType"},
-                                                { "{exception_type}", IRI("xsd","integer") } }
+    { subject,            {"gtfs","exceptionType"},   { "{exception_type}", IRI("xsd","integer") } }
   };
 
   Schema sc("calendar_dates.txt", possible_columns, prefixes, triples, registry);

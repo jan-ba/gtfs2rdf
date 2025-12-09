@@ -96,46 +96,48 @@ export Schema buildStopsSchema(field_transforms::TransformRegistry& registry) {
     { "geo", "http://www.opengis.net/ont/geosparql#" },
     { "gtfs2rdfgeom", "https://w3id.org/gtfs2rdf/geometry#" } };
 
+  
+  const IRI subj = IRI("stops","{stop_id}");
 
   // Ontology (?)
   const std::vector<Triple> triples = {
     // SUBJECT                   PREDICATE          OBJECT
 
     // Type
-    { {"stops","{stop_id}"},  {"rdf","type"},    { IRI("gtfs","Stop") } },
+    { subj,  {"rdf","type"},    { IRI("gtfs","Stop") } },
 
     // Labels / desc / code / URL
-    { {"stops","{stop_id}"},  {"gtfs","stopName"},   { "{stop_name}", "de" } },
-    { {"stops","{stop_id}"},  {"gtfs","stopDesc"},   { "{stop_desc}", "de" } },
-    { {"stops","{stop_id}"},  {"gtfs","stopCode"},   { "{stop_code}" } },
-    { {"stops","{stop_id}"},  {"gtfs","stopUrl"},    { "{stop_url}", IRI("xsd","anyURI") } },
+    { subj,  {"gtfs","stopName"},     { "{stop_name}", "de" } },
+    { subj,  {"gtfs","stopDesc"},     { "{stop_desc}", "de" } },
+    { subj,  {"gtfs","stopCode"},     { "{stop_code}" } },
+    { subj,  {"gtfs","stopUrl"},      { "{stop_url}", IRI("xsd","anyURI") } },
 
     // Geometry (WGS84 + GeoSPARQL WKT)
-    { {"stops","{stop_id}"},  {"wgs","lat"},         { "{stop_lat}", IRI("xsd","decimal") } },
-    { {"stops","{stop_id}"},  {"wgs","long"},        { "{stop_lon}", IRI("xsd","decimal") } },
-    { {"stops","{stop_id}"},  {"geo","hasGeometry"}, { IRI("gtfs2rdfgeom","stop_{stop_id}") } },
-    { {"stops","{stop_id}"},  {"geo","asWKT"},
-                                      { "POINT({stop_lon} {stop_lat})", IRI("geo","wktLiteral") } },
+    { subj,  {"wgs","lat"},           { "{stop_lat}", IRI("xsd","decimal") } },
+    { subj,  {"wgs","long"},          { "{stop_lon}", IRI("xsd","decimal") } },
+    { subj,  {"geo","hasGeometry"},   { IRI("gtfs2rdfgeom","stop_{stop_id}") } },
+    { subj,  {"geo","asWKT"},         { "POINT({stop_lon} {stop_lat})", IRI("geo","wktLiteral") } },
 
     // Alternative geometry using transform                                      
-    { {"stops","{stop_id}"},  {"geo","asWKT"},
-                              { "{stop_lon, stop_lat | wktPointLonLat}", IRI("geo","wktLiteral") } },
+    { subj,  {"geo","asWKT"},
+                      { "{stop_lon, stop_lat | wktPointLonLat}", IRI("geo","wktLiteral") } },
 
     // Debug info (for testing only)                              
-    { {"stops","{stop_id}"}, {"gtfs","debugInfo"}, { "{stop_id,stop_name,stop_lat,stop_lon,location_type|debug5|debug_wrap}" } },
+    { subj, {"gtfs","debugInfo"}, 
+                      { "{stop_id,stop_name,stop_lat,stop_lon,location_type|debug5|debug_wrap}" } },
                               
 
     // Hierarchy / location type
-    { {"stops","{stop_id}"},  {"gtfs","locationType"},  { "{location_type}", IRI("xsd","integer") } },
-    { {"stops","{stop_id}"},  {"gtfs","locationTypeEnum"},{ "{location_type|loc2Enum}" } },
-    { {"stops","{stop_id}"},  {"gtfs","parentStation"}, { IRI("stops","{parent_station}") } },
+    { subj,  {"gtfs","locationType"},     { "{location_type}", IRI("xsd","integer") } },
+    { subj,  {"gtfs","locationTypeEnum"}, { "{location_type|loc2Enum}" } },
+    { subj,  {"gtfs","parentStation"},    { IRI("stops","{parent_station}") } },
 
     // Misc
-    { {"stops","{stop_id}"},  {"gtfs","zoneId"},            { "{zone_id}" } },
-    { {"stops","{stop_id}"},  {"gtfs","stopTimezone"},      { "{stop_timezone}" } },
-    { {"stops","{stop_id}"},  {"gtfs","wheelchairBoarding"},{ "{wheelchair_boarding}", IRI("xsd","integer") } },
-    { {"stops","{stop_id}"},  {"gtfs","levelId"},           { "{level_id}" } },
-    { {"stops","{stop_id}"},  {"gtfs","platformCode"},      { "{platform_code}" } }
+    { subj,  {"gtfs","zoneId"},             { "{zone_id}" } },
+    { subj,  {"gtfs","stopTimezone"},       { "{stop_timezone}" } },
+    { subj,  {"gtfs","wheelchairBoarding"}, { "{wheelchair_boarding}", IRI("xsd","integer") } },
+    { subj,  {"gtfs","levelId"},            { "{level_id}" } },
+    { subj,  {"gtfs","platformCode"},       { "{platform_code}" } }
   };
 
   Schema sc("stops.txt", possible_columns, prefixes, triples, registry, true, true, true);

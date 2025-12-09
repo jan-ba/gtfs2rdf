@@ -48,45 +48,41 @@ export Schema buildRoutesSchema(field_transforms::TransformRegistry& registry) {
     { "gtfs", "https://w3id.org/gtfs2rdf#" }
   };
 
+  const IRI subj = IRI("routes","{route_id}");
+
   const std::vector<Triple> triples = {
-    // SUBJECT                        PREDICATE            OBJECT
+    // SUBJECT  PREDICATE                  OBJECT
     // Identity / type
-    { {"routes","{route_id}"},        {"rdf","type"},       { IRI("gtfs","Route") } },
+    { subj, {"rdf","type"},               { IRI("gtfs","Route") } },
 
     // Foreign keys
-    { {"routes","{route_id}"},        {"gtfs","agency"},    { IRI("agencies","{agency_id}") } },
-    { {"routes","{route_id}"},        {"gtfs","network"},   { IRI("networks","{network_id}") } },
+    { subj, {"gtfs","agency"},            { IRI("agencies","{agency_id}") } },
+    { subj, {"gtfs","network"},           { IRI("networks","{network_id}") } },
 
     // Names / description
-    { {"routes","{route_id}"},        {"gtfs","routeShortName"}, { "{route_short_name}" } },
-    { {"routes","{route_id}"},        {"gtfs","routeLongName"},  { "{route_long_name}" } },
-    { {"routes","{route_id}"},        {"gtfs","routeDesc"},      { "{route_desc}" } },
+    { subj, {"gtfs","routeShortName"},    { "{route_short_name}" } },
+    { subj, {"gtfs","routeLongName"},     { "{route_long_name}" } },
+    { subj, {"gtfs","routeDesc"},         { "{route_desc}" } },
 
     // Type (required)
-    { {"routes","{route_id}"},        {"gtfs","routeType"},
-                                       { "{route_type}", IRI("xsd","integer") } },
+    { subj, {"gtfs","routeType"},         { "{route_type}", IRI("xsd","integer") } },
 
     // URL
-    { {"routes","{route_id}"},        {"gtfs","routeUrl"},
-                                       { "{route_url}", IRI("xsd","anyURI") } },
+    { subj, {"gtfs","routeUrl"},          { "{route_url}", IRI("xsd","anyURI") } },
 
     // Colors
-    { {"routes","{route_id}"},        {"gtfs","routeColor"},     { "{route_color}" } },
-    { {"routes","{route_id}"},        {"gtfs","routeTextColor"}, { "{route_text_color}" } },
+    { subj, {"gtfs","routeColor"},        { "{route_color}" } },
+    { subj, {"gtfs","routeTextColor"},    { "{route_text_color}" } },
 
     // Sort order (non-negative integer)
-    { {"routes","{route_id}"},        {"gtfs","routeSortOrder"},
-                                       { "{route_sort_order}", IRI("xsd","nonNegativeInteger") } },
+    { subj, {"gtfs","routeSortOrder"},  { "{route_sort_order}", IRI("xsd","nonNegativeInteger") } },
 
     // Continuous pickup/drop-off (enums)
-    { {"routes","{route_id}"},        {"gtfs","continuousPickup"},
-                                       { "{continuous_pickup}", IRI("xsd","integer") } },
-    { {"routes","{route_id}"},        {"gtfs","continuousDropOff"},
-                                       { "{continuous_drop_off}", IRI("xsd","integer") } },
+    { subj, {"gtfs","continuousPickup"},  { "{continuous_pickup}", IRI("xsd","integer") } },
+    { subj, {"gtfs","continuousDropOff"}, { "{continuous_drop_off}", IRI("xsd","integer") } },
 
     // cEMV support (enum)
-    { {"routes","{route_id}"},        {"gtfs","cemvSupport"},
-                                       { "{cemv_support}", IRI("xsd","integer") } }
+    { subj, {"gtfs","cemvSupport"},       { "{cemv_support}", IRI("xsd","integer") } }
   };
 
   Schema sc("routes.txt", possible_columns, prefixes, triples, registry);

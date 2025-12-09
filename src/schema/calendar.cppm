@@ -40,35 +40,27 @@ export Schema buildCalendarSchema(field_transforms::TransformRegistry& registry)
     { "gtfs",     "https://w3id.org/gtfs2rdf#" }
   };
 
+  const IRI subject = IRI("services","{service_id}");
+
   // NOTE: start_date / end_date are GTFS YYYYMMDD (no dashes).
   // Keep as plain literals unless you normalize to xsd:date (YYYY-MM-DD) during parsing.
   const std::vector<Triple> triples = {
-    // SUBJECT                        PREDICATE    OBJECT
+    // SUBJECT        PREDICATE                 OBJECT
     // Type
-    { {"services","{service_id}"},    {"rdf","type"},
-                                      { IRI("gtfs","Service") } },
+    { subject,        {"rdf","type"},           { IRI("gtfs","Service") } },
 
     // Weekday flags (0/1)
-    { {"services","{service_id}"},    {"gtfs","monday"},
-                                      { "{monday}", IRI("xsd","integer") } },
-    { {"services","{service_id}"},    {"gtfs","tuesday"},
-                                      { "{tuesday}", IRI("xsd","integer") } },
-    { {"services","{service_id}"},    {"gtfs","wednesday"},
-                                      { "{wednesday}", IRI("xsd","integer") } },
-    { {"services","{service_id}"},    {"gtfs","thursday"},
-                                      { "{thursday}", IRI("xsd","integer") } },
-    { {"services","{service_id}"},    {"gtfs","friday"},
-                                      { "{friday}", IRI("xsd","integer") } },
-    { {"services","{service_id}"},    {"gtfs","saturday"},
-                                      { "{saturday}", IRI("xsd","integer") } },
-    { {"services","{service_id}"},    {"gtfs","sunday"},
-                                      { "{sunday}", IRI("xsd","integer") } },
+    { subject,        {"gtfs","monday"},        { "{monday}", IRI("xsd","integer") } },
+    { subject,        {"gtfs","tuesday"},       { "{tuesday}", IRI("xsd","integer") } },
+    { subject,        {"gtfs","wednesday"},     { "{wednesday}", IRI("xsd","integer") } },
+    { subject,        {"gtfs","thursday"},      { "{thursday}", IRI("xsd","integer") } },
+    { subject,        {"gtfs","friday"},        { "{friday}", IRI("xsd","integer") } },
+    { subject,        {"gtfs","saturday"},      { "{saturday}", IRI("xsd","integer") } },
+    { subject,        {"gtfs","sunday"},        { "{sunday}", IRI("xsd","integer") } },
 
     // Date range (plain literals per note above)
-    { {"services","{service_id}"},    {"gtfs","startDate"},
-                                      { "{start_date}" } },
-    { {"services","{service_id}"},    {"gtfs","endDate"},
-                                      { "{end_date}" } }
+    { subject,        {"gtfs","startDate"},     { "{start_date}" } },
+    { subject,        {"gtfs","endDate"},       { "{end_date}" } }
   };
 
   Schema sc("calendar.txt", possible_columns, prefixes, triples, registry);

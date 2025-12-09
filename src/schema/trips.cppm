@@ -32,6 +32,8 @@ export Schema buildTripsSchema(field_transforms::TransformRegistry& registry) {
     "block_id", "shape_id", "wheelchair_accessible", "bikes_allowed", "cars_allowed"
   };
 
+  const IRI subj = IRI("trips","{trip_id}");
+
   const std::unordered_map<std::string, std::string> prefixes = {
     { "trips",    "https://gtfs.de/trips/" },
     { "routes",   "https://gtfs.de/routes/" },
@@ -47,30 +49,29 @@ export Schema buildTripsSchema(field_transforms::TransformRegistry& registry) {
   const std::vector<Triple> triples = {
     // SUBJECT                    PREDICATE         OBJECT
     // Identity
-    { {"trips","{trip_id}"}, {"rdf","type"},   { IRI("gtfs","Trip") } },
+    { subj, {"rdf","type"},                   { IRI("gtfs","Trip") } },
 
     // Foreign keys
-    { {"trips","{trip_id}"}, {"gtfs","route"}, { IRI("routes","{route_id}") } },
-    { {"trips","{trip_id}"}, {"gtfs","service"},{ IRI("services","{service_id}") } },
+    { subj, {"gtfs","route"},                 { IRI("routes","{route_id}") } },
+    { subj, {"gtfs","service"},               { IRI("services","{service_id}") } },
 
     // Labels
-    { {"trips","{trip_id}"}, {"gtfs","tripHeadsign"},  { "{trip_headsign}" } },
-    { {"trips","{trip_id}"}, {"gtfs","tripShortName"}, { "{trip_short_name}" } },
+    { subj, {"gtfs","tripHeadsign"},          { "{trip_headsign}" } },
+    { subj, {"gtfs","tripShortName"},         { "{trip_short_name}" } },
 
     // Direction (0/1)
-    { {"trips","{trip_id}"}, {"gtfs","directionId"},   { "{direction_id}", IRI("xsd","integer") } },
+    { subj, {"gtfs","directionId"},           { "{direction_id}", IRI("xsd","integer") } },
 
     // Block and shape
-    { {"trips","{trip_id}"}, {"gtfs","block"}, { IRI("blocks","{block_id}") } },
-    { {"trips","{trip_id}"}, {"gtfs","shape"}, { IRI("shapes","{shape_id}") } },
+    { subj, {"gtfs","block"},                 { IRI("blocks","{block_id}") } },
+    { subj, {"gtfs","shape"},                 { IRI("shapes","{shape_id}") } },
 
     // Accessibility / allowances (enums: 0/1/2)
-    { {"trips","{trip_id}"}, {"gtfs","wheelchairAccessible"},
-                                   { "{wheelchair_accessible}", IRI("xsd","integer") } },
-    { {"trips","{trip_id}"}, {"gtfs","bikesAllowed"},
-                                   { "{bikes_allowed}", IRI("xsd","integer") } },
-    { {"trips","{trip_id}"}, {"gtfs","carsAllowed"},
-                                   { "{cars_allowed}", IRI("xsd","integer") } }
+    { subj, {"gtfs","wheelchairAccessible"},  { "{wheelchair_accessible}", IRI("xsd","integer") } },
+    { subj, {"gtfs","bikesAllowed"},
+                                              { "{bikes_allowed}", IRI("xsd","integer") } },
+    { subj, {"gtfs","carsAllowed"},
+                                              { "{cars_allowed}", IRI("xsd","integer") } }
   };
 
   Schema sc("trips.txt", possible_columns, prefixes, triples, registry);

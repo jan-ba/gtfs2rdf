@@ -17,7 +17,8 @@ using namespace util;
 
 namespace field_transforms {
 
-export const int MaxArgs = 5;  // expected maximum number of arguments for field transforms
+export const int MaxArgs = 7;  // expected maximum number of arguments for field transforms
+                               // 7 since this accounts for all days of the week in calendar.txt
 
 // expected maximum number of chained transforms per placeholder - if more are needed, consider 
 // chaining transforms inside a single transform function for performance

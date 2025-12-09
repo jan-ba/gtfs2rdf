@@ -52,66 +52,55 @@ export Schema buildStopTimesSchema(field_transforms::TransformRegistry& registry
     { "gtfs2rdfgeom", "https://w3id.org/gtfs2rdf/geometry#" }
   };
 
+  const IRI subj = IRI("stoptimes","{trip_id}_{stop_sequence}");
+
   const std::vector<Triple> triples = {
-    // SUBJECT                                  PREDICATE          OBJECT
+    // SUBJECT PREDICATE                          OBJECT
     // Identity & links
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"rdf","type"}, { IRI("gtfs","StopTime") } },
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","trip"}, { IRI("trips","{trip_id}") } },
+    { subj, {"rdf","type"},                      { IRI("gtfs","StopTime") } },
+    { subj, {"gtfs","trip"},                     { IRI("trips","{trip_id}") } },
 
     // One of these (mutually exclusive per GTFS)
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","stop"}, { IRI("stops","{stop_id}") } },
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","locationGroup"},   
-                                                { IRI("locationgroups","{location_group_id}") } },
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","location"},        
-                                                { IRI("locations","{location_id}") } },
+    { subj, {"gtfs","stop"},                     { IRI("stops","{stop_id}") } },
+    { subj, {"gtfs","locationGroup"},            { IRI("locationgroups","{location_group_id}") } },
+    { subj, {"gtfs","location"},                 { IRI("locations","{location_id}") } },
 
     // Core fields
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","stopSequence"},    
-                                                    { "{stop_sequence}", IRI("xsd","integer") } },
+    { subj, {"gtfs","stopSequence"},             { "{stop_sequence}", IRI("xsd","integer") } },
 
     // Times (plain literals; GTFS allows >24:00:00)
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","arrivalTime"},   { "{arrival_time}" } },
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","departureTime"}, { "{departure_time}" } },
+    { subj, {"gtfs","arrivalTime"},              { "{arrival_time}" } },
+    { subj, {"gtfs","departureTime"},            { "{departure_time}" } },
 
     // for testing function pumping (TODO: remove later)
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","arrivalTimeSecs"}, 
-                                                { "{arrival_time | time_to_seconds}", IRI("xsd","integer") } },
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","departureTimeSecs"}, 
-                                              { "{departure_time | time_to_seconds}", IRI("xsd","integer") } },
+    { subj, {"gtfs","arrivalTimeSecs"}, 
+                                  { "{arrival_time | time_to_seconds}", IRI("xsd","integer") } },
+    { subj, {"gtfs","departureTimeSecs"}, 
+                                  { "{departure_time | time_to_seconds}", IRI("xsd","integer") } },
 
 
     // Optional headsign override
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","stopHeadsign"},  { "{stop_headsign}" } },
+    { subj, {"gtfs","stopHeadsign"},             { "{stop_headsign}" } },
 
     // On-demand windows (plain literals)
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","startPickupDropOffWindow"}, 
-                                                            { "{start_pickup_drop_off_window}" } },
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","endPickupDropOffWindow"},   
-                                                              { "{end_pickup_drop_off_window}" } },
+    { subj, {"gtfs","startPickupDropOffWindow"}, { "{start_pickup_drop_off_window}" } },
+    { subj, {"gtfs","endPickupDropOffWindow"},   { "{end_pickup_drop_off_window}" } },
 
     // Enums (as integers)
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","pickupType"},      
-                                                        { "{pickup_type}", IRI("xsd","integer") } },
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","dropOffType"},     
-                                                      { "{drop_off_type}", IRI("xsd","integer") } },
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","continuousPickup"},
-                                                  { "{continuous_pickup}", IRI("xsd","integer") } },
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","continuousDropOff"},
-                                                { "{continuous_drop_off}", IRI("xsd","integer") } },
+    { subj, {"gtfs","pickupType"},               { "{pickup_type}", IRI("xsd","integer") } },
+    { subj, {"gtfs","dropOffType"},              { "{drop_off_type}", IRI("xsd","integer") } },
+    { subj, {"gtfs","continuousPickup"},         { "{continuous_pickup}", IRI("xsd","integer") } },
+    { subj, {"gtfs","continuousDropOff"},        { "{continuous_drop_off}", IRI("xsd","integer") } },
 
     // Distance along shape
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","shapeDistTraveled"},
-                                                { "{shape_dist_traveled}", IRI("xsd","decimal") } },
+    { subj, {"gtfs","shapeDistTraveled"},        { "{shape_dist_traveled}", IRI("xsd","decimal") } },
 
     // Exact vs. approximate
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","timepoint"},       
-                                                          { "{timepoint}", IRI("xsd","integer") } },
+    { subj, {"gtfs","timepoint"},                { "{timepoint}", IRI("xsd","integer") } },
 
     // Booking rules
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","pickupBookingRule"},
-                                                    { IRI("booking","{pickup_booking_rule_id}") } },
-    { {"stoptimes","{trip_id}_{stop_sequence}"}, {"gtfs","dropOffBookingRule"},
-                                                  { IRI("booking","{drop_off_booking_rule_id}") } }
+    { subj, {"gtfs","pickupBookingRule"},        { IRI("booking","{pickup_booking_rule_id}") } },
+    { subj, {"gtfs","dropOffBookingRule"},       { IRI("booking","{drop_off_booking_rule_id}") } }
   };
 
 

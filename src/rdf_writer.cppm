@@ -25,7 +25,7 @@ using namespace schema;
 
 namespace ttl {
 
-void writePrefixes(std::ostream& os, const Schema& sc) {
+export void writePrefixes(std::ostream& os, const Schema& sc) {
   if (!sc.isPrefixes()) return; // ntriples später
   for (const auto& [pfx, iri] : sc.getPrefixes()) {
     os << "@prefix " << pfx << ": <" << iri << "> .\n";

@@ -46,33 +46,27 @@ export Schema buildAgencySchema(field_transforms::TransformRegistry& registry) {
     { "gtfs",     "https://w3id.org/gtfs2rdf#" }
   };
 
+  // since subject does not change per triple, we can use placeholders for agency_id for easier readability
+  const IRI subject = IRI("agencies", "{agency_id}");
+
   const std::vector<Triple> triples = {
     // SUBJECT                         PREDICATE           OBJECT
     // Type
-    { {"agencies","{agency_id}"},      {"rdf","type"},
-                                       { IRI("gtfs","Agency") } },
+    { subject,      {"rdf","type"},                  { IRI("gtfs","Agency") } },
 
     // Core fields
-    { {"agencies","{agency_id}"},      {"gtfs","agencyName"},
-                                       { "{agency_name}" } },
-    { {"agencies","{agency_id}"},      {"gtfs","agencyUrl"},
-                                       { "{agency_url}", IRI("xsd","anyURI") } },
-    { {"agencies","{agency_id}"},      {"gtfs","agencyTimezone"},
-                                       { "{agency_timezone}" } },
+    { subject,      {"gtfs","agencyName"},           { "{agency_name}" } },
+    { subject,      {"gtfs","agencyUrl"},            { "{agency_url}", IRI("xsd","anyURI") } },
+    { subject,      {"gtfs","agencyTimezone"},       { "{agency_timezone}" } },
 
     // Optional fields
-    { {"agencies","{agency_id}"},      {"gtfs","agencyLang"},
-                                       { "{agency_lang}", IRI("xsd","language") } },
-    { {"agencies","{agency_id}"},      {"gtfs","agencyPhone"},
-                                       { "{agency_phone}" } },
-    { {"agencies","{agency_id}"},      {"gtfs","agencyFareUrl"},
-                                       { "{agency_fare_url}", IRI("xsd","anyURI") } },
-    { {"agencies","{agency_id}"},      {"gtfs","agencyEmail"},
-                                       { "{agency_email}" } },
+    { subject,      {"gtfs","agencyLang"},           { "{agency_lang}", IRI("xsd","language") } },
+    { subject,      {"gtfs","agencyPhone"},          { "{agency_phone}" } },
+    { subject,      {"gtfs","agencyFareUrl"},        { "{agency_fare_url}", IRI("xsd","anyURI") } },
+    { subject,      {"gtfs","agencyEmail"},          { "{agency_email}" } },
 
     // cEMV support enum (0/1/2)
-    { {"agencies","{agency_id}"},      {"gtfs","cemvSupport"},
-                                       { "{cemv_support}", IRI("xsd","integer") } }
+    { subject,      {"gtfs","cemvSupport"},          { "{cemv_support}", IRI("xsd","integer") } }
   };
 
   Schema sc("agencies.txt", possible_columns, prefixes, triples, registry);
