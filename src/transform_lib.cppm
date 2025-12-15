@@ -17,8 +17,7 @@ namespace t_lib {
     // factory for range-checking transform
     // Use like this in a schema file:
     // registry.registerTransform("in_range_0_100", t_lib::in_range(0.0, 100.0));
-
-    Transform in_range(double min, double max) {
+    Transform2One in_range(double min, double max) {
 
         return [min, max](const ArgSpan& args, std::string& out) {
             const std::string& s = args[0];
@@ -36,7 +35,6 @@ namespace t_lib {
     
     // _____________________________________________________________________________________________
     // Functions for type correctness checks
-
     void is_int(const ArgSpan& args, std::string& out) {
         const std::string& s = args[0];
         if (s.empty()) {
@@ -114,31 +112,19 @@ namespace t_lib {
 
         out = s;
     }
-
     
     // _____________________________________________________________________________________________ 
-    // some useful field transforms
-
-    // transforms a time string "HH:MM:SS" into total seconds from midnight as string
-    void time_to_seconds(const ArgSpan& args, std::string& out) {
-        // args[0] is "HH:MM:SS" (or H:MM:SS)
-        int h = 0, m = 0, sec = 0;
-
-        if (std::sscanf(args[0].c_str(), "%d:%d:%d", &h, &m, &sec) != 3) {
+    // convert GTFS date "YYYYMMDD" to xsd:date "YYYY-MM-DD"
+    void convert_date(const ArgSpan& args, std::string& out) {
+        const std::string& s = args[0];
+        if (s.size() != 8) {
             throw std::runtime_error(
-                "❌ Transform error: invalid time '" + out + "'"
+                "❌ Transform error: expected date in format YYYYMMDD, got '" + s + "'"
             );
         }
-
-        int total = h * 3600 + m * 60 + sec;
-        out = std::to_string(total);
+        out = s.substr(0,4) + "-" + s.substr(4,2) + "-" + s.substr(6,2);
     }
 
-    // TODO: remove later / include in testing only
-    void debug5(const ArgSpan& args, std::string& out) {
-        out = "[" + args[0] + " | " + args[1] + " | " + args[2] + " | " +
-              args[3] + " | " + args[4] + "]";
-    }
 
     // TODO: remove later / include in testing only
     void debug_wrap(const ArgSpan& args, std::string& out) {
@@ -146,10 +132,9 @@ namespace t_lib {
     }
 
     export void register_lib_transforms(TransformRegistry& registry) {
-        registry.registerTransform("time_to_seconds", time_to_seconds);
         registry.registerTransform("is_int", is_int);
         registry.registerTransform("is_decimal", is_decimal);
-        registry.registerTransform("debug5", debug5);
+        registry.registerTransform("convert2xsd:date", convert_date);
         registry.registerTransform("debug_wrap", debug_wrap);
     }
 }

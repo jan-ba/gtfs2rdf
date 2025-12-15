@@ -31,6 +31,8 @@ struct Datagap {
     size_t num_transforms = 0;
     std::array<int, field_transforms::MaxArgs> column_indices;
     std::array<field_transforms::Transform, field_transforms::MaxTransforms> transforms;
+    bool contains_transf2n = false;
+    int transf2n_index = -1;
 };
 
 export class Instruction {
@@ -41,10 +43,13 @@ export class Instruction {
     size_t base_len_ = 0;
     std::string out_;
     const std::string empty_ = "";
-    int counter_ = 0;
+    size_t counter_ = 0;
     bool is_valid_ = true;  // set to false if instruction is invalid due to missing columns
     const field_transforms::TransformRegistry& registry_;
     const std::string raw_instruction_;
+    bool contains_transf2n_ = false;
+    std::vector<std::string> transf_buf_;  // buffer for transforms whose outputs span across several rows
+    size_t transf2n_placeholder_index_ = 0;  // TODO: describe
 
   public:
     Instruction(const std::string& raw_instruction, const std::unordered_map<std::string, 
@@ -78,8 +83,18 @@ export class Instruction {
             Datagap dg;
             dg.num_fields = pp.field_names.size();
             dg.num_transforms = pp.transforms.size();
+            
             for (size_t j = 0; j < pp.transforms.size(); ++j) {
                 dg.transforms[j] = pp.transforms[j];
+                if (pp.transforms[j].kind == field_transforms::TransformKind::Multi) {
+                    if (contains_transf2n_ == true) {
+                        throw std::runtime_error("❌  Error: only 1 Transform2N transform allowed in total in instruction: "
+                                                 + raw_instruction);
+                    }
+                    contains_transf2n_ = true;
+                    dg.contains_transf2n = true;
+                    dg.transf2n_index = j;
+                }
             }
 
             for (size_t j = 0; j < dg.num_fields; ++j) {
@@ -128,31 +143,78 @@ export class Instruction {
               if (dg.num_transforms > 0) {
                   std::string c;
                   field_transforms::ArgSpan spanN {arg_buf_.data(), dg.num_fields};
-                  dg.transforms[0](spanN, c);
 
-                  if (dg.num_transforms > 1) {
-                      // multiple transforms
+                  // handle Transform2N if present
+                  if (dg.contains_transf2n) {
+                      transf_buf_.clear();
+                      transf2n_placeholder_index_ = out_.size();
                       std::string d = c;
                       const std::string* d_ptr = &d;
                       field_transforms::ArgSpan span1 {&d_ptr, 1};
-                      for (size_t j = 1; j < dg.num_transforms; ++j) {
-                          dg.transforms[j](span1, c);
+
+                      for (size_t i = 0; i < dg.transf2n_index; i++) {
+                          if (i == 0) {
+                              dg.transforms[i].single(spanN, c);
+                          } else {
+                              dg.transforms[i].single(span1, c);
+                          }
                           d = c;
                       }
+                      if (dg.transf2n_index == 0) {
+                          dg.transforms[dg.transf2n_index].multi(spanN, transf_buf_);
+                      } else { dg.transforms[dg.transf2n_index].multi(span1, transf_buf_); }
+
+                      for (size_t i = dg.transf2n_index + 1; i < dg.num_transforms; i++) {
+                          for (size_t j = 0; j < transf_buf_.size(); ++j) {
+                              d = transf_buf_[j];
+                              const std::string* d_ptr = &d;
+                              field_transforms::ArgSpan span1 {&d_ptr, 1};
+                              dg.transforms[i].single(span1, transf_buf_[j]);
+                          }
+                      }
+
+                  // no Transform2N
+                  } else {
+                      dg.transforms[0].single(spanN, c);
+
+                      if (dg.num_transforms > 1) {
+                          // multiple transforms
+                          std::string d = c;
+                          const std::string* d_ptr = &d;
+                          field_transforms::ArgSpan span1 {&d_ptr, 1};
+                          for (size_t j = 1; j < dg.num_transforms; ++j) {
+                              dg.transforms[j].single(span1, c);
+                              d = c;
+                          }
+                      }
+
+                      // TODO: what if c is empty? Is the resulting triple invalid then?
+                      out_.append(c);
                   }
-
-                  out_.append(c); 
-
+ 
               } else {  // no transforms
                   out_.append(*arg_buf_[0]);
               }
 
               out_.append(parts_[k + 1]);
-        }
+          }
         
-          counter_++;
+          if (contains_transf2n_) {
+              std::string prefix = out_.substr(0, transf2n_placeholder_index_);
+              std::string suffix = out_.substr(transf2n_placeholder_index_);
+              out_.clear();
+              for (const auto& val : transf_buf_) {
+                  out_.append(prefix);
+                  out_.append(val);
+                  out_.append(suffix);
+              }
+              counter_ += transf_buf_.size();
+          } else {
+              counter_++;
+          }
           return out_;
       }
+
 
     int getCount() const { return counter_; }
     bool isValid() const { return is_valid_; }

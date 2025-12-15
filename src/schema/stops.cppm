@@ -118,15 +118,6 @@ export Schema buildStopsSchema(field_transforms::TransformRegistry& registry) {
     { subj,  {"geo","hasGeometry"},   { IRI("gtfs2rdfgeom","stop_{stop_id}") } },
     { subj,  {"geo","asWKT"},         { "POINT({stop_lon} {stop_lat})", IRI("geo","wktLiteral") } },
 
-    // Alternative geometry using transform                                      
-    { subj,  {"geo","asWKT"},
-                      { "{stop_lon, stop_lat | wktPointLonLat}", IRI("geo","wktLiteral") } },
-
-    // Debug info (for testing only)                              
-    { subj, {"gtfs","debugInfo"}, 
-                      { "{stop_id,stop_name,stop_lat,stop_lon,location_type|debug5|debug_wrap}" } },
-                              
-
     // Hierarchy / location type
     { subj,  {"gtfs","locationType"},     { "{location_type}", IRI("xsd","integer") } },
     { subj,  {"gtfs","locationTypeEnum"}, { "{location_type|loc2Enum}" } },

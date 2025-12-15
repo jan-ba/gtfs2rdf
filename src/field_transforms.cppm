@@ -17,7 +17,7 @@ using namespace util;
 
 namespace field_transforms {
 
-export const int MaxArgs = 7;  // expected maximum number of arguments for field transforms
+export const int MaxArgs = 9;  // expected maximum number of arguments for field transforms
                                // 7 since this accounts for all days of the week in calendar.txt
 
 // expected maximum number of chained transforms per placeholder - if more are needed, consider 
@@ -36,7 +36,7 @@ export class ArgSpan {
 
         const std::string& operator[](size_t index) const {
             if (index >= size_) {
-                throw std::out_of_range("Invalid index access to ArgSpan");
+                throw std::out_of_range("❌ Transform error: Invalid index access to ArgSpan");
             }
             return *data_[index];
         }
@@ -48,26 +48,45 @@ export class ArgSpan {
         const std::string* const* end()   const { return data_ + size_; }
 };
 
-export using Transform = std::function<void(const ArgSpan&, std::string&)>;
+export using Transform2One = std::function<void(const ArgSpan&, std::string&)>;
+export using Transform2N = std::function<void(const ArgSpan&, std::vector<std::string>&)>;
 
-    // return type: field name + list of functors.
+export enum class TransformKind { Single, Multi };
+
+export struct Transform {
+    TransformKind kind;
+    Transform2One single;  // valid if kind == Single
+    Transform2N   multi;  // valid if kind == Multi
+};
+
+// return type: field name + list of functors.
 export struct ParsedPlaceholder {
     std::vector<std::string> field_names;
     std::vector<Transform> transforms;
 };
 
-export class TransformRegistry {
-  public:
-    TransformRegistry() {
 
-    }
-   
-    void registerTransform(const std::string& name, Transform fn) {
+export class TransformRegistry {
+  public:   
+    void registerTransform(const std::string& name, Transform2One fn) {
         if (registry_.contains(name)) {
             throw std::runtime_error("❌  Transform error: field transform already registered: " + name);
         }
+        registry_[name] = Transform{TransformKind::Single, fn, {}};
+    }
 
-        registry_[name] = fn;
+    void registerTransform(const std::string& name, Transform2N fn) {
+        if (registry_.contains(name)) {
+            throw std::runtime_error("❌  Transform error: field transform already registered: " + name);
+        }
+        registry_[name] = Transform{TransformKind::Multi, {}, fn};
+    }
+
+    const Transform& getTransform(const std::string& name) const {
+        if (!registry_.contains(name)) {
+            throw std::runtime_error("❌  Error: unknown field transform: " + name);
+        }
+        return registry_.at(name);
     }
 
     const ParsedPlaceholder parse_placeholder_with_functors(const std::string& raw) const
@@ -97,20 +116,9 @@ export class TransformRegistry {
                 continue;
             }
 
-            if (!registry_.contains(name)) {
-                throw std::runtime_error("❌  Error: unknown field transform: " + name);
-            }
-
-            result.transforms.push_back(registry_.at(name));
+            result.transforms.push_back(getTransform(name));
         }
         return result;
-    }
-
-    Transform getTransform(const std::string& name) const {
-        if (!registry_.contains(name)) {
-            throw std::runtime_error("❌  Error: unknown field transform: " + name);
-        }
-        return registry_.at(name);
     }
 
   private:

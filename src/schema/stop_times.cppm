@@ -72,13 +72,6 @@ export Schema buildStopTimesSchema(field_transforms::TransformRegistry& registry
     { subj, {"gtfs","arrivalTime"},              { "{arrival_time}" } },
     { subj, {"gtfs","departureTime"},            { "{departure_time}" } },
 
-    // for testing function pumping (TODO: remove later)
-    { subj, {"gtfs","arrivalTimeSecs"}, 
-                                  { "{arrival_time | time_to_seconds}", IRI("xsd","integer") } },
-    { subj, {"gtfs","departureTimeSecs"}, 
-                                  { "{departure_time | time_to_seconds}", IRI("xsd","integer") } },
-
-
     // Optional headsign override
     { subj, {"gtfs","stopHeadsign"},             { "{stop_headsign}" } },
 
