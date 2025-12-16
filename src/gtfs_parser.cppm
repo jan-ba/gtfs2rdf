@@ -8,22 +8,23 @@
 
 
 module;
-
-#include <string>
-#include <vector>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <stdexcept>
-#include <utility>
+#include <chrono>
 #include <algorithm>
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <string>
+#include <filesystem>
+#include <utility>
+#include <stdexcept>
 #include <zip.h>
+#include <string>   
 
 export module gtfs_parser;
 
 import utility;
-import schema.core;
+import schema;
 import rdf_writer;
 
 using namespace util;
@@ -31,7 +32,7 @@ using util::operator<<;  // only bringing in required operator
 
 namespace gtfs {
 
-const char _hex_upper(unsigned v) {
+char _hex_upper(unsigned v) {
   static constexpr char H[] = "0123456789ABCDEF";
   return H[v & 0xF];
 }

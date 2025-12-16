@@ -4,6 +4,8 @@ a command line C++-tool for efficient conversion of transit data from GTFS to RD
 ## Run
 Make sure to have a C++ compiler installed that supports C++-20. You might need to specify that compiler to cmake if there are older compilers on your system as well. Furthermore, ensure Cmake version 3.28 or newer is used.
 
+**Warning:** g++-14 throws internal compiler errors on my system (likely due to things related to modules). clang++-18 works fine, but g++-15 might also do the trick.
+
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=g++-14
 cmake --build build -j

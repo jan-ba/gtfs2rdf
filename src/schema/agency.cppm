@@ -15,8 +15,8 @@ module;
 #include <optional>
 #include <stdexcept>
 
-export module schema.agency;
-import schema.core;
+export module schema:agency;
+import :core;
 import rdf_components;
 import field_transforms;
 import t_lib;

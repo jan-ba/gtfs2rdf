@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.28)
-
 project(GTFS2RDF LANGUAGES CXX)
 
 # ------------------------------------------------------------
@@ -12,30 +11,136 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # C++20 module support: only Ninja and Visual Studio
 if(NOT (CMAKE_GENERATOR STREQUAL "Ninja"
         OR CMAKE_GENERATOR MATCHES "Visual Studio"))
-    message(FATAL_ERROR
-        "Dieses Projekt benötigt den Ninja- oder Visual-Studio-Generator, "
-        "damit C++20-Module automatisch gescannt und in richtiger Reihenfolge "
-        "gebaut werden können. "
-        "Beispiel: cmake -S . -B build -G Ninja"
-    )
+  message(FATAL_ERROR
+    "This project requires the Ninja or Visual Studio generator "
+    "to automatically scan and build C++20 modules in the correct order. "
+    "Example: cmake -S . -B build -G Ninja"
+  )
 endif()
 
-# compiler flags
-function(setup_warnings_and_opts target)
-    if(MSVC)
-        target_compile_options(${target} PRIVATE
-            /W4 /permissive- /EHsc
-        )
-    else()
-        target_compile_options(${target} PRIVATE
-            -Wall -Wextra -pedantic
-            -O2 -g
-        )
-    endif()
+# Default build type for single-config generators (Ninja)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+# warnings only; don't hardcode -O/-g, let build type/toolchain decide
+function(setup_warnings target)
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /W4 /permissive- /EHsc)
+  else()
+    target_compile_options(${target} PRIVATE -Wall -Wextra -pedantic)
+  endif()
 endfunction()
 
 # Find libzip (provided by libzip-dev)
 find_package(libzip REQUIRED)
+
+# ------------------------------------------------------------
+# Auto-generate schema primary module + registry from src/schema/*.cppm
+# ------------------------------------------------------------
+set(SCHEMA_DIR "${CMAKE_SOURCE_DIR}/src/schema")
+
+file(GLOB SCHEMA_PARTITION_FILES CONFIGURE_DEPENDS
+  "${SCHEMA_DIR}/*.cppm"
+)
+list(SORT SCHEMA_PARTITION_FILES)
+
+set(GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${GENERATED_DIR}")
+
+set(GENERATED_SCHEMA_CPPM     "${GENERATED_DIR}/schema.cppm")
+set(GENERATED_SCHEMA_REG_CPPM "${GENERATED_DIR}/schema_registry.cppm")
+
+# snake_case -> CamelCase helper
+function(snake_to_camel out_var in_str)
+  string(REPLACE "_" ";" parts "${in_str}")
+  set(result "")
+  foreach(p IN LISTS parts)
+    if(p STREQUAL "")
+      continue()
+    endif()
+    string(SUBSTRING "${p}" 0 1 first)
+    string(SUBSTRING "${p}" 1 -1 rest)
+    string(TOUPPER "${first}" first_upper)
+    string(APPEND result "${first_upper}${rest}")
+  endforeach()
+  set(${out_var} "${result}" PARENT_SCOPE)
+endfunction()
+
+# Collect partition names from file stems
+set(SCHEMA_PART_NAMES "")
+foreach(f IN LISTS SCHEMA_PARTITION_FILES)
+  get_filename_component(stem "${f}" NAME_WE)
+
+  # These are partitions you *don't* want in the auto list
+  if(stem STREQUAL "schema")          # if someone accidentally created it
+    continue()
+  endif()
+  if(stem STREQUAL "registry")        # we generate registry
+    continue()
+  endif()
+  if(stem MATCHES ".*_impl$")
+    continue()
+  endif()
+
+  # Keep core separate (we'll add it first explicitly)
+  if(stem STREQUAL "core")
+    continue()
+  endif()
+
+  list(APPEND SCHEMA_PART_NAMES "${stem}")
+endforeach()
+
+# --- Generate schema.cppm (primary interface)
+set(_schema_content "export module schema;\n\n")
+string(APPEND _schema_content "export import :core;\n")
+foreach(name IN LISTS SCHEMA_PART_NAMES)
+  string(APPEND _schema_content "export import :${name};\n")
+endforeach()
+string(APPEND _schema_content "export import :registry;\n")
+file(WRITE "${GENERATED_SCHEMA_CPPM}" "${_schema_content}")
+
+# --- Generate schema_registry.cppm (schema:registry)
+#
+# MUST:
+#  - put #includes in global module fragment (module;)
+#  - imports immediately after export module line
+#
+set(_reg "")
+string(APPEND _reg "module;\n")
+string(APPEND _reg "#include <unordered_map>\n")
+string(APPEND _reg "#include <string>\n\n")
+
+string(APPEND _reg "export module schema:registry;\n\n")
+
+# Imports must immediately follow module declaration:
+string(APPEND _reg "import :core;\n")
+string(APPEND _reg "import field_transforms;\n")
+foreach(name IN LISTS SCHEMA_PART_NAMES)
+  string(APPEND _reg "import :${name};\n")
+endforeach()
+string(APPEND _reg "\n")
+
+# Exported API
+string(APPEND _reg "export namespace schema {\n")
+string(APPEND _reg "  using Factory = Schema(*)(field_transforms::TransformRegistry&);\n")
+string(APPEND _reg "  const std::unordered_map<std::string, Factory>& factories();\n")
+string(APPEND _reg "}\n\n")
+
+# Definition (not exported)
+string(APPEND _reg "const std::unordered_map<std::string, schema::Factory>& schema::factories() {\n")
+string(APPEND _reg "  static const std::unordered_map<std::string, schema::Factory> f = {\n")
+
+foreach(name IN LISTS SCHEMA_PART_NAMES)
+  snake_to_camel(camel "${name}")
+  string(APPEND _reg "    {\"${name}.txt\", &schema::build${camel}Schema},\n")
+endforeach()
+
+string(APPEND _reg "  };\n")
+string(APPEND _reg "  return f;\n")
+string(APPEND _reg "}\n")
+
+file(WRITE "${GENERATED_SCHEMA_REG_CPPM}" "${_reg}")
 
 # ------------------------------------------------------------
 # collect source files automatically
@@ -43,55 +148,61 @@ find_package(libzip REQUIRED)
 
 # all module units (*.cppm) anywhere in src/
 file(GLOB_RECURSE GTFS_MODULE_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/src/*.cppm"
+  "${CMAKE_SOURCE_DIR}/src/*.cppm"
 )
+
+# Exclude any hand-written schema.cppm / schema_registry.cppm in src/ if present
+list(FILTER GTFS_MODULE_SOURCES EXCLUDE REGEX ".*/schema\\.cppm$")
+list(FILTER GTFS_MODULE_SOURCES EXCLUDE REGEX ".*/schema_registry\\.cppm$")
 
 # all standard source files (*.cpp) anywhere in src/
 file(GLOB_RECURSE GTFS_CPP_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/src/*.cpp"
+  "${CMAKE_SOURCE_DIR}/src/*.cpp"
 )
 
 # main (gtfs2rdf.cpp) will be the executable (hence not part of library)
-list(FILTER GTFS_CPP_SOURCES EXCLUDE REGEX ".*/gtfs2rdf.cpp$")
+list(FILTER GTFS_CPP_SOURCES EXCLUDE REGEX ".*/gtfs2rdf\\.cpp$")
 
 add_library(gtfs_modules)
 
 target_sources(gtfs_modules
-    PUBLIC
-        FILE_SET cxx_modules TYPE CXX_MODULES
-        BASE_DIRS "${CMAKE_SOURCE_DIR}/src"
-        FILES ${GTFS_MODULE_SOURCES}
+  PUBLIC
+    FILE_SET cxx_modules TYPE CXX_MODULES
+    BASE_DIRS
+      "${CMAKE_SOURCE_DIR}/src"
+      "${GENERATED_DIR}"
+    FILES
+      ${GTFS_MODULE_SOURCES}
+      "${GENERATED_SCHEMA_CPPM}"
+      "${GENERATED_SCHEMA_REG_CPPM}"
 )
 
 target_sources(gtfs_modules
-    PRIVATE
-        ${GTFS_CPP_SOURCES}
+  PRIVATE
+    ${GTFS_CPP_SOURCES}
 )
 
 target_include_directories(gtfs_modules
-    PUBLIC
-        "${CMAKE_SOURCE_DIR}/src"
+  PUBLIC
+    "${CMAKE_SOURCE_DIR}/src"
 )
 
-setup_warnings_and_opts(gtfs_modules)
+setup_warnings(gtfs_modules)
 
 # ------------------------------------------------------------
 # Executable (main)
 # ------------------------------------------------------------
-
-add_executable(gtfs2rdf
-    src/gtfs2rdf.cpp
-)
+add_executable(gtfs2rdf src/gtfs2rdf.cpp)
 
 target_link_libraries(gtfs2rdf
-    PRIVATE
-        gtfs_modules
-        libzip::zip
+  PRIVATE
+    gtfs_modules
+    libzip::zip
 )
 
 target_include_directories(gtfs2rdf
-    PRIVATE
-        "${CMAKE_SOURCE_DIR}/src"
+  PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
 )
 
-setup_warnings_and_opts(gtfs2rdf)
+setup_warnings(gtfs2rdf)

@@ -17,8 +17,8 @@ module;
 
 #include <iostream> 
 
-export module schema.stops;
-import schema.core;
+export module schema:stops;
+import :core;
 import rdf_components;
 import field_transforms;
 import t_lib;

@@ -15,8 +15,8 @@ module;
 #include <optional>
 #include <stdexcept>
 
-export module schema.trips;
-import schema.core;
+export module schema:trips;
+import :core;
 import rdf_components;
 import field_transforms;
 import t_lib;

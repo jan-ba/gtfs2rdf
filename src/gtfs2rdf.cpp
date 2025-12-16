@@ -18,31 +18,17 @@
 import gtfs_parser;
 import utility;
 import rdf_writer;
-import schema.core;
-import schema.agency;
-import schema.calendar_dates;
-import schema.calendar;
-import schema.routes;
-import schema.stop_times;
-import schema.stops;
-import schema.trips;
+import schema;
 import field_transforms;
 import t_lib;
+import runtime;
 
 using namespace util;
 
 
 
-using Factory = schema::Schema(*)(field_transforms::TransformRegistry&);
-const std::unordered_map<std::string, Factory> factories{
-  {"agency.txt",         &schema::buildAgencySchema},
-  {"calendar.txt",       &schema::buildCalendarSchema},
-  {"calendar_dates.txt", &schema::buildCalendarDatesSchema},
-  {"routes.txt",         &schema::buildRoutesSchema},
-  {"stop_times.txt",     &schema::buildStopTimesSchema},
-  {"stops.txt",          &schema::buildStopsSchema},
-  {"trips.txt",          &schema::buildTripsSchema},
-};
+using Factory = schema::Factory;
+const auto& factories = schema::factories();  // exported from schema:registry at build time
 
 
 int main(int argc, char* argv[]) {
@@ -63,13 +49,19 @@ int main(int argc, char* argv[]) {
     opts.positional_help("GTFS_ZIP");
     opts.parse_positional({"dataset"});
 
-
     auto result = opts.parse(argc, argv);
     if (result.count("help")) { std::cout << opts.help() << '\n'; return 0; }
     if (!result.count("dataset")) { 
         std::cerr << "Input GTFS dataset required. Type --help for "\
                      "more information!\n"; return 1; 
     }
+
+    runtime::Settings settings(
+        result["triple"].as<bool>(),
+        result["syntactic-sugar"].as<bool>(),
+        result["debug"].as<bool>(),
+        result["spec-dump"].as<bool>(),
+        result["batch-size"].as<double>());
 
     std::filesystem::path inputZIP = result["dataset"].as<std::string>();
     std::filesystem::path outputPath = result["output"].as<std::string>() + "/" + inputZIP.stem().string() + ".ttl";
@@ -111,6 +103,8 @@ int main(int argc, char* argv[]) {
     std::vector<schema::Schema> used_schemas;
     field_transforms::TransformRegistry registry;
     t_lib::register_lib_transforms(registry);
+
+    runtime::RuntimeContainer runtime_container(settings, registry);
 
     for ( const auto& [ file, factory ] : factories ) {
         if (zip_name_locate(za, file.c_str(), ZIP_FL_ENC_GUESS) != -1) {

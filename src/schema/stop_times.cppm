@@ -15,8 +15,8 @@ module;
 #include <optional>
 #include <stdexcept>
 
-export module schema.stop_times;
-import schema.core;
+export module schema:stop_times;
+import :core;
 import rdf_components;
 import field_transforms;
 import t_lib;

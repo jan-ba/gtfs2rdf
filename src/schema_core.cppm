@@ -17,7 +17,7 @@ module;
 #include <iostream>
 #include <functional>
 
-export module schema.core;
+export module schema:core;
 import rdf_components;
 import field_transforms;
 

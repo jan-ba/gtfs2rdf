@@ -14,8 +14,8 @@ module;
 #include <optional>
 #include <stdexcept>
 
-export module schema.calendar_dates;
-import schema.core;
+export module schema:calendar_dates;
+import :core;
 import rdf_components;
 import field_transforms;
 import t_lib;

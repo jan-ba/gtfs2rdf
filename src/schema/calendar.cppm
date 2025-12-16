@@ -17,8 +17,8 @@ module;
 #include <chrono>
 #include <sstream>
 
-export module schema.calendar;
-import schema.core;
+export module schema:calendar;
+import :core;
 import rdf_components;
 import field_transforms;
 import t_lib;

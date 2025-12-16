@@ -19,7 +19,7 @@ module;
 #include <cctype>
 
 export module rdf_writer;
-import schema.core;
+import schema;
 
 using namespace schema;
 
