@@ -7,7 +7,7 @@ Make sure to have a C++ compiler installed that supports C++-20. You might need 
 **Warning:** g++-14 throws internal compiler errors on my system (likely due to things related to modules). clang++-18 works fine, but g++-15 might also do the trick.
 
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=g++-14
+cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-18
 cmake --build build -j
 ```
 

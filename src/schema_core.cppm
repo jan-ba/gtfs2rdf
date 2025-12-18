@@ -20,6 +20,7 @@ module;
 export module schema:core;
 import rdf_components;
 import field_transforms;
+import runtime;
 
 
 using namespace rdf;
@@ -227,9 +228,7 @@ export class Schema {
     const std::vector<std::string> possible_columns_ = {}; // all columns that could be contained by <name_>.txt  TODO: actually needed?
     std::unordered_map<std::string, std::string> prefixes_;
     std::vector<std::string> raw_instructions_;
-    const bool outputTurtle_ = true;        // ttl vs. ntriples
-    const bool usePrefixes_ = true;         // @prefix Header
-    const bool explicitRdfType_ = true;     // if true, no 'a', ',' , ';' syntactic ttl sugar
+    const runtime::RuntimeContainer& rt_;
     const field_transforms::TransformRegistry& registry_;
 
     // computed from header
@@ -239,24 +238,17 @@ export class Schema {
   public:
     Schema(const std::string name, const std::vector<std::string> possible_columns,
           const std::unordered_map<std::string, std::string> prefixes,
-          const std::vector<Triple> triples, const field_transforms::TransformRegistry& registry,
-          const bool outputTurtle = true, const bool usePrefixes = true, 
-          const bool explicitRdfType = true)
+          const std::vector<Triple> triples, runtime::RuntimeContainer& rt)
         : name_(std::move(name)), possible_columns_(std::move(possible_columns)),
-          prefixes_(std::move(prefixes)), registry_(registry),
-          outputTurtle_(outputTurtle), usePrefixes_(usePrefixes),
-          explicitRdfType_(explicitRdfType) {
+          prefixes_(std::move(prefixes)), registry_(rt.getTransformRegistry()),
+          rt_(rt) {
       for (const auto& col : this->possible_columns_) {
         column_map_[col] = -1; // initialize all to -1 (not found)
       }
       
-      bool turtAndpref = outputTurtle && usePrefixes;  // only ttl allows prefixes
-        if (!outputTurtle && usePrefixes) {
-          std::cerr << "⚠️  Warning: cannot use prefixes in ntriples output. Ignoring prefixes.\n";
-        }
       // build raw_instructions_ from triples
       for (const auto& triple : triples) {
-        raw_instructions_.push_back(triple.toString(prefixes_, outputTurtle_, turtAndpref, explicitRdfType_));
+        raw_instructions_.push_back(triple.toString(prefixes_, rt_));
       }
     }
 
@@ -267,8 +259,10 @@ export class Schema {
         if (column_map_.contains(header[file_idx])) {
             column_map_[header[file_idx]] = static_cast<int>(file_idx);
         } else {
-            throw std::runtime_error("❌  Error: unknown column " + header[file_idx] 
-                                                                          + " for " + name_);
+            std::cerr << "⚠️  Warning: unknown column " << header[file_idx] << " in " 
+                      << name_ << "\n";
+            // throw std::runtime_error("❌  Error: unknown column " + header[file_idx] 
+            //                                                               + " for " + name_);
         }
       }
       // build instructions_
@@ -284,9 +278,6 @@ export class Schema {
     // Getters
     const std::string& getName() const { return name_; }
     const std::vector<std::string>& getPossibleColumns() const { return possible_columns_; }
-    bool isTurtle() const { return outputTurtle_; }
-    bool isPrefixes() const { return usePrefixes_; }
-    bool isExplicitRdfType() const { return explicitRdfType_; }
     const std::unordered_map<std::string, std::string>& getPrefixes() const { return prefixes_; }
     const std::unordered_map<std::string, int>& getColumnMap() const { return column_map_; }
     const std::vector<Instruction>& getInstructions() const { return instructions_; }

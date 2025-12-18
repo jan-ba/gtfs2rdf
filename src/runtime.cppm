@@ -36,6 +36,7 @@ export class Settings {
     bool isSyntacticSugar() const { return syntactic_sugar_; }
     bool isDebugWarnings() const { return debug_warnings_; }
     bool isSpecDump() const { return spec_dump_; }
+    double getBatchSizeMB() const { return batch_size_mb_; }
 };
 
 export class RuntimeContainer {

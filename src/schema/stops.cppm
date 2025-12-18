@@ -22,6 +22,7 @@ import :core;
 import rdf_components;
 import field_transforms;
 import t_lib;
+import runtime;
 
 using namespace rdf;
 
@@ -74,12 +75,11 @@ void wkt_point_lon_lat(const field_transforms::ArgSpan& args, std::string& out) 
 
 
 // this gtfs->rdf schema is preliminary and only covers a subset of all possible fields
-export Schema buildStopsSchema(field_transforms::TransformRegistry& registry) {
+export Schema buildStopsSchema(runtime::RuntimeContainer& rt) {
 
   // Register field transforms used in this schema
-  registry.registerTransform("loc2Enum", location_type_to_enum);
-  registry.registerTransform("wktPointLonLat", wkt_point_lon_lat);
-
+  rt.getTransformRegistry().registerTransform("loc2Enum", location_type_to_enum);
+  rt.getTransformRegistry().registerTransform("wktPointLonLat", wkt_point_lon_lat);
   // possibly not required
   const std::vector<std::string> possible_columns = {
       "stop_id", "stop_code", "stop_name", "stop_desc", "stop_lat", "stop_lon",
@@ -131,7 +131,7 @@ export Schema buildStopsSchema(field_transforms::TransformRegistry& registry) {
     { subj,  {"gtfs","platformCode"},       { "{platform_code}" } }
   };
 
-  Schema sc("stops.txt", possible_columns, prefixes, triples, registry, true, true, true);
+  Schema sc("stops.txt", possible_columns, prefixes, triples, rt);
 
   return sc;
 }

@@ -20,13 +20,14 @@ module;
 
 export module rdf_writer;
 import schema;
+import runtime;
 
 using namespace schema;
 
 namespace ttl {
 
-export void writePrefixes(std::ostream& os, const Schema& sc) {
-  if (!sc.isPrefixes()) return; // ntriples später
+export void writePrefixes(std::ostream& os, const Schema& sc, const runtime::RuntimeContainer& rt) {
+  if (rt.getSettings().isNTriplesOutput()) return;
   for (const auto& [pfx, iri] : sc.getPrefixes()) {
     os << "@prefix " << pfx << ": <" << iri << "> .\n";
   }
@@ -35,10 +36,10 @@ export void writePrefixes(std::ostream& os, const Schema& sc) {
 
 // TODO: perhaps this should take write options as parameters?
 export long long write2TTL(const Schema& sc, const std::vector<std::vector<std::string>>& rows,
-               std::ostream& os, bool first_batch_overall) {
+               std::ostream& os, bool first_batch_overall, const runtime::RuntimeContainer& rt) {
   long long counter = 0;
   std::vector<Instruction> instructions = sc.getInstructions();
-  if (first_batch_overall) { writePrefixes(os, sc); }
+  if (first_batch_overall) { writePrefixes(os, sc, rt); }
 
   for (const auto& row : rows) {
     for (auto& inst : instructions) {

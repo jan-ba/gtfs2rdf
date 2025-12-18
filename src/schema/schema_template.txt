@@ -98,6 +98,7 @@ import :core;
 import rdf_components;
 import field_transforms;
 import t_lib;
+import runtime;
 
 using namespace rdf;
 
@@ -159,14 +160,14 @@ void split_semicolon(const field_transforms::ArgSpan& args,
 //   - module file:  src/schema/your_schema_name.cppm
 //   - build symbol: schema::buildYourSchemaNameSchema(registry)
 
-export Schema buildYourSchemaNameSchema(field_transforms::TransformRegistry& registry) {
+export Schema buildYourSchemaNameSchema(runtime::RuntimeContainer& rt) {
 
   // ---------------------------------------------------------------------------
   // (A) Register transforms (schema-local + shared)
   // ---------------------------------------------------------------------------
   // Register schema-local transforms:
-  registry.registerTransform("wkt_point", example_transforms::wkt_point_lon_lat);
-  registry.registerTransform("split_semicolon", example_transforms::split_semicolon);
+  rt.getTransformRegistry().registerTransform("wkt_point", example_transforms::wkt_point_lon_lat);
+  rt.getTransformRegistry().registerTransform("split_semicolon", example_transforms::split_semicolon);
 
 
   // ---------------------------------------------------------------------------
@@ -238,7 +239,7 @@ export Schema buildYourSchemaNameSchema(field_transforms::TransformRegistry& reg
   // ---------------------------------------------------------------------------
   // First argument is the GTFS file name this schema targets.
   // (Use the real filename, e.g. "stops.txt", "trips.txt", etc.)
-  Schema sc("your_schema_name.txt", possible_columns, prefixes, triples, registry);
+  Schema sc("your_schema_name.txt", possible_columns, prefixes, triples, rt);
   return sc;
 }
 

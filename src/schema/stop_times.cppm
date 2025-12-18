@@ -20,13 +20,14 @@ import :core;
 import rdf_components;
 import field_transforms;
 import t_lib;
+import runtime;
 
 using namespace rdf;
 
 namespace schema {
 
 // this gtfs->rdf schema is preliminary and only covers a subset of all possible fields
-export Schema buildStopTimesSchema(field_transforms::TransformRegistry& registry) {
+export Schema buildStopTimesSchema(runtime::RuntimeContainer& rt) {
 
   const std::vector<std::string> possible_columns = {
     "trip_id", "arrival_time", "departure_time", "stop_id", "location_group_id", "location_id",
@@ -97,7 +98,7 @@ export Schema buildStopTimesSchema(field_transforms::TransformRegistry& registry
   };
 
 
-  Schema sc("stoptimes.txt", possible_columns, prefixes, triples, registry);
+  Schema sc("stoptimes.txt", possible_columns, prefixes, triples, rt);
   return sc;
 }
 

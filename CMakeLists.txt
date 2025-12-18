@@ -114,6 +114,7 @@ string(APPEND _reg "#include <string>\n\n")
 string(APPEND _reg "export module schema:registry;\n\n")
 
 # Imports must immediately follow module declaration:
+string(APPEND _reg "import runtime;\n")
 string(APPEND _reg "import :core;\n")
 string(APPEND _reg "import field_transforms;\n")
 foreach(name IN LISTS SCHEMA_PART_NAMES)
@@ -123,7 +124,7 @@ string(APPEND _reg "\n")
 
 # Exported API
 string(APPEND _reg "export namespace schema {\n")
-string(APPEND _reg "  using Factory = Schema(*)(field_transforms::TransformRegistry&);\n")
+string(APPEND _reg "  using Factory = Schema(*)(runtime::RuntimeContainer&);\n")
 string(APPEND _reg "  const std::unordered_map<std::string, Factory>& factories();\n")
 string(APPEND _reg "}\n\n")
 

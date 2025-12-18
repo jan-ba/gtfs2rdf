@@ -19,13 +19,14 @@ import :core;
 import rdf_components;
 import field_transforms;
 import t_lib;
+import runtime;
 
 using namespace rdf;
 
 namespace schema {
 
 // GTFS -> RDF schema for calendar_dates.txt
-export Schema buildCalendarDatesSchema(field_transforms::TransformRegistry& registry) {
+export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rt) {
   const std::vector<std::string> possible_columns = {
     "service_id", "date", "exception_type"
   };
@@ -60,7 +61,7 @@ export Schema buildCalendarDatesSchema(field_transforms::TransformRegistry& regi
     { subject,            {"gtfs","exceptionType"},   { "{exception_type}", IRI("xsd","integer") } }
   };
 
-  Schema sc("calendar_dates.txt", possible_columns, prefixes, triples, registry);
+  Schema sc("calendar_dates.txt", possible_columns, prefixes, triples, rt);
   return sc;
 }
 

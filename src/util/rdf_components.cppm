@@ -13,6 +13,7 @@ module;
 #include <unordered_map>
 
 export module rdf_components;
+import runtime;
 
 export namespace rdf {
 
@@ -28,9 +29,8 @@ class IRI {
     IRI() : prefix_(""), local_name_("") {}
       
   const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
-                             const bool outputTurtle = true, const bool usePrefixes = true, 
-                             const bool explicitRdfType = true) const {
-    if (usePrefixes && !prefix_.empty()) {
+                             const runtime::RuntimeContainer& rt) const {
+    if (!rt.getSettings().isNTriplesOutput() && !prefix_.empty()) {
       return prefix_ + ":" + local_name_;
     } else if (!prefix_.empty()) {
       return "<" + prefixes.at(prefix_) + local_name_ + ">";
@@ -61,23 +61,22 @@ class Object {
       : type_(Type::Literal), name_(IRI("", literal)), datatype_(datatype) {}
 
     const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
-                             const bool outputTurtle = true, const bool usePrefixes = true, 
-                             const bool explicitRdfType = true) const {
+                              const runtime::RuntimeContainer& rt) const {
       switch (type_) {
         case Type::IRI:
-          return name_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType);
+          return name_.toString(prefixes, rt);
         case Type::Literal: {
           std::string lit = "\"" 
-                + name_.toString(prefixes, outputTurtle, false, explicitRdfType) + "\"";
+                + name_.toString(prefixes, rt) + "\"";
           if (!lang_.empty()) {
             lit += "@" + lang_;
-          } else if (!datatype_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType).empty()) {
-            lit += "^^" + datatype_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType);
+          } else if (!datatype_.toString(prefixes, rt).empty()) {
+            lit += "^^" + datatype_.toString(prefixes, rt);
           }
           return lit;
         }
         case Type::BlankNode:  // required?
-          return "_:" + name_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType);
+          return "_:" + name_.toString(prefixes, rt);
       }
       return ""; // should not reach here
     }
@@ -94,11 +93,10 @@ class Triple {
       : subject_(subject), predicate_(predicate), object_(object) {}
 
     const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
-                             const bool outputTurtle = true, const bool usePrefixes = true, 
-                             const bool explicitRdfType = true) const {
-      return subject_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType) + " " +
-             predicate_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType) + " " +
-             object_.toString(prefixes, outputTurtle, usePrefixes, explicitRdfType) + " .";
+                             const runtime::RuntimeContainer& rt) const {
+      return subject_.toString(prefixes, rt) + " " +
+             predicate_.toString(prefixes, rt) + " " +
+             object_.toString(prefixes, rt) + " .";
     }
 };
 

@@ -22,6 +22,7 @@ import :core;
 import rdf_components;
 import field_transforms;
 import t_lib;
+import runtime;
 
 using namespace rdf;
 
@@ -41,13 +42,13 @@ void generate_dates(const field_transforms::ArgSpan& args, std::vector<std::stri
     auto start_date = parseYYYYMMDD(args[7]);
     auto end_date = parseYYYYMMDD(args[8]);
 
-    // Loop through each day in the date range
+    // loop through each day in the date range
     for (auto current = start_date; current <= end_date; current += std::chrono::days{1}) {
         std::chrono::weekday wd{current};
-        int wd_index = wd.c_encoding() % 7;  // get weekday index of current date
+        int wd_index = wd.c_encoding() % 7;  // weekday index of current date
         
         if (args[wd_index] == "1") {
-            // if the service operates on this day of the week, store current date as "YYYY-MM-DD"
+            // if the service operates on current, store date as "YYYY-MM-DD"
             std::ostringstream oss;
             oss << std::chrono::year_month_day{current};
             out.push_back(oss.str());
@@ -56,9 +57,9 @@ void generate_dates(const field_transforms::ArgSpan& args, std::vector<std::stri
 }
 
 // GTFS -> RDF schema for calendar.txt
-export Schema buildCalendarSchema(field_transforms::TransformRegistry& registry) {
+export Schema buildCalendarSchema(runtime::RuntimeContainer& rt) {
   
-  registry.registerTransform("generate_dates", generate_dates);
+  rt.getTransformRegistry().registerTransform("generate_dates", generate_dates);
 
   const std::vector<std::string> possible_columns = {
     "service_id",
@@ -99,7 +100,7 @@ export Schema buildCalendarSchema(field_transforms::TransformRegistry& registry)
     { subject,        {"gtfs","endDate"},       { "{end_date | convert2xsd:date}", IRI("xsd", "date") } }
   };
 
-  Schema sc("calendar.txt", possible_columns, prefixes, triples, registry);
+  Schema sc("calendar.txt", possible_columns, prefixes, triples, rt);
   return sc;
 }
 

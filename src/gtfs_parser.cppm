@@ -26,6 +26,7 @@ export module gtfs_parser;
 import utility;
 import schema;
 import rdf_writer;
+import runtime;
 
 using namespace util;
 using util::operator<<;  // only bringing in required operator
@@ -176,12 +177,12 @@ enum class CSVState {
 };
 
 export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
-                              std::string filename, std::ostream& outfs, double batch_size_mb, 
-                              const bool first_file)
+                              std::string filename, std::ostream& outfs, 
+                              const bool first_file, const runtime::RuntimeContainer& rt)
 {
     using Clock = std::chrono::steady_clock;
     std::vector<std::vector<std::string>> rows;
-    zip_uint64_t batch_size = batch_size_mb * 1024 * 1024 + 1;  // offset to avoid zero
+    zip_uint64_t batch_size = rt.getSettings().getBatchSizeMB() * 1024 * 1024 + 1;  // offset to avoid zero
 
     std::vector<char> buf(batch_size);
 
@@ -295,7 +296,7 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
 
         // write this batch (prefixes only for the very first batch)
         t0 = Clock::now();
-        total_triples += ttl::write2TTL(schema, rows, outfs, first_file && batch_i == 1);
+        total_triples += ttl::write2TTL(schema, rows, outfs, first_file && batch_i == 1, rt);
         write_s += std::chrono::duration<double>(Clock::now() - t0).count();
 
         total_rows += rows.size();
@@ -315,14 +316,14 @@ export int64_t translateFileToStream(zip_file_t* zf, schema::Schema& schema,
         }
         row.clear();
         auto t0 = Clock::now();
-        total_triples += ttl::write2TTL(schema, rows, outfs, first_file && batch_i == 1);
+        total_triples += ttl::write2TTL(schema, rows, outfs, first_file && batch_i == 1, rt);
         write_s += std::chrono::duration<double>(Clock::now() - t0).count();
         total_rows += rows.size();
     }
 
     std::cout << "⌛  Parsed " << filename << " in " << parse_s << " s"
               << "  (" << total_rows << " rows, " << batch_i
-              << " batches @ " << batch_size_mb << "mb)\n";
+              << " batches @ " << rt.getSettings().getBatchSizeMB() << "mb)\n";
     std::cout << "✅  Wrote " << total_triples << " triples from "
               << filename << " in " << write_s << " s\n"
               << "______________________________________________________________\n";

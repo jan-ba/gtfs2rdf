@@ -64,7 +64,8 @@ int main(int argc, char* argv[]) {
         result["batch-size"].as<double>());
 
     std::filesystem::path inputZIP = result["dataset"].as<std::string>();
-    std::filesystem::path outputPath = result["output"].as<std::string>() + "/" + inputZIP.stem().string() + ".ttl";
+    std::string file_ext = settings.isNTriplesOutput() ? ".nt" : ".ttl";
+    std::filesystem::path outputPath = result["output"].as<std::string>() + "/" + inputZIP.stem().string() + file_ext;
     double batch_size_mb = result["batch-size"].as<double>();
     if (batch_size_mb <= 0.0) {
         std::cerr << "❌  Error: batch size must be positive.\n";
@@ -104,12 +105,12 @@ int main(int argc, char* argv[]) {
     field_transforms::TransformRegistry registry;
     t_lib::register_lib_transforms(registry);
 
-    runtime::RuntimeContainer runtime_container(settings, registry);
+    runtime::RuntimeContainer rt(settings, registry);
 
     for ( const auto& [ file, factory ] : factories ) {
         if (zip_name_locate(za, file.c_str(), ZIP_FL_ENC_GUESS) != -1) {
             files_in_dir.push_back(file);
-            used_schemas.emplace_back(factory(registry));  // call factory
+            used_schemas.emplace_back(factory(rt));  // call factory
         }
     }
 
@@ -132,12 +133,18 @@ int main(int argc, char* argv[]) {
         }
         if (i == 0) {
             used_schemas[i].setPrefixes(merged_prefixes);
-            total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, batch_size_mb, true);  
+            total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, true, rt);  
         } else {
-            total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, batch_size_mb, false);
+            total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, false, rt);
         }
     }
     zip_close(za);
+
+    // add this for testing petrimaps (expects at least one non-point wktgeometry)
+    // TODO: remove later
+    out << "\n<https://example.org/_dummy/nonpoint> <http://www.opengis.net/ont/geosparql#asWKT> \"LINESTRING(6.9513 51.1192, 6.9523 51.1202)\"^^<http://www.opengis.net/ont/geosparql#wktLiteral> .";
+
+
     out.close();
     std::cout << "🎉  Done. Wrote " << total_triples << " triples to " << outputPath << "\n";
 
@@ -150,7 +157,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "❌  Error: cannot open '" << specPath.string() << "' for writing.\n";
             return 1;
         }
-        ttl::writePrefixes(specOut, used_schemas[0]); // prefixes only once
+        ttl::writePrefixes(specOut, used_schemas[0], rt); // prefixes only once
         for (const auto& schema : used_schemas) {
             for (const auto& inst : schema.getInstructions()) {
                 specOut << inst.getRawInstruction() << "\n";
