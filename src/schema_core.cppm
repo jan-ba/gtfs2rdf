@@ -16,6 +16,8 @@ module;
 #include <stdexcept>
 #include <iostream>
 #include <functional>
+#include <span>
+#include <cstdint>
 
 export module schema:core;
 import rdf_components;
@@ -44,7 +46,7 @@ export class Instruction {
     size_t base_len_ = 0;
     std::string out_;
     const std::string empty_ = "";
-    size_t counter_ = 0;
+    uint64_t counter_ = 0;
     bool is_valid_ = true;  // set to false if instruction is invalid due to missing columns
     const field_transforms::TransformRegistry& registry_;
     const std::string raw_instruction_;
@@ -126,7 +128,7 @@ export class Instruction {
         out_.reserve(base_len_ + approx_dg_len);
       }
 
-      const std::string& render(const std::vector<std::string>& row) {
+      const std::string& render(std::span<const std::string> row) {
           out_.clear();
           out_.append(parts_[0]);
 
@@ -217,7 +219,7 @@ export class Instruction {
       }
 
 
-    int getCount() const { return counter_; }
+    uint64_t getCount() const { return counter_; }
     bool isValid() const { return is_valid_; }
     const std::string& getRawInstruction() const { return raw_instruction_; }
 };
@@ -280,7 +282,7 @@ export class Schema {
     const std::vector<std::string>& getPossibleColumns() const { return possible_columns_; }
     const std::unordered_map<std::string, std::string>& getPrefixes() const { return prefixes_; }
     const std::unordered_map<std::string, int>& getColumnMap() const { return column_map_; }
-    const std::vector<Instruction>& getInstructions() const { return instructions_; }
+    std::vector<Instruction>& getInstructions() { return instructions_; }
 
     // Setters
     void setPrefixes(std::unordered_map<std::string, std::string> prefixes) {

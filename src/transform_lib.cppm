@@ -17,21 +17,7 @@ namespace t_lib {
     // factory for range-checking transform
     // Use like this in a schema file:
     // registry.registerTransform("in_range_0_100", t_lib::in_range(0.0, 100.0));
-    Transform2One in_range(double min, double max) {
 
-        return [min, max](const ArgSpan& args, std::string& out) {
-            const std::string& s = args[0];
-            double value = std::stod(s);
-
-            if (value < min || value > max) {
-                throw std::runtime_error(
-                    "❌ Transform error: value '" + s +
-                    "' out of range [" + std::to_string(min) + ", " +
-                    std::to_string(max) + "]"
-                );
-            }
-        };
-    }
     
     // _____________________________________________________________________________________________
     // Functions for type correctness checks

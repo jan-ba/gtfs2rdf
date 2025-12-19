@@ -28,7 +28,7 @@ using namespace util;
 
 
 using Factory = schema::Factory;
-const auto& factories = schema::factories();  // exported from schema:registry at build time
+const auto& factories = schema::factories();  // implemented in schema:registry at build time
 
 
 int main(int argc, char* argv[]) {
@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     opts.add_options()
         ("d,dataset", "Path to GTFS .zip archive", cxxopts::value<std::string>())
         ("o,output",  "Output directory", cxxopts::value<std::string>()->default_value("."))
-        ("b,batch-size", "Batch size in mb", cxxopts::value<double>()->default_value("10.0"))
+        ("c,chunk-size", "Batch size in mb", cxxopts::value<double>()->default_value("10.0"))
         ("t,triple", "Store as fully resolved triples, without prefixes or other .ttl syntax", 
          cxxopts::value<bool>()->default_value("false"))  // TODO
         ("s,syntactic-sugar", "Enable syntactic .ttl sugar for a more compact file output", 
@@ -61,12 +61,12 @@ int main(int argc, char* argv[]) {
         result["syntactic-sugar"].as<bool>(),
         result["debug"].as<bool>(),
         result["spec-dump"].as<bool>(),
-        result["batch-size"].as<double>());
+        result["chunk-size"].as<double>());
 
     std::filesystem::path inputZIP = result["dataset"].as<std::string>();
     std::string file_ext = settings.isNTriplesOutput() ? ".nt" : ".ttl";
     std::filesystem::path outputPath = result["output"].as<std::string>() + "/" + inputZIP.stem().string() + file_ext;
-    double batch_size_mb = result["batch-size"].as<double>();
+    double batch_size_mb = result["chunk-size"].as<double>();
     if (batch_size_mb <= 0.0) {
         std::cerr << "❌  Error: batch size must be positive.\n";
         return 1;
@@ -104,8 +104,9 @@ int main(int argc, char* argv[]) {
     std::vector<schema::Schema> used_schemas;
     field_transforms::TransformRegistry registry;
     t_lib::register_lib_transforms(registry);
-
+    writer::Writer writer(outputPath);
     runtime::RuntimeContainer rt(settings, registry);
+    gtfs::GTFSParser_Workspace ws(rt, writer);
 
     for ( const auto& [ file, factory ] : factories ) {
         if (zip_name_locate(za, file.c_str(), ZIP_FL_ENC_GUESS) != -1) {
@@ -115,57 +116,50 @@ int main(int argc, char* argv[]) {
     }
 
 
-    std::ofstream out(outputPath, std::ios::binary);
-    if (!out) {
-        std::cerr << "❌  Error: cannot open '" << outputPath.string() << "' for writing.\n";
-        return 1;
-    }
+    // std::ofstream out("outputPath", std::ios::binary);
+    // if (!out) {
+    //     std::cerr << "❌  Error: cannot open '" << outputPath.string() << "' for writing.\n";
+    //     return 1;
+    // }
 
     // TODO: Here dependencies could be accounted for or ordering of conversion
 
     auto merged_prefixes = schema::merge_prefixes(used_schemas, true);
-    long long total_triples = 0;
+    runtime::Statistics stats;
     for (size_t i = 0; i < files_in_dir.size(); i++) {
         zip_file_t* zf = zip_fopen(za, files_in_dir[i].c_str(), 0);
         if (!zf) {
             zip_close(za);
             throw std::runtime_error("❌  Error: cannot open entry inside ZIP: " + files_in_dir[i]);
         }
-        if (i == 0) {
-            used_schemas[i].setPrefixes(merged_prefixes);
-            total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, true, rt);  
-        } else {
-            total_triples += gtfs::translateFileToStream(zf, used_schemas[i], files_in_dir[i], out, false, rt);
-        }
+        if (i == 0) used_schemas[i].setPrefixes(merged_prefixes);
+        gtfs::GTFSParser parser(zf, used_schemas[i], i == 0, ws, rt);
+        parser.parse();
+        zip_fclose(zf);
+        stats = stats + parser.getStats();
     }
     zip_close(za);
 
-    // add this for testing petrimaps (expects at least one non-point wktgeometry)
-    // TODO: remove later
-    out << "\n<https://example.org/_dummy/nonpoint> <http://www.opengis.net/ont/geosparql#asWKT> \"LINESTRING(6.9513 51.1192, 6.9523 51.1202)\"^^<http://www.opengis.net/ont/geosparql#wktLiteral> .";
-
-
-    out.close();
-    std::cout << "🎉  Done. Wrote " << total_triples << " triples to " << outputPath << "\n";
+    std::cout << "🎉  Done.\n" + stats.briefPrint("Total GTFS Set") + "\n";
 
     // dump ontology spec if requested
-    if (result["spec-dump"].as<bool>()) {
-        std::filesystem::path specPath = outputPath;
-        specPath.replace_extension(".spec.txt");
-        std::ofstream specOut(specPath, std::ios::binary);
-        if (!specOut) {
-            std::cerr << "❌  Error: cannot open '" << specPath.string() << "' for writing.\n";
-            return 1;
-        }
-        ttl::writePrefixes(specOut, used_schemas[0], rt); // prefixes only once
-        for (const auto& schema : used_schemas) {
-            for (const auto& inst : schema.getInstructions()) {
-                specOut << inst.getRawInstruction() << "\n";
-            }
-        }
-        specOut.close();
-        std::cout << "📄  Wrote ontology spec to " << specPath << "\n";
-    }
+    // if (result["spec-dump"].as<bool>()) {
+    //     std::filesystem::path specPath = outputPath;
+    //     specPath.replace_extension(".spec.txt");
+    //     std::ofstream specOut(specPath, std::ios::binary);
+    //     if (!specOut) {
+    //         std::cerr << "❌  Error: cannot open '" << specPath.string() << "' for writing.\n";
+    //         return 1;
+    //     }
+    //     writer::writePrefixes(specOut, used_schemas[0], rt); // prefixes only once
+    //     for (const auto& schema : used_schemas) {
+    //         for (const auto& inst : schema.getInstructions()) {
+    //             specOut << inst.getRawInstruction() << "\n";
+    //         }
+    //     }
+    //     specOut.close();
+    //     std::cout << "📄  Wrote ontology spec to " << specPath << "\n";
+    // }
 
     return 0;
 }
