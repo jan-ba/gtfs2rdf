@@ -44,7 +44,7 @@ export class Writer {
         const char* d = chunk_.data(); 
         while (n) {
             size_t w = std::fwrite(d , 1, n, file_);
-            if (w == 0) throw std::runtime_error("fwrite failed");
+            if (w == 0) throw std::runtime_error("❌ Write error: Could not flush to disk.");
             d += w;
             n -= w;
         }
@@ -56,12 +56,11 @@ export class Writer {
         : threshold_(threshold) {
         
         file_ = std::fopen(path.string().c_str(), "wb");
-        if (!file_) throw std::runtime_error("fopen failed");
+        if (!file_) throw std::runtime_error("❌ Write error: Cannot open '" + path.string() + "' for writing.");
         chunk_.reserve(threshold_);
     }
 
     void writePrefixes(const Schema& sc) {
-        // if (rt.getSettings().isNTriplesOutput()) return;
         std::string out;
         for (const auto& [pfx, iri] : sc.getPrefixes()) {
             out += "@prefix " + pfx + ": <" + iri + "> .\n";
@@ -91,7 +90,7 @@ export class Writer {
             std::span<const std::string> row(flat.data() + base, num_cols);
 
             for (auto& instr : instructions) {
-                append(instr.render(row));   // make render accept span (see below)
+                append(instr.render(row));
             }
         }
     }

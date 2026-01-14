@@ -40,14 +40,14 @@ char _hex_upper(unsigned v) {
 }
 
 // Gibt ein vollständig gültiges Turtle-Literal zurück, z.B.:
-//   turtle_literal("A\nB", "de")           ->  "A\nB"@de
-//   turtle_literal("3.14", {}, "xsd:decimal")-> "3.14"^^xsd:decimal
+//   escape_literal_ttl("A\nB", "de")           ->  "A\nB"@de
+//   escape_literal_ttl("3.14", {}, "xsd:decimal")-> "3.14"^^xsd:decimal
 // Regeln:
 //  - Escaped werden: \, ", \n, \r, \t, \b, \f sowie alle ASCII-Steuerzeichen 0x00..0x1F und 0x7F.
 //  - Nicht-ASCII (UTF-8) bleibt unverändert (Turtle erlaubt UTF-8 direkt).
 //  - Falls sowohl lang als auch datatype gesetzt sind, hat lang Vorrang (datatype wird ignoriert).
-export std::string turtle_literal(std::string_view value) {
-  // Schneller Vorscan: Brauchen wir überhaupt Escapes?
+export std::string escape_literal_ttl(std::string_view value) {
+  // Schneller Vorscan: Brauchen wir überhaupt Escapes? Beeinträchtigt Vorscan Performance?
   bool needsEscape = false;
   for (unsigned char c : value) {
     if (c < 0x20 || c == 0x7F || c == '\\' || c == '"') { needsEscape = true; break; }
@@ -116,7 +116,7 @@ export class GTFSParser_Workspace {
   public:
     GTFSParser_Workspace(runtime::RuntimeContainer& rt, writer::Writer& writer)
     : writer_(writer), rt_(rt) {
-        read_buffer_capacity_ = rt.getSettings().getBatchSizeMB() * 1024 * 1024 + 1;
+        read_buffer_capacity_ = rt.getSettings().ReadChunkSizeMB() * 1024 * 1024 + 1;
         read_buffer_.resize(read_buffer_capacity_);
 
         parse_buffer_.reserve(1024);
@@ -165,7 +165,7 @@ export class GTFSParser {
   private:
     void finishField_() {
         // TODO: think about escaping
-        row_.push_back(turtle_literal(cache_));
+        row_.push_back(escape_literal_ttl(cache_));
         cache_.clear();
     }
 

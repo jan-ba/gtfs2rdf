@@ -36,11 +36,11 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rt) {
   const IRI subj = IRI("trips","{trip_id}");
 
   const std::unordered_map<std::string, std::string> prefixes = {
-    { "trips",    "https://gtfs.de/trips/" },
-    { "routes",   "https://gtfs.de/routes/" },
-    { "services", "https://gtfs.de/services/" },
-    { "blocks",   "https://gtfs.de/blocks/" },
-    { "shapes",   "https://gtfs.de/shapes/" },
+    { "trips",    "https://gtfs.org/trips/" },
+    { "routes",   "https://gtfs.org/routes/" },
+    { "services", "https://gtfs.org/services/" },
+    { "blocks",   "https://gtfs.org/blocks/" },
+    { "shapes",   "https://gtfs.org/shapes/" },
 
     { "rdf",  "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
     { "xsd",  "http://www.w3.org/2001/XMLSchema#" },

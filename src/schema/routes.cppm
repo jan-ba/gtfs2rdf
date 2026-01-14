@@ -40,9 +40,9 @@ export Schema buildRoutesSchema(runtime::RuntimeContainer& rt) {
   };
 
   const std::unordered_map<std::string, std::string> prefixes = {
-    { "routes",   "https://gtfs.de/routes/" },
-    { "agencies", "https://gtfs.de/agencies/" },
-    { "networks", "https://gtfs.de/networks/" },
+    { "routes",   "https://gtfs.org/routes/" },
+    { "agencies", "https://gtfs.org/agencies/" },
+    { "networks", "https://gtfs.org/networks/" },
 
     { "rdf",  "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
     { "xsd",  "http://www.w3.org/2001/XMLSchema#" },

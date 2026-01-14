@@ -87,8 +87,8 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rt) {
       "wheelchair_boarding", "level_id", "platform_code" };
 
   const std::unordered_map<std::string, std::string> prefixes = {
-    { "stops",     "https://gtfs.de/stops/" },
-    { "stoptimes", "https://gtfs.de/stop_times/" },
+    { "stops",     "https://gtfs.org/stops/" },
+    { "stoptimes", "https://gtfs.org/stop_times/" },
     { "rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
     { "xsd", "http://www.w3.org/2001/XMLSchema#" },
     { "gtfs",  "https://w3id.org/gtfs2rdf#" },

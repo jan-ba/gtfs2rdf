@@ -38,12 +38,12 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rt) {
 
   // 
   const std::unordered_map<std::string, std::string> prefixes = {
-    { "stops",        "https://gtfs.de/stops/" },
-    { "stoptimes",    "https://gtfs.de/stop_times/" },
-    { "trips",        "https://gtfs.de/trips/" },
-    { "locationgroups","https://gtfs.de/location_groups/" },
-    { "locations",    "https://gtfs.de/locations/" },
-    { "booking",      "https://gtfs.de/booking_rules/" },
+    { "stops",        "https://gtfs.org/stops/" },
+    { "stoptimes",    "https://gtfs.org/stop_times/" },
+    { "trips",        "https://gtfs.org/trips/" },
+    { "locationgroups","https://gtfs.org/location_groups/" },
+    { "locations",    "https://gtfs.org/locations/" },
+    { "booking",      "https://gtfs.org/booking_rules/" },
 
     { "rdf",          "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
     { "xsd",          "http://www.w3.org/2001/XMLSchema#" },

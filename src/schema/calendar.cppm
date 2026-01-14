@@ -68,7 +68,7 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rt) {
   };
 
   const std::unordered_map<std::string, std::string> prefixes = {
-    { "services", "https://gtfs.de/services/" },
+    { "services", "https://gtfs.org/services/" },
     { "rdf",      "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
     { "xsd",      "http://www.w3.org/2001/XMLSchema#" },
     { "gtfs",     "https://w3id.org/gtfs2rdf#" }

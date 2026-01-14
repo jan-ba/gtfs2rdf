@@ -155,7 +155,7 @@ export class Instruction {
                       const std::string* d_ptr = &d;
                       field_transforms::ArgSpan span1 {&d_ptr, 1};
 
-                      for (size_t i = 0; i < dg.transf2n_index; i++) {
+                      for (int i = 0; i < dg.transf2n_index; i++) {
                           if (i == 0) {
                               dg.transforms[i].single(spanN, c);
                           } else {
@@ -218,6 +218,12 @@ export class Instruction {
           return out_;
       }
 
+    // Instruction(const Instruction&) = delete;
+    // Instruction& operator=(const Instruction&) = delete;
+
+    // Instruction(Instruction&& Instruction other) {
+    //     *this = std::move(other);
+    // }
 
     uint64_t getCount() const { return counter_; }
     bool isValid() const { return is_valid_; }
@@ -242,8 +248,7 @@ export class Schema {
           const std::unordered_map<std::string, std::string> prefixes,
           const std::vector<Triple> triples, runtime::RuntimeContainer& rt)
         : name_(std::move(name)), possible_columns_(std::move(possible_columns)),
-          prefixes_(std::move(prefixes)), registry_(rt.getTransformRegistry()),
-          rt_(rt) {
+          prefixes_(std::move(prefixes)), rt_(rt), registry_(rt.getTransformRegistry()) {
       for (const auto& col : this->possible_columns_) {
         column_map_[col] = -1; // initialize all to -1 (not found)
       }

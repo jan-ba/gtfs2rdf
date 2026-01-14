@@ -32,79 +32,27 @@ const auto& factories = schema::factories();  // implemented in schema:registry 
 
 
 int main(int argc, char* argv[]) {
-    cxxopts::Options opts("gtfs2rdf", "GTFS->RDF converter");
-    opts.add_options()
-        ("d,dataset", "Path to GTFS .zip archive", cxxopts::value<std::string>())
-        ("o,output",  "Output directory", cxxopts::value<std::string>()->default_value("."))
-        ("c,chunk-size", "Batch size in mb", cxxopts::value<double>()->default_value("10.0"))
-        ("t,triple", "Store as fully resolved triples, without prefixes or other .ttl syntax", 
-         cxxopts::value<bool>()->default_value("false"))  // TODO
-        ("s,syntactic-sugar", "Enable syntactic .ttl sugar for a more compact file output", 
-         cxxopts::value<bool>()->default_value("false"))  // TODO
-        ("L,spec-dump", "Dump onthology spec to disk",
-        cxxopts::value<bool>()->default_value("false")->implicit_value("true"))  
-        ("w,debug", "Show non-fatal warnings", cxxopts::value<bool>()->default_value("true"))  // TODO
-        ("h,help", "Show help");
-
-    opts.positional_help("GTFS_ZIP");
-    opts.parse_positional({"dataset"});
-
-    auto result = opts.parse(argc, argv);
-    if (result.count("help")) { std::cout << opts.help() << '\n'; return 0; }
-    if (!result.count("dataset")) { 
-        std::cerr << "Input GTFS dataset required. Type --help for "\
-                     "more information!\n"; return 1; 
-    }
-
-    runtime::Settings settings(
-        result["triple"].as<bool>(),
-        result["syntactic-sugar"].as<bool>(),
-        result["debug"].as<bool>(),
-        result["spec-dump"].as<bool>(),
-        result["chunk-size"].as<double>());
-
-    std::filesystem::path inputZIP = result["dataset"].as<std::string>();
-    std::string file_ext = settings.isNTriplesOutput() ? ".nt" : ".ttl";
-    std::filesystem::path outputPath = result["output"].as<std::string>() + "/" + inputZIP.stem().string() + file_ext;
-    double batch_size_mb = result["chunk-size"].as<double>();
-    if (batch_size_mb <= 0.0) {
-        std::cerr << "❌  Error: batch size must be positive.\n";
-        return 1;
-    }
-
-    // check that file exists and is a zip file
-    if (!std::filesystem::is_regular_file(inputZIP) || inputZIP.extension() != ".zip") {
-        std::cerr << "❌  Error: Input '" << inputZIP.string() << "' doesn't exist or "\
-                                                                   "is not a zip file.\n";
-        return 1;
-    }
+    runtime::Settings settings(argc, argv);
 
     zip_t *za;
     int err;
 
     // try opening the zip file
-    if ((za = zip_open(inputZIP.string().c_str(), ZIP_RDONLY, &err)) == NULL) {
+    if ((za = zip_open(settings.InputPath().string().c_str(), ZIP_RDONLY, &err)) == NULL) {
         zip_error_t error;
         zip_error_init_with_code(&error, err);
         fprintf(stderr, "❌  Error: Cannot open zip archive '%s': %s\n",
-	        inputZIP.string().c_str(), zip_error_strerror(&error));
+	        settings.InputPath().string().c_str(), zip_error_strerror(&error));
         zip_error_fini(&error);
         return 1;
     }
 
-    // validate output path (and avoid unwanted overwriting)
-    if (std::filesystem::exists(outputPath)) {
-        std::cout << "Output path '" << outputPath.string() << "' already exists. Overwrite? [y/N]\n";
-        std::string a;
-        std::getline(std::cin, a);
-        if (!(a == "y" || a == "Y" || a == "yes" || a == "YES")) return 1;
-    }
 
     std::vector<std::string> files_in_dir;
     std::vector<schema::Schema> used_schemas;
     field_transforms::TransformRegistry registry;
     t_lib::register_lib_transforms(registry);
-    writer::Writer writer(outputPath);
+    writer::Writer writer(settings.OutputPath(), settings.WriteChunkSizeMB() * 1024 * 1024);
     runtime::RuntimeContainer rt(settings, registry);
     gtfs::GTFSParser_Workspace ws(rt, writer);
 
@@ -115,12 +63,12 @@ int main(int argc, char* argv[]) {
         }
     }
 
-
-    // std::ofstream out("outputPath", std::ios::binary);
-    // if (!out) {
-    //     std::cerr << "❌  Error: cannot open '" << outputPath.string() << "' for writing.\n";
-    //     return 1;
-    // }
+    if (files_in_dir.empty()) {
+        zip_close(za);
+        std::cerr << "❌  Error: No GTFS files corresponding to known schemas found in archive '" 
+                  << settings.InputPath().string() << "'.\n";
+        return 1;
+    }
 
     // TODO: Here dependencies could be accounted for or ordering of conversion
 
@@ -143,23 +91,18 @@ int main(int argc, char* argv[]) {
     std::cout << "🎉  Done.\n" + stats.briefPrint("Total GTFS Set") + "\n";
 
     // dump ontology spec if requested
-    // if (result["spec-dump"].as<bool>()) {
-    //     std::filesystem::path specPath = outputPath;
-    //     specPath.replace_extension(".spec.txt");
-    //     std::ofstream specOut(specPath, std::ios::binary);
-    //     if (!specOut) {
-    //         std::cerr << "❌  Error: cannot open '" << specPath.string() << "' for writing.\n";
-    //         return 1;
-    //     }
-    //     writer::writePrefixes(specOut, used_schemas[0], rt); // prefixes only once
-    //     for (const auto& schema : used_schemas) {
-    //         for (const auto& inst : schema.getInstructions()) {
-    //             specOut << inst.getRawInstruction() << "\n";
-    //         }
-    //     }
-    //     specOut.close();
-    //     std::cout << "📄  Wrote ontology spec to " << specPath << "\n";
-    // }
+    if (settings.isSpecDump() && !used_schemas.empty()) {
+        std::filesystem::path specPath = settings.OutputPath();
+        specPath.replace_extension(".spec.txt");
+        writer::Writer onth_writer(specPath, 1ull<<20);
+        if (!settings.isNTriplesOutput()) onth_writer.writePrefixes(used_schemas[0]);
+        for (auto& schema : used_schemas) {
+            for (auto& inst : schema.getInstructions()) {
+                onth_writer.append(inst.getRawInstruction() + "\n");
+            }
+        }
+        std::cout << "📄  Wrote ontology spec to " << specPath << "\n";
+    }
 
     return 0;
 }

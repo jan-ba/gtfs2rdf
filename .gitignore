@@ -48,4 +48,5 @@ gcm.cache/*
 
 # ignore data files
 *.ttl
+*.nt
 *.spec.txt

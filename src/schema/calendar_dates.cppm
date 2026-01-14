@@ -32,8 +32,8 @@ export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rt) {
   };
 
   const std::unordered_map<std::string, std::string> prefixes = {
-    { "caldates", "https://gtfs.de/calendar_dates/" },
-    { "services", "https://gtfs.de/services/" },
+    { "caldates", "https://gtfs.org/calendar_dates/" },
+    { "services", "https://gtfs.org/services/" },
 
     { "rdf",  "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
     { "xsd",  "http://www.w3.org/2001/XMLSchema#" },
