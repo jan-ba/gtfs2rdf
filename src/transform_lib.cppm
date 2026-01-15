@@ -14,6 +14,7 @@ using namespace field_transforms;
 // functions will need to be registered in the TransformRegistry (see below) in order to be available
 namespace t_lib {
 
+    // _____________________________________________________________________________________________
     // factory for range-checking transform
     // Use like this in a schema file:
     // registry.registerTransform("in_range_0_100", t_lib::in_range(0.0, 100.0));
@@ -103,7 +104,9 @@ namespace t_lib {
     // convert GTFS date "YYYYMMDD" to xsd:date "YYYY-MM-DD"
     void convert_date(const ArgSpan& args, std::string& out) {
         const std::string& s = args[0];
-        if (s.size() != 8) {
+        if (s.empty()) {
+            return;  // leave empty
+        } else if (s.size() != 8) {
             throw std::runtime_error(
                 "❌ Transform error: expected date in format YYYYMMDD, got '" + s + "'"
             );

@@ -52,8 +52,8 @@ int main(int argc, char* argv[]) {
     std::vector<schema::Schema> used_schemas;
     field_transforms::TransformRegistry registry;
     t_lib::register_lib_transforms(registry);
-    writer::Writer writer(settings.OutputPath(), settings.WriteChunkSizeMB() * 1024 * 1024);
     runtime::RuntimeContainer rt(settings, registry);
+    writer::Writer writer(settings.OutputPath(), rt);
     gtfs::GTFSParser_Workspace ws(rt, writer);
 
     for ( const auto& [ file, factory ] : factories ) {
@@ -94,7 +94,7 @@ int main(int argc, char* argv[]) {
     if (settings.isSpecDump() && !used_schemas.empty()) {
         std::filesystem::path specPath = settings.OutputPath();
         specPath.replace_extension(".spec.txt");
-        writer::Writer onth_writer(specPath, 1ull<<20);
+        writer::Writer onth_writer(specPath, rt);
         if (!settings.isNTriplesOutput()) onth_writer.writePrefixes(used_schemas[0]);
         for (auto& schema : used_schemas) {
             for (auto& inst : schema.getInstructions()) {

@@ -50,3 +50,4 @@ gcm.cache/*
 *.ttl
 *.nt
 *.spec.txt
+*.zip

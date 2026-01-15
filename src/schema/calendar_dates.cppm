@@ -25,8 +25,23 @@ using namespace rdf;
 
 namespace schema {
 
+void ignore_deactivated_dates(const field_transforms::ArgSpan& args, std::string& out) {
+    // args: date, exception_type
+    if (args[1] == "2") {
+        // exception_type 2 = removed -> ignore
+        return;
+    } else if (args[1] == "1") {
+        // exception_type 1 = added -> output date
+        out = args[0];
+    } else {
+        throw std::runtime_error("❌  Transform error: invalid exception_type '" + args[1] + "' in ignore_deactivated_dates");
+    }
+}
+
 // GTFS -> RDF schema for calendar_dates.txt
 export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rt) {
+  rt.getTransformRegistry().registerTransform("ignore_deactivated_dates", ignore_deactivated_dates);
+
   const std::vector<std::string> possible_columns = {
     "service_id", "date", "exception_type"
   };
@@ -40,25 +55,15 @@ export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rt) {
     { "gtfs", "https://w3id.org/gtfs2rdf#" }
   };
 
-  const IRI subject = IRI("caldates","{service_id}_{date}");
+  const IRI subject = IRI("caldates","{service_id}");
 
-  // NOTE:
-  // - We keep `date` as a plain literal because GTFS uses YYYYMMDD (no dashes); mapping to
-  //   xsd:date would require transforming to YYYY-MM-DD during parsing.
-  // TODO: add proper parsing of datatypes such as date
   const std::vector<Triple> triples = {
     // SUBJECT            PREDICATE                   OBJECT
-    // Identity / type
-    { subject,            {"rdf","type"},             { IRI("gtfs","CalendarDate") } },
 
-    // Link to the service this exception refers to
-    { subject,            {"gtfs","service"},         { IRI("services","{service_id}") } },
-
-    // The date of the exception (plain literal; see note above)
-    { subject,            {"gtfs","date"},            { "{date}" } },
-
-    // Exception type: 1 = added, 2 = removed
-    { subject,            {"gtfs","exceptionType"},   { "{exception_type}", IRI("xsd","integer") } }
+    // date of the exception (if exception_type is 1, the service is added for the specified date,
+    //                        else ignored)
+    { subject,   {"gtfs","serviceDate"}, { "{ date, exception_type | ignore_deactivated_dates | "\
+                                              "convert2xsd:date }", IRI("xsd", "date") } },
   };
 
   Schema sc("calendar_dates.txt", possible_columns, prefixes, triples, rt);
