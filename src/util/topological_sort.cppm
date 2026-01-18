@@ -6,17 +6,13 @@
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
-
 module;
 #include <vector>
-#include <iostream>
-#include <algorithm>
-#include <map>
 #include <unordered_map>
 #include <string>
-#include <string_view>
+#include <stdexcept>
 
-export module util;
+export module util:topological_sort;
 
 export namespace util {
 
@@ -138,133 +134,5 @@ class TopologicalSort {
         return result;
     }
 };
-
-// _________________________________________________________________________________________________
-// std::string utility functions
-// _________________________________________________________________________________________________
-
-// splits a string by a given delimiter character
-std::vector<std::string> split(const std::string& str, const char delimiter) {
-    std::vector<std::string> tokens;
-    std::string current;
-
-    for (char c : str) {
-        if (c == delimiter) {
-            tokens.push_back(current);
-            current.clear();
-        } else {
-            current += c;
-        }
-    }
-
-    // add the last token (even if it's empty)
-    tokens.push_back(current);
-
-    return tokens;
-}
-
-// removes whitespace inplace from a string
-void remove_whitespace(std::string& str) {
-    str.erase(std::remove_if(str.begin(), str.end(), 
-                             [](unsigned char c) { return std::isspace(c); }), 
-                             str.end());
-}
-
-// returns a concatenation string of a vector of strings
-std::string concat(const std::vector<std::string>& vec, const std::string& delimiter = "") {
-    std::string result;
-    for (size_t i = 0; i < vec.size(); ++i) {
-        result += vec[i];
-        if (i < vec.size() - 1) {
-            result += delimiter;
-        }
-    }
-    return result;
-}
-
-// returns all occurences of substrings that are enclosed between 'start_delim' and 'end_delim'
-// throws an error if delimiters are unbalanced
-// invariant: nested delimiters are not supported
-std::vector<std::string> extract_enclosed_substrings(const std::string& str,
-    const std::string& start_delim, const std::string& end_delim) 
-{
-    std::vector<std::string> results;
-
-    // if there is an end delimiter but no start delimiter at all -> unbalanced
-    if (str.find(end_delim) != std::string::npos &&
-        str.find(start_delim) == std::string::npos) {
-        throw std::runtime_error("❌  Error: unbalanced delimiters in string: " + str);
-    }
-
-    size_t start_search = 0;
-    size_t last_consumed = 0;
-
-    while (true) {
-        size_t pos = str.find(start_delim, start_search);
-        if (pos == std::string::npos) break;
-
-        size_t end = str.find(end_delim, pos + start_delim.size());
-        if (end == std::string::npos) {
-            throw std::runtime_error("❌  Error: unbalanced delimiters in string: " + str);
-        }
-
-        results.push_back(str.substr(pos + start_delim.size(),
-                                     end - (pos + start_delim.size())));
-
-        last_consumed = end + end_delim.size();
-        start_search = last_consumed;
-    }
-
-    // any stray end delimiter after the last consumed block -> unbalanced
-    if (str.find(end_delim, last_consumed) != std::string::npos) {
-        throw std::runtime_error("❌  Error: unbalanced delimiters in string: " + str);
-    }
-
-    return results;
-}
-
-bool is_gtfs_file_char (char c) {
-    return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '.' || c == '-';
-};
-
-
-template<typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec) {
-    os << "[";
-    for (size_t i = 0; i < vec.size(); ++i) {
-        os << vec[i];
-        if (i < vec.size() - 1) {
-            os << ", ";
-        }
-    }
-    os << "]";
-    return os;
-}
-
-template<typename K, typename V>
-std::ostream& operator<<(std::ostream& os, const std::map<K,V>& map) {
-    os << "{";
-    for (auto it = map.begin(); it != map.end(); ++it) {
-        os << it->first << ": " << it->second;
-        if (std::next(it) != map.end()) {
-            os << ", ";
-        }
-    }
-    os << "}";
-    return os;
-}
-
-template<typename K, typename V>
-std::ostream& operator<<(std::ostream& os, const std::unordered_map<K,V>& map) {
-    os << "{";
-    for (auto it = map.begin(); it != map.end(); ++it) {
-        os << it->first << ": " << it->second;
-        if (std::next(it) != map.end()) {
-            os << ", ";
-        }
-    }
-    os << "}";
-    return os;
-} 
 
 } // namespace
