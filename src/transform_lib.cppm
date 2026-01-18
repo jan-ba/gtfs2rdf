@@ -10,6 +10,10 @@ import field_transforms;
 
 using namespace field_transforms;
 
+// TODO: camelCase for function names? Because this will contrast nicely with GTFS field names
+//       which are usually snake_case
+
+
 // library of field transforms that could be useful for multiple schemas
 // functions will need to be registered in the TransformRegistry (see below) in order to be available
 namespace t_lib {
@@ -123,7 +127,7 @@ namespace t_lib {
     export void register_lib_transforms(TransformRegistry& registry) {
         registry.registerTransform("is_int", is_int);
         registry.registerTransform("is_decimal", is_decimal);
-        registry.registerTransform("convert2xsd:date", convert_date);
+        registry.registerTransform("convert_date", convert_date);
         registry.registerTransform("debug_wrap", debug_wrap);
     }
 }

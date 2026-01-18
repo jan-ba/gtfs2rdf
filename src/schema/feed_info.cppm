@@ -47,7 +47,9 @@ export Schema buildFeedInfoSchema(runtime::RuntimeContainer& rt) {
     const IRI subject = IRI("feedinfo", "feed");
 
     const std::vector<Triple> triples = {
-        {  {}, {}, { "{feed_lang | store_constant}" } }
+        { subject, {"gtfs","feedLang"}, { "{feed_lang > FEED_LANG}" } },
+        { subject, {"gtfs","feedStartDate"}, { "{feed_start_date | convert_date}"} },
+        { subject, {"gtfs","feedEndDate"}, { "{feed_end_date | convert_date}"} }
     };
 
     Schema sc("feed_info.txt", possible_columns, prefixes, triples, rt);

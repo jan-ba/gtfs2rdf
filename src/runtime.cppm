@@ -13,32 +13,112 @@ module;
 
 export module runtime;
 
+import util;
 import field_transforms;
 
 namespace runtime {
 
-// Only for constants for now
 class PersistentStorage {
   private:
     // context (this is data for one file/schema) -> (constant name -> value)
-    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> storage_;
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> constants_;
+    
+    // context -> (multimap name -> (key -> list(values)))
+    std::unordered_map<std::string, 
+        std::unordered_map<std::string, 
+            std::unordered_map<std::string, std::vector<std::string>>>> multimaps_;
 
+    // context -> (tuplemap name -> (key -> list(value_tuples)))
+    std::unordered_map<std::string,
+        std::unordered_map<std::string,
+            std::unordered_map<std::string, std::vector<std::vector<std::string>>>>> tuplemaps_;
+
+    static inline const std::string empty_ = "";
+
+    static inline const std::vector<std::string> empty_vector_ = {};
+
+    static inline const std::vector<std::vector<std::string>> empty_vector_of_vectors_ = {};
   public:
+    // CONSTANTS API
     void store(const std::string& ctx, const std::string& constant, const std::string& value) {
-        storage_[ctx][constant] = value;
+        constants_[ctx][constant] = value;
     }
 
-    std::string get(const std::string& ctx, const std::string& constant) {
-        auto it = storage_.find(ctx);
-        if (it == storage_.end()) return "";
-            auto it2 = it->second.find(constant);
-        if (it2 == it->second.end()) return "";
+    const std::string& get(const std::string& ctx, const std::string& constant) const {
+        auto it = constants_.find(ctx);
+        if (it == constants_.end()) return empty_;
+        auto it2 = it->second.find(constant);
+        if (it2 == it->second.end()) return empty_;
         return it2->second;
     }
 
-    void clear_context(const std::string& ctx) {
-        storage_.erase(ctx);
+    // MULTIMAPS API
+    void store(const std::string& ctx, const std::string& multimap,
+               const std::string& key, const std::string& value) {
+        multimaps_[ctx][multimap][key].push_back(value);
     }
+
+    const std::vector<std::string>& get(const std::string& ctx,
+                                       const std::string& multimap,
+                                       const std::string& key) const {
+        auto it = multimaps_.find(ctx);
+        if (it == multimaps_.end()) return empty_vector_;
+        auto it2 = it->second.find(multimap);
+        if (it2 == it->second.end()) return empty_vector_;
+        auto it3 = it2->second.find(key);
+        if (it3 == it2->second.end()) return empty_vector_;
+        return it3->second;
+    }
+
+    void finalise_multimaps(const std::string& ctx) {
+        auto it = multimaps_.find(ctx);
+        if (it == multimaps_.end()) return;
+        for (auto& [ multimap_name, map ] : it->second) {
+            for (auto& [ key, values ] : map) {
+                std::sort(values.begin(), values.end());
+            }
+        }
+    }
+
+    // Check if a value exists in a multimap
+    // invariant: multimaps are finalised (sorted)
+    bool contains(const std::string& ctx, const std::string& multimap,
+                  const std::string& key, const std::string& value) const {
+        const auto& vec = get(ctx, multimap, key);
+        if (vec.empty()) return false;
+        return std::binary_search(vec.begin(), vec.end(), value);
+    }
+
+    // TUPLEMAPS API
+    void store(const std::string& ctx, const std::string& tuplemap,
+               const std::vector<std::string>& key, const std::vector<std::string>& value_tuple) {
+        tuplemaps_[ctx][tuplemap][util::concat(key)].push_back(value_tuple);
+    }
+
+    const std::vector<std::vector<std::string>>& get(const std::string& ctx,
+                                       const std::string& tuplemap,
+                                       const std::vector<std::string>& key) const {
+        std::string key_combined = util::concat(key);
+        auto it = tuplemaps_.find(ctx);
+        if (it == tuplemaps_.end()) return empty_vector_of_vectors_;
+        auto it2 = it->second.find(tuplemap);
+        if (it2 == it->second.end()) return empty_vector_of_vectors_;
+        auto it3 = it2->second.find(key_combined);
+        if (it3 == it2->second.end()) return empty_vector_of_vectors_;
+        return it3->second;
+    }
+
+    // clear all stored data for a given context once it goes out of scope
+    void clear_context(const std::string& ctx) {
+        constants_.erase(ctx);
+        multimaps_.erase(ctx);
+        tuplemaps_.erase(ctx);
+    }
+
+    // getters for testing
+    const auto& getAllConstants() const { return constants_; }
+    const auto& getAllMultimaps() const { return multimaps_; }
+    const auto& getAllTuplemaps() const { return tuplemaps_; }
 };
 
 export class Settings {
@@ -172,6 +252,8 @@ export class RuntimeContainer {
 
     const Settings& getSettings() const { return settings_; }
     field_transforms::TransformRegistry& getTransformRegistry() { return registry_; }
+    const field_transforms::TransformRegistry& getConstTransformRegistry() const { return registry_; }
+    PersistentStorage& getStorage() { return storage_; }
 };
 
 export class Statistics {

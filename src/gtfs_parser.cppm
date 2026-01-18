@@ -23,7 +23,7 @@ module;
 
 export module gtfs_parser;
 
-import utility;
+import util;
 import schema;
 import rdf_writer;
 import runtime;

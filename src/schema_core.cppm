@@ -18,12 +18,13 @@ module;
 #include <functional>
 #include <span>
 #include <cstdint>
+#include <unordered_set>
 
 export module schema:core;
 import rdf_components;
 import field_transforms;
 import runtime;
-
+import util;
 
 using namespace rdf;
 
@@ -36,6 +37,7 @@ struct Datagap {
     std::array<field_transforms::Transform, field_transforms::MaxTransforms> transforms;
     bool contains_transf2n = false;
     int transf2n_index = -1;
+    field_transforms::StorageInstruction storage_instruction;
 };
 
 export class Instruction {
@@ -45,9 +47,10 @@ export class Instruction {
     std::array<const std::string*, field_transforms::MaxArgs> arg_buf_;
     size_t base_len_ = 0;
     std::string out_;
-    const std::string empty_ = "";
+    static inline const std::string empty_ = "";
     uint64_t counter_ = 0;
     bool is_valid_ = true;  // set to false if instruction is invalid due to missing columns
+    runtime::RuntimeContainer& rt_;
     const field_transforms::TransformRegistry& registry_;
     const std::string raw_instruction_;
     bool contains_transf2n_ = false;
@@ -56,8 +59,8 @@ export class Instruction {
 
   public:
     Instruction(const std::string& raw_instruction, const std::unordered_map<std::string, 
-                int>& column_map, const field_transforms::TransformRegistry& registry) 
-        : registry_(registry), raw_instruction_(raw_instruction)
+                int>& column_map, runtime::RuntimeContainer& rt, const std::string& ctx_name)
+        : rt_(rt), registry_(rt.getConstTransformRegistry()), raw_instruction_(raw_instruction)
       {
         // parse raw_instruction into parts and column_indices
         size_t pos = 0;
@@ -86,7 +89,9 @@ export class Instruction {
             Datagap dg;
             dg.num_fields = pp.field_names.size();
             dg.num_transforms = pp.transforms.size();
-            
+            dg.storage_instruction = pp.storage_instruction;
+            dg.storage_instruction.setContextName(ctx_name);
+
             for (size_t j = 0; j < pp.transforms.size(); ++j) {
                 dg.transforms[j] = pp.transforms[j];
                 if (pp.transforms[j].kind == field_transforms::TransformKind::Multi) {
@@ -193,6 +198,7 @@ export class Instruction {
 
                       // TODO: what if c is empty? Is the resulting triple invalid then?
                       out_.append(c);
+                      
                   }
  
               } else {  // no transforms
@@ -200,6 +206,15 @@ export class Instruction {
               }
 
               out_.append(parts_[k + 1]);
+              // store internally if asked to
+              if (!(dg.storage_instruction.getOutputDestination()
+                  == field_transforms::OutputDestination::FILE) && !contains_transf2n_) {
+                  if (dg.num_fields == 1) {
+                      rt_.getStorage().store(dg.storage_instruction.getContextName(), 
+                                            dg.storage_instruction.getTargetName(),
+                                            row[dg.column_indices[0]]);
+                  }
+              }
           }
         
           if (contains_transf2n_) {
@@ -236,8 +251,9 @@ export class Schema {
     const std::vector<std::string> possible_columns_ = {}; // all columns that could be contained by <name_>.txt  TODO: actually needed?
     std::unordered_map<std::string, std::string> prefixes_;
     std::vector<std::string> raw_instructions_;
-    const runtime::RuntimeContainer& rt_;
+    runtime::RuntimeContainer& rt_;
     const field_transforms::TransformRegistry& registry_;
+    std::unordered_set<std::string> dependencies_;  // other schemas that this schema depends on
 
     // computed from header
     std::unordered_map<std::string, int> column_map_;  // column name -> index in file, -1 if not found
@@ -257,6 +273,33 @@ export class Schema {
       for (const auto& triple : triples) {
         raw_instructions_.push_back(triple.toString(prefixes_, rt_));
       }
+
+        // find dependencies from raw_instructions_
+        for (const auto& raw_inst : raw_instructions_) {
+            auto placeholders = util::extract_enclosed_substrings(raw_inst, "{", "}");
+            for (auto& ph : placeholders) {
+                util::remove_whitespace(ph);
+
+                // identity context names if any ({ ... <filename>.txt:ambiguous_identifier })
+
+                size_t search_from = 0;
+                while (true) {  
+                    size_t colon = ph.find(':', search_from);
+                    if (colon == std::string::npos) break;
+                    
+                    auto start_pos = colon;
+                    while (start_pos > 0 && util::is_gtfs_file_char(ph[start_pos - 1])) {
+                        start_pos--;
+                    }
+                    
+                    auto ctx = ph.substr(start_pos, colon - start_pos);
+                    if (ctx.ends_with(".txt") && ctx != name_) {
+                        dependencies_.insert(ctx);
+                    }
+                    search_from = colon + 1;
+                }
+            }
+        }
     }
 
 
@@ -274,7 +317,7 @@ export class Schema {
       }
       // build instructions_
       for (const auto& raw_inst : raw_instructions_) {
-        Instruction instr(raw_inst, column_map_, registry_);
+        Instruction instr(raw_inst, column_map_, rt_, name_);
         if (!instr.isValid()) {
             continue; // skip invalid instructions (due to missing columns)
         }
@@ -288,6 +331,7 @@ export class Schema {
     const std::unordered_map<std::string, std::string>& getPrefixes() const { return prefixes_; }
     const std::unordered_map<std::string, int>& getColumnMap() const { return column_map_; }
     std::vector<Instruction>& getInstructions() { return instructions_; }
+    const std::unordered_set<std::string>& getDependencies() const { return dependencies_; }
 
     // Setters
     void setPrefixes(std::unordered_map<std::string, std::string> prefixes) {

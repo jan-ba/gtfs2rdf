@@ -108,6 +108,7 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rt) {
 
     // Labels / desc / code / URL
     { subj,  {"gtfs","stopName"},     { "{stop_name}", "de" } },
+    // { subj,  {"gtfs","stopName"},     { "{stop_name}", "{feed_info.txt:FEED_LANG}" } },
     { subj,  {"gtfs","stopDesc"},     { "{stop_desc}", "de" } },
     { subj,  {"gtfs","stopCode"},     { "{stop_code}" } },
     { subj,  {"gtfs","stopUrl"},      { "{stop_url}", IRI("xsd","anyURI") } },

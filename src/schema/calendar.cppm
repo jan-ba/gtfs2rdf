@@ -96,8 +96,8 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rt) {
                                                   "generate_dates }", IRI("xsd","date") } }, 
 
     // Date range (plain literals per note above)
-    { subject,        {"gtfs","startDate"},     { "{start_date | convert2xsd:date }", IRI("xsd", "date") } },
-    { subject,        {"gtfs","endDate"},       { "{end_date | convert2xsd:date}", IRI("xsd", "date") } }
+    { subject,        {"gtfs","startDate"},     { "{start_date | convert_date }", IRI("xsd", "date") } },
+    { subject,        {"gtfs","endDate"},       { "{end_date | convert_date}", IRI("xsd", "date") } }
   };
 
   Schema sc("calendar.txt", possible_columns, prefixes, triples, rt);

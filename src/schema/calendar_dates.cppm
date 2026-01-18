@@ -63,7 +63,8 @@ export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rt) {
     // date of the exception (if exception_type is 1, the service is added for the specified date,
     //                        else ignored)
     { subject,   {"gtfs","serviceDate"}, { "{ date, exception_type | ignore_deactivated_dates | "\
-                                              "convert2xsd:date }", IRI("xsd", "date") } },
+                                              "convert_date }", IRI("xsd", "date") } },
+    // { subject,   {"rdf","type"},            { "{ service_id, date, exception_type > }" } }
   };
 
   Schema sc("calendar_dates.txt", possible_columns, prefixes, triples, rt);

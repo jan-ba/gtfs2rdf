@@ -16,7 +16,7 @@
 #include "zip.h"
 
 import gtfs_parser;
-import utility;
+import util;
 import rdf_writer;
 import schema;
 import field_transforms;
@@ -70,18 +70,39 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // TODO: Here dependencies could be accounted for or ordering of conversion
+    // determine processing order via topological sort of dependencies
+    // this whole section is not very efficient, but then again we're looking at GTFS datasets
+    // such that n < 50 in practice
+    TopologicalSort toposort(files_in_dir.size());
+    for (size_t i = 0; i < files_in_dir.size(); i++) {
+        toposort.addNode(i);
+        for (const auto& dep : used_schemas[i].getDependencies()) {
+            for (size_t j = 0; j < files_in_dir.size(); j++) {
+                if (files_in_dir[j] == dep) {
+                    toposort.addEdge(j, i);  // dep must come before i
+                }
+            }
+        }
+    }
+
+    auto order = toposort.sort();
+
+    std::cout << "🔀  Processing GTFS files in order: ";
+    for (size_t i = 0; i < files_in_dir.size(); i++) {
+        std::cout << files_in_dir[order[i]] << " ";
+    }
+    std::cout << "\n";
 
     auto merged_prefixes = schema::merge_prefixes(used_schemas, true);
     runtime::Statistics stats;
     for (size_t i = 0; i < files_in_dir.size(); i++) {
-        zip_file_t* zf = zip_fopen(za, files_in_dir[i].c_str(), 0);
+        zip_file_t* zf = zip_fopen(za, files_in_dir[order[i]].c_str(), 0);
         if (!zf) {
             zip_close(za);
-            throw std::runtime_error("❌  Error: cannot open entry inside ZIP: " + files_in_dir[i]);
+            throw std::runtime_error("❌  Error: cannot open entry inside ZIP: " + files_in_dir[order[i]]);
         }
-        if (i == 0) used_schemas[i].setPrefixes(merged_prefixes);
-        gtfs::GTFSParser parser(zf, used_schemas[i], i == 0, ws, rt);
+        if (i == 0) used_schemas[order[i]].setPrefixes(merged_prefixes);
+        gtfs::GTFSParser parser(zf, used_schemas[order[i]], i == 0, ws, rt);
         parser.parse();
         zip_fclose(zf);
         stats = stats + parser.getStats();
@@ -89,6 +110,16 @@ int main(int argc, char* argv[]) {
     zip_close(za);
 
     std::cout << "🎉  Done.\n" + stats.briefPrint("Total GTFS Set") + "\n";
+
+    // test whether all constant/multimap/tuplemap storage targets used actually have data
+    // TODO: remove debug output later
+    for (auto& constant_maps : rt.getStorage().getAllConstants()) {
+        const auto& ctx = constant_maps.first;
+        for (const auto& [ name, _ ] : constant_maps.second) {
+            const auto& value = rt.getStorage().get(ctx, name);
+            std::cout << "🔍  Value for constant '" << name << "' in context '" << ctx << "' is " << value << "\n";
+        }
+    }
 
     // dump ontology spec if requested
     if (settings.isSpecDump() && !used_schemas.empty()) {
