@@ -119,6 +119,8 @@ export class GTFSParser_Workspace {
         read_buffer_capacity_ = rt.getSettings().ReadChunkSizeMB() * 1024 * 1024 + 1;
         read_buffer_.resize(read_buffer_capacity_);
 
+        // TODO: can this be optimised? (this stores strings so cant really preallocate, 
+        // creating new strings for every read chunk is wasteful)
         parse_buffer_.reserve(1024);
     }
 

@@ -54,13 +54,10 @@ export class Writer {
     }
 
   public:
-    Writer(const std::filesystem::path& path, runtime::RuntimeContainer& rt)
-        : rt_(rt), threshold_(rt_.getSettings().WriteChunkSizeMB() * 1024 * 1024) {
+    Writer(const std::filesystem::path& path, runtime::RuntimeContainer& rt, double buffer_size_mb)
+        : rt_(rt), threshold_(buffer_size_mb * 1024 * 1024) {
         if (std::filesystem::exists(path)) {
-            // TODO: add warning if overwrite flag set (just for info that overwriting has happened)
             if (!rt_.getSettings().isOverwriteOutput()) {
-                // throw std::runtime_error("❌ Write error: Output file '" + path.string() + "' already exists. "\
-                //                          "To overwrite, enable the overwrite option.");
                 std::cerr << "❌  Write error: Output file '" << path.string() 
                           << "' already exists. To overwrite, enable the overwrite option.\n";
                 std::exit(1);
@@ -70,6 +67,12 @@ export class Writer {
         if (!file_) throw std::runtime_error("❌ Write error: Cannot open '" + path.string() + "' for writing.");
         chunk_.reserve(threshold_);
     }
+
+    // TODO: perhaps rename chunk to buffer everywhere?
+    Writer(const std::filesystem::path& path, runtime::RuntimeContainer& rt)
+        : Writer(path, rt, rt.getSettings().WriteChunkSizeMB()) {
+    }
+
 
     void writePrefixes(const Schema& sc) {
         std::string out;
@@ -84,16 +87,6 @@ export class Writer {
         chunk_.append(s.data(), s.size());
         if (chunk_.size() >= threshold_) flush();
     }
-
-    // void convert2RDF(const Schema& sc, const Rows& rows) {
-    //     auto instructions = sc.getInstructions();
-
-    //     for (const auto& row : rows) {
-    //         for (auto& instr : instructions) {
-    //             append(instr.render(row));
-    //         }
-    //     }
-    // }
 
     void convert2RDF(Schema& sc, const std::vector<std::string>& flat, size_t num_cols) {
         auto& instructions = sc.getInstructions();

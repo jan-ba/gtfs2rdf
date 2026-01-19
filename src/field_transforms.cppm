@@ -58,11 +58,6 @@ export struct Transform {
     Transform2N   multi;  // valid if kind == Multi
 };
 
-// this denotes how the output of a placeholder is to be handled
-// store to FILE in a rdf triple (standard) or store internally for later use:
-// CONSTANT: single constant value
-// MULTIMAP: multiple values per input row (e.g. for calendar_dates.txt exceptions)
-// TUPLEMAP: multiple tuples of values per input row (e.g. for translations.txt)
 export enum class OutputDestination { CONSTANT, MULTIMAP, TUPLEMAP, FILE };
 
 export class StorageInstruction {
@@ -157,7 +152,7 @@ export class TransformRegistry {
         // remove whitespace
         std::string s = raw;
 
-        util::remove_whitespace(s);
+        util::remove_ws(s);
 
         // find first '>' if any (then, this placeholder is meant for persistent storage)
         size_t dest_pos = s.find('>');

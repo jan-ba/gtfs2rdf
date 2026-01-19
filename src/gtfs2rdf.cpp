@@ -125,7 +125,7 @@ int main(int argc, char* argv[]) {
     if (settings.isSpecDump() && !used_schemas.empty()) {
         std::filesystem::path specPath = settings.OutputPath();
         specPath.replace_extension(".spec.txt");
-        writer::Writer onth_writer(specPath, rt);
+        writer::Writer onth_writer(specPath, rt, 1.0);  // small buffer for spec writing
         if (!settings.isNTriplesOutput()) onth_writer.writePrefixes(used_schemas[0]);
         for (auto& schema : used_schemas) {
             for (auto& inst : schema.getInstructions()) {

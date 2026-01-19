@@ -32,7 +32,7 @@ std::vector<std::string> split(const std::string& str, const char delimiter) {
 }
 
 // removes whitespace inplace from a string
-void remove_whitespace(std::string& str) {
+void remove_ws(std::string& str) {
     str.erase(std::remove_if(str.begin(), str.end(), 
                              [](unsigned char c) { return std::isspace(c); }), 
                              str.end());

@@ -233,13 +233,6 @@ export class Instruction {
           return out_;
       }
 
-    // Instruction(const Instruction&) = delete;
-    // Instruction& operator=(const Instruction&) = delete;
-
-    // Instruction(Instruction&& Instruction other) {
-    //     *this = std::move(other);
-    // }
-
     uint64_t getCount() const { return counter_; }
     bool isValid() const { return is_valid_; }
     const std::string& getRawInstruction() const { return raw_instruction_; }
@@ -260,9 +253,10 @@ export class Schema {
     std::vector<Instruction> instructions_;  // computed instructions 
 
   public:
+    // TODO: make more efficient (pass prefixes by reference? etc.)
     Schema(const std::string name, const std::vector<std::string> possible_columns,
           const std::unordered_map<std::string, std::string> prefixes,
-          const std::vector<Triple> triples, runtime::RuntimeContainer& rt)
+          const std::vector<Triple>& triples, runtime::RuntimeContainer& rt)
         : name_(std::move(name)), possible_columns_(std::move(possible_columns)),
           prefixes_(std::move(prefixes)), rt_(rt), registry_(rt.getTransformRegistry()) {
       for (const auto& col : this->possible_columns_) {
@@ -273,33 +267,6 @@ export class Schema {
       for (const auto& triple : triples) {
         raw_instructions_.push_back(triple.toString(prefixes_, rt_));
       }
-
-        // find dependencies from raw_instructions_
-        for (const auto& raw_inst : raw_instructions_) {
-            auto placeholders = util::extract_enclosed_substrings(raw_inst, "{", "}");
-            for (auto& ph : placeholders) {
-                util::remove_whitespace(ph);
-
-                // identity context names if any ({ ... <filename>.txt:ambiguous_identifier })
-
-                size_t search_from = 0;
-                while (true) {  
-                    size_t colon = ph.find(':', search_from);
-                    if (colon == std::string::npos) break;
-                    
-                    auto start_pos = colon;
-                    while (start_pos > 0 && util::is_gtfs_file_char(ph[start_pos - 1])) {
-                        start_pos--;
-                    }
-                    
-                    auto ctx = ph.substr(start_pos, colon - start_pos);
-                    if (ctx.ends_with(".txt") && ctx != name_) {
-                        dependencies_.insert(ctx);
-                    }
-                    search_from = colon + 1;
-                }
-            }
-        }
     }
 
 
@@ -311,8 +278,6 @@ export class Schema {
         } else {
             std::cerr << "⚠️  Warning: unknown column " << header[file_idx] << " in " 
                       << name_ << "\n";
-            // throw std::runtime_error("❌  Error: unknown column " + header[file_idx] 
-            //                                                               + " for " + name_);
         }
       }
       // build instructions_

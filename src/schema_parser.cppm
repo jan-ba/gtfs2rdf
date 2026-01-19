@@ -18,6 +18,7 @@ module;
 
 export module schema_parser;
 import field_transforms;
+import util;
 
 namespace schema {
 
@@ -92,7 +93,182 @@ export struct BoundPlaceholder {
   StorageWriteSpec storage;
 };
 
+bool valid_ctx_name(std::string_view ctx) {
+  return ctx.size() >= 4 && ctx.ends_with(".txt");
+}
 
+ArgSpec parse_arg(std::string_view tok) {
+  if (tok.empty()) throw std::runtime_error("❌ Empty argument token");
+
+  // literal
+  if (tok.front() == '"') {
+    return ArgSpec{ArgKind::Literal, util::unquote(tok), ""};
+  }
+
+  // storage constant read: NAME@ctx
+  auto [lhs, rhs] = util::split_at(tok, '@');
+  if (!rhs.empty()) {
+    if (!valid_ctx_name(rhs)) {
+      throw std::runtime_error("❌ Invalid context after '@' in arg: " + std::string(tok));
+    }
+    return ArgSpec{ArgKind::StorageConst, std::string(lhs), std::string(rhs)};
+  }
+
+  // column
+  return ArgSpec{ArgKind::Column, std::string(tok), ""};
+}
+
+TransformCallSpec parse_transform(std::string_view tok,
+                                        const field_transforms::TransformRegistry& reg) {
+  if (tok.empty()) throw std::runtime_error("❌ Empty transform token");
+
+  auto [name, ctx] = util::split_at(tok, '@');
+  TransformCallSpec out;
+  out.transform = reg.getTransform(std::string(name));
+  if (!ctx.empty()) {
+    if (!valid_ctx_name(ctx)) {
+      throw std::runtime_error("❌ Invalid context after '@' in transform: " + std::string(tok));
+    }
+    out.ctx_hint = std::string(ctx);
+  }
+  return out;
+}
+
+static void parse_target(std::string_view tok, StorageWriteSpec& stg) {
+  auto [name, ctx] = util::split_at(tok, '@');
+  if (name.empty()) throw std::runtime_error("❌ Empty storage target after '>'");
+  stg.target_name = std::string(name);
+  if (!ctx.empty()) {
+    if (!valid_ctx_name(ctx)) {
+      throw std::runtime_error("❌ Invalid context after '@' in storage target: " + std::string(tok));
+    }
+    stg.target_ctx = std::string(ctx);
+  }
+}
+
+// ---------- main parser ----------
+
+export PlaceholderSpec parse_placeholder(std::string_view raw,
+                                        const field_transforms::TransformRegistry& reg) {
+  // normalise whitespace but keep spaces in quoted literals
+  std::string cleaned = util::remove_ws_outside_quotes(raw);
+  std::string_view s(cleaned);
+
+  PlaceholderSpec spec;
+
+  // split off storage target: "... > target"
+  // only at most one '>' supported at top level
+  auto [before_gt, after_gt] = util::split_once_top_level(s, '>');
+  if (!after_gt.empty()) {
+    // storage is enabled, kind/mode decided below
+    parse_target(after_gt, spec.storage);
+  }
+
+  // split remainder into fields part and transforms part: "fields | t1 | t2"
+  auto [fields_part, trans_part] = util::split_once_top_level(before_gt, '|');
+
+  // transforms
+  if (!trans_part.empty()) {
+    auto tks = util::split_top_level(trans_part, '|');
+    for (auto t : tks) {
+      spec.transforms.push_back(parse_transform(t, reg));
+    }
+  }
+
+  // detect keyed storage (':') at top level: "key1,key2 : (val1,val2),extra1,extra2"
+  auto [left_of_colon, right_of_colon] = util::split_once_top_level(fields_part, ':');
+  const bool keyed = !right_of_colon.empty();
+
+  if (keyed) {
+    if (spec.storage.target_name.empty()) {
+      throw std::runtime_error("❌ Found ':' (keyed placeholder) but no storage target '>' in: " + std::string(raw));
+    }
+
+    // keys
+    auto key_toks = util::split_top_level(left_of_colon, ',');
+    if (key_toks.empty()) throw std::runtime_error("❌ Missing key fields before ':'");
+    for (auto tk : key_toks) spec.args.push_back(parse_arg(tk));
+    spec.storage.key_arity = static_cast<uint8_t>(key_toks.size());
+
+    // right side: either "(values),extras" (filter mode) OR "value_inputs" (compute mode)
+    if (!right_of_colon.empty() && right_of_colon.front() == '(') {
+      // FILTER MODE
+      spec.storage.mode = StoreMode::FilterStoreRaw;
+
+      // find matching ')'
+      bool in_q = false;
+      int par = 0;
+      size_t close = std::string_view::npos;
+      for (size_t i = 0; i < right_of_colon.size(); ++i) {
+        char c = right_of_colon[i];
+        if (c == '"' && (i == 0 || right_of_colon[i-1] != '\\')) in_q = !in_q;
+        if (in_q) continue;
+        if (c == '(') ++par;
+        else if (c == ')') { --par; if (par == 0) { close = i; break; } }
+      }
+      if (close == std::string_view::npos) {
+        throw std::runtime_error("❌ Unbalanced parentheses in placeholder: " + std::string(raw));
+      }
+
+      auto inside = right_of_colon.substr(1, close - 1);
+      auto after  = right_of_colon.substr(close + 1); // may start with ',' or empty
+
+      auto val_toks = util::split_top_level(inside, ',');
+      if (val_toks.empty()) throw std::runtime_error("❌ Empty value tuple '(...)' after ':'");
+      for (auto tk : val_toks) spec.args.push_back(parse_arg(tk));
+      spec.storage.value_arity = static_cast<uint8_t>(val_toks.size());
+
+      // extras
+      if (!after.empty()) {
+        if (after.front() != ',') {
+          throw std::runtime_error("❌ Expected ',' after ')' for extras in: " + std::string(raw));
+        }
+        auto extras = after.substr(1);
+        if (!extras.empty()) {
+          auto ex_toks = util::split_top_level(extras, ',');
+          for (auto tk : ex_toks) spec.args.push_back(parse_arg(tk));
+          spec.storage.extra_arity = static_cast<uint8_t>(ex_toks.size());
+        }
+      }
+
+      // kind: multimap if 1 value, else tuplemap
+      spec.storage.kind = (spec.storage.value_arity == 1) ? StorageKind::MultiMap : StorageKind::TupleMap;
+
+      // disallow Transform2N in filter-mode
+      for (auto& tc : spec.transforms) {
+        if (tc.transform.kind == field_transforms::TransformKind::Multi) {
+          throw std::runtime_error("❌ Transform2N not allowed with filter-mode '(...)' in: " + std::string(raw));
+        }
+      }
+
+    } else {
+      // COMPUTE MODE
+      spec.storage.mode = StoreMode::StoreComputed;
+      spec.storage.kind = StorageKind::MultiMap; // computed output is strings; store as key -> list<string>
+
+      auto rhs_toks = util::split_top_level(right_of_colon, ',');
+      if (rhs_toks.empty()) throw std::runtime_error("❌ Missing value inputs after ':'");
+      for (auto tk : rhs_toks) spec.args.push_back(parse_arg(tk));
+      // value_arity/extra_arity are not used in this mode; keep at 0
+    }
+
+  } else {
+    // non-keyed (constants or file output)
+    auto arg_toks = util::split_top_level(fields_part, ',');
+    for (auto tk : arg_toks) spec.args.push_back(parse_arg(tk));
+
+    if (!spec.storage.target_name.empty()) {
+      // constant store
+      spec.storage.kind = StorageKind::Constant;
+      spec.storage.mode = StoreMode::StoreComputed;
+    } else {
+      spec.storage.kind = StorageKind::None;
+      spec.storage.mode = StoreMode::None;
+    }
+  }
+
+  return spec;
+}
 
 
 } // namespace schema

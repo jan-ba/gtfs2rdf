@@ -51,3 +51,6 @@ gcm.cache/*
 *.nt
 *.spec.txt
 *.zip
+
+*.log
+*.png

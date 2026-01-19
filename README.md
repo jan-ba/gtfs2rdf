@@ -28,3 +28,8 @@ For benchmarking, make sure to clear cashes to ensure comparability, using
 ```bash
 sudo free && sync && sudo sh -c 'echo 3 >/proc/sys/vm/drop_caches' && free
 ```
+
+Plot RAM-Usage using (example dataset, modify as desired)
+```bash
+psrecord "build/gtfs2rdf ../data/öv_de_shapes.zip" --interval 0.5 --include-children --plot ram.png --log ram.log
+```
