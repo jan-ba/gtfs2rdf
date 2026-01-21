@@ -18,10 +18,12 @@ import field_transforms;
 
 namespace runtime {
 
+// TODO: is it possible to disallow transforms to access more than get / contains, at least outside
+// of their own context, if so enforce
 class PersistentStorage {
   private:
-    // context (this is data for one file/schema) -> (constant name -> value)
-    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> constants_;
+    // context (this is data for one file/schema) -> (variable name -> value)
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> variables_;
     
     // context -> (multimap name -> (key -> list(values)))
     std::unordered_map<std::string, 
@@ -39,15 +41,15 @@ class PersistentStorage {
 
     static inline const std::vector<std::vector<std::string>> empty_vector_of_vectors_ = {};
   public:
-    // CONSTANTS API
-    void store(const std::string& ctx, const std::string& constant, const std::string& value) {
-        constants_[ctx][constant] = value;
+    // VARIABLES API
+    void store(const std::string& ctx, const std::string& variable, const std::string& value) {
+        variables_[ctx][variable] = value;
     }
 
-    const std::string& get(const std::string& ctx, const std::string& constant) const {
-        auto it = constants_.find(ctx);
-        if (it == constants_.end()) return empty_;
-        auto it2 = it->second.find(constant);
+    const std::string& get(const std::string& ctx, const std::string& variable) const {
+        auto it = variables_.find(ctx);
+        if (it == variables_.end()) return empty_;
+        auto it2 = it->second.find(variable);
         if (it2 == it->second.end()) return empty_;
         return it2->second;
     }
@@ -81,7 +83,7 @@ class PersistentStorage {
     }
 
     // Check if a value exists in a multimap
-    // invariant: multimaps are finalised (sorted)
+    // invariant: multimaps are finalised (sorted)  TODO: enforce this
     bool contains(const std::string& ctx, const std::string& multimap,
                   const std::string& key, const std::string& value) const {
         const auto& vec = get(ctx, multimap, key);
@@ -110,13 +112,13 @@ class PersistentStorage {
 
     // clear all stored data for a given context once it goes out of scope
     void clear_context(const std::string& ctx) {
-        constants_.erase(ctx);
+        variables_.erase(ctx);
         multimaps_.erase(ctx);
         tuplemaps_.erase(ctx);
     }
 
     // getters for testing
-    const auto& getAllConstants() const { return constants_; }
+    const auto& getAllVariables() const { return variables_; }
     const auto& getAllMultimaps() const { return multimaps_; }
     const auto& getAllTuplemaps() const { return tuplemaps_; }
 };

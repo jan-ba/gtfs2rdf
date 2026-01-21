@@ -1,2 +1,3 @@
 table_name,field_name,language,translation,record_id,record_sub_id,field_value
 routes,route_long_name,en,Military Hospital - Mehala Rail Underpass,R_AB_13,,Spitalul Militar - Pasaj C.F. Mehala
+stops,stop_name,en,Circumvallation Boulevard (Gheorghe Lazăr),,,"Bd. Circumvalațiunii (Gheorghe Lazăr)"

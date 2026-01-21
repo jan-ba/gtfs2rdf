@@ -9,6 +9,8 @@
 
 module;
 
+#include "transform_macros.h"
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -39,21 +41,21 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rt) {
   // 
   const std::unordered_map<std::string, std::string> prefixes = {
     { "stops",        "https://gtfs.org/stops/" },
-    { "stoptimes",    "https://gtfs.org/stop_times/" },
+    { "stop_times",    "https://gtfs.org/stop_times/" },
     { "trips",        "https://gtfs.org/trips/" },
     { "locationgroups","https://gtfs.org/location_groups/" },
     { "locations",    "https://gtfs.org/locations/" },
     { "booking",      "https://gtfs.org/booking_rules/" },
 
     { "rdf",          "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
-    { "xsd",          "http://www.w3.org/2001/XMLSchema#" },
+    { "xs",          "http://www.w3.org/2001/XMLSchema#" },
     { "gtfs",         "https://w3id.org/gtfs2rdf#" },
     { "wgs",          "http://www.w3.org/2003/01/geo/wgs84_pos#" },
     { "geo",          "http://www.opengis.net/ont/geosparql#" },
     { "gtfs2rdfgeom", "https://w3id.org/gtfs2rdf/geometry#" }
   };
 
-  const IRI subj = IRI("stoptimes","{trip_id}_{stop_sequence}");
+  const IRI subj = IRI("stop_times","{trip_id}_{stop_sequence}");
 
   const std::vector<Triple> triples = {
     // SUBJECT PREDICATE                          OBJECT
@@ -67,30 +69,30 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rt) {
     { subj, {"gtfs","location"},                 { IRI("locations","{location_id}") } },
 
     // Core fields
-    { subj, {"gtfs","stopSequence"},             { "{stop_sequence}", IRI("xsd","integer") } },
+    { subj, {"gtfs","stopSequence"},             { "{stop_sequence}", IRI("xs","integer") } },
 
-    // Times (plain literals; GTFS allows >24:00:00)
-    { subj, {"gtfs","arrivalTime"},              { "{arrival_time}" } },
-    { subj, {"gtfs","departureTime"},            { "{departure_time}" } },
+    // Times (plain literals; GTFS allows >24:00:00) TODO: add transform that caps time above 24:00:00?
+    { subj, {"gtfs","arrivalTime"},              { "{arrival_time | convert_time}", IRI("xs", "time") } },
+    { subj, {"gtfs","departureTime"},            { "{departure_time | convert_time}", IRI("xs", "time") } },
 
     // Optional headsign override
     { subj, {"gtfs","stopHeadsign"},             { "{stop_headsign}" } },
 
-    // On-demand windows (plain literals)
-    { subj, {"gtfs","startPickupDropOffWindow"}, { "{start_pickup_drop_off_window}" } },
-    { subj, {"gtfs","endPickupDropOffWindow"},   { "{end_pickup_drop_off_window}" } },
+    // On-demand windows
+    { subj, {"gtfs","startPickupDropOffWindow"}, { "{start_pickup_drop_off_window | convert_time}", IRI("xs", "time") } },
+    { subj, {"gtfs","endPickupDropOffWindow"},   { "{end_pickup_drop_off_window | convert_time}", IRI("xs", "time") } },
 
     // Enums (as integers)
-    { subj, {"gtfs","pickupType"},               { "{pickup_type}", IRI("xsd","integer") } },
-    { subj, {"gtfs","dropOffType"},              { "{drop_off_type}", IRI("xsd","integer") } },
-    { subj, {"gtfs","continuousPickup"},         { "{continuous_pickup}", IRI("xsd","integer") } },
-    { subj, {"gtfs","continuousDropOff"},        { "{continuous_drop_off}", IRI("xsd","integer") } },
+    { subj, {"gtfs","pickupType"},               { "{pickup_type}", IRI("xs","integer") } },
+    { subj, {"gtfs","dropOffType"},              { "{drop_off_type}", IRI("xs","integer") } },
+    { subj, {"gtfs","continuousPickup"},         { "{continuous_pickup}", IRI("xs","integer") } },
+    { subj, {"gtfs","continuousDropOff"},        { "{continuous_drop_off}", IRI("xs","integer") } },
 
     // Distance along shape
-    { subj, {"gtfs","shapeDistTraveled"},        { "{shape_dist_traveled}", IRI("xsd","decimal") } },
+    { subj, {"gtfs","shapeDistTraveled"},        { "{shape_dist_traveled}", IRI("xs","decimal") } },
 
     // Exact vs. approximate
-    { subj, {"gtfs","timepoint"},                { "{timepoint}", IRI("xsd","integer") } },
+    { subj, {"gtfs","timepoint"},                { "{timepoint}", IRI("xs","integer") } },
 
     // Booking rules
     { subj, {"gtfs","pickupBookingRule"},        { IRI("booking","{pickup_booking_rule_id}") } },
@@ -98,7 +100,7 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rt) {
   };
 
 
-  Schema sc("stoptimes.txt", possible_columns, prefixes, triples, rt);
+  Schema sc("stop_times.txt", possible_columns, prefixes, triples, rt);
   return sc;
 }
 

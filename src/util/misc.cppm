@@ -12,6 +12,7 @@ module;
 #include <iostream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <map>
 
 export module util:misc;
@@ -60,5 +61,18 @@ std::ostream& operator<<(std::ostream& os, const std::unordered_map<K,V>& map) {
     os << "}";
     return os;
 } 
+
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const std::unordered_set<T>& set) {
+    os << "{";
+    for (auto it = set.begin(); it != set.end(); ++it) {
+        os << *it;
+        if (std::next(it) != set.end()) {
+            os << ", ";
+        }
+    }
+    os << "}";
+    return os;
+}
 
 } // namespace

@@ -8,6 +8,8 @@
 
 module;
 
+#include "transform_macros.h"
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -45,7 +47,7 @@ export Schema buildRoutesSchema(runtime::RuntimeContainer& rt) {
     { "networks", "https://gtfs.org/networks/" },
 
     { "rdf",  "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
-    { "xsd",  "http://www.w3.org/2001/XMLSchema#" },
+    { "xs",  "http://www.w3.org/2001/XMLSchema#" },
     { "gtfs", "https://w3id.org/gtfs2rdf#" }
   };
 
@@ -62,28 +64,28 @@ export Schema buildRoutesSchema(runtime::RuntimeContainer& rt) {
 
     // Names / description
     { subj, {"gtfs","routeShortName"},    { "{route_short_name}" } },
-    { subj, {"gtfs","routeLongName"},     { "{route_long_name}" } },
-    { subj, {"gtfs","routeDesc"},         { "{route_desc}" } },
+    { subj, {"gtfs","routeLongName"},     { "{route_long_name}", "{FEED_LANG@feed_info.txt}" } },
+    { subj, {"gtfs","routeDesc"},         { "{route_desc}", "{FEED_LANG@feed_info.txt}" } },
 
     // Type (required)
-    { subj, {"gtfs","routeType"},         { "{route_type}", IRI("xsd","integer") } },
+    { subj, {"gtfs","routeType"},         { "{route_type}", IRI("xs","integer") } },
 
     // URL
-    { subj, {"gtfs","routeUrl"},          { "{route_url}", IRI("xsd","anyURI") } },
+    { subj, {"gtfs","routeUrl"},          { "{route_url}", IRI("xs","anyURI") } },
 
     // Colors
     { subj, {"gtfs","routeColor"},        { "{route_color}" } },
     { subj, {"gtfs","routeTextColor"},    { "{route_text_color}" } },
 
     // Sort order (non-negative integer)
-    { subj, {"gtfs","routeSortOrder"},  { "{route_sort_order}", IRI("xsd","nonNegativeInteger") } },
+    { subj, {"gtfs","routeSortOrder"},  { "{route_sort_order}", IRI("xs","nonNegativeInteger") } },
 
     // Continuous pickup/drop-off (enums)
-    { subj, {"gtfs","continuousPickup"},  { "{continuous_pickup}", IRI("xsd","integer") } },
-    { subj, {"gtfs","continuousDropOff"}, { "{continuous_drop_off}", IRI("xsd","integer") } },
+    { subj, {"gtfs","continuousPickup"},  { "{continuous_pickup}", IRI("xs","integer") } },
+    { subj, {"gtfs","continuousDropOff"}, { "{continuous_drop_off}", IRI("xs","integer") } },
 
     // cEMV support (enum)
-    { subj, {"gtfs","cemvSupport"},       { "{cemv_support}", IRI("xsd","integer") } }
+    { subj, {"gtfs","cemvSupport"},       { "{cemv_support}", IRI("xs","integer") } }
   };
 
   Schema sc("routes.txt", possible_columns, prefixes, triples, rt);

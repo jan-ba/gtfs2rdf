@@ -19,48 +19,91 @@ This template follows your current GTFS2RDF "schema file" structure:
   - a list of possible_columns (for header validation / column lookup)
   - a prefixes map (used for Turtle prefixes and CURIE expansion)
   - a vector of rdf::Triple entries with placeholder instructions
-
+  - OPTIONAL: a vector<string> side_effects (placeholder-instructions that DO NOT write to file)
 
 -------------------------------------------------------------------------------
-1) Placeholder / transform syntax inside strings
+1) Placeholder syntax inside strings
 -------------------------------------------------------------------------------
 In any instruction string, `{...}` marks a placeholder that is filled from the GTFS row.
 
 A placeholder has this general form:
 
-    { field1,field2,... | transformA | transformB | ... }
+    { arg1,arg2,... | transformA | transformB | ... }
 
 Rules:
-  - whitespace inside the braces is removed, so `{ stop_lat , stop_lon | foo }`
-    behaves like `{stop_lat,stop_lon|foo}`.
-  - the part BEFORE the first '|' is a comma-separated list of column names
-    (arguments). See field_transforms::TransformRegistry::parse_placeholder_with_functors().
+  - whitespace inside the braces is removed.
+  - args BEFORE the first '|' are comma-separated "arguments".
   - transforms are chained with '|'. (MaxTransforms is currently 3.)
-  - MaxArgs is currently 9 (covers e.g. weekday flags in calendar.txt).
+  - MaxArgs is currently 9.
 
 -------------------------------------------------------------------------------
 2) Transform kinds: Transform2One vs Transform2N
 -------------------------------------------------------------------------------
 Transform2One:
   - signature: void(const ArgSpan& args, std::string& out)
-  - produces a single string output
+  - produces a single output string (c)
 
 Transform2N:
   - signature: void(const ArgSpan& args, std::vector<std::string>& out)
-  - produces multiple outputs, and GTFS2RDF will duplicate the rendered instruction
-    across multiple output "rows" (one per element).
+  - produces multiple outputs and duplicates the rendered instruction over them
+    (one per element in transf_buf_)
 
 Important limitation (current implementation):
-  - within ONE instruction string (subject AND predicate AND object), only ONE
-    Transform2N may appear in total.
+  - within ONE rendered instruction string, only ONE Transform2N may appear in total.
 
-Also note the evaluation order:
-  - transforms BEFORE a Transform2N may receive ArgSpan(args...), a subsequent Transform2N
-    has to have only one argument then 
-  - transforms AFTER a Transform2N are applied to EACH produced element
+Evaluation order:
+  - transforms BEFORE a Transform2N can take spanN (all args)
+  - Transform2N (multi) produces transf_buf_
+  - transforms AFTER Transform2N are applied element-wise to transf_buf_
 
 -------------------------------------------------------------------------------
-3) Triple structure
+3) Storage write syntax (persistent storage)
+-------------------------------------------------------------------------------
+Storage writes are encoded directly in placeholders using '>'.
+
+General forms:
+
+(A) Variable store (no ':'):
+    { value_expr | transforms... > CONST_NAME@ctx.txt }
+
+  - Stores the final computed output of the transform chain as a VARIABLE.
+
+(B) Keyed store (mapping) via ':':
+    { key_fields : rhs_fields | transforms... > MAP_NAME@ctx.txt }
+
+  - "key_fields" is a comma-separated list; the key is built from these fields.
+  - "rhs_fields" are additional arguments available to transforms (e.g. date, exception_type),
+    but are NOT stored raw unless you use (...) (see below).
+  - Stored VALUE is the final computed output of the transform chain.
+  - This is how you do: service_id -> [formatted_dates...]
+
+(C) FilterStoreRaw via parentheses on the RHS:
+    { key_fields : (value_fields...) , extra_fields... | transforms... > MAP_NAME@ctx.txt }
+
+  - Parentheses mean: transforms act as a FILTER predicate (non-empty output => store raw).
+  - Stored VALUE is the RAW tuple (value_fields...), not the computed transform output.
+  - extra_fields... are available to transforms but not stored.
+
+Notes:
+  - A bijection key:value is NOT guaranteed (values are vectors) except for variables.
+  - '@ctx.txt' denotes the storage context. If omitted, the current schema context is used.
+  - Using '>' in a placeholder makes it a "side-effect placeholder": it writes to storage.
+    Whether it also writes to FILE depends on the instruction target (see side_effects below).
+
+-------------------------------------------------------------------------------
+4) Side-effect instructions (no file output)
+-------------------------------------------------------------------------------
+Instead of using a fake triple like: { "", "", "{... > ...}" },
+you can define side effects directly:
+
+    const std::vector<std::string> side_effects = {
+        "{ service_id : date, exception_type | some_filter | convert_date > disabled_dates@calendar_dates.txt }"
+    };
+
+These are processed like normal instruction strings, but are not written to the RDF output.
+
+-------------------------------------------------------------------------------
+5) Triple structure
 -------------------------------------------------------------------------------
 A triple is: { SUBJECT, PREDICATE, OBJECT }
 
@@ -68,23 +111,25 @@ A triple is: { SUBJECT, PREDICATE, OBJECT }
   - OBJECT is an rdf::Object, which can be:
       * a plain literal:           { "{field}" }
       * a language-tag literal:    { "{field}", "de" }
-      * a typed literal:           { "{field}", IRI("xsd","integer") }
+      * a typed literal:           { "{field}", IRI("xs","integer") }
       * an IRI object:             { IRI("gtfs","Stop") }
 
 -------------------------------------------------------------------------------
-4) Where to register transforms
+6) Where to register transforms
 -------------------------------------------------------------------------------
-You can:
-  - register transforms inside build<Name>Schema(...) (recommended for schema-local transforms)
-  - or put shared transforms into a common module (e.g. transform_lib) and register them here
+You can register transforms inside build<Name>Schema(...).
+This is fine even with the new parser approach, as long as you:
+  - build all used schemas first (registers transforms)
+  - parse/compile instructions afterwards (needs registry populated)
 
-Example below shows both a Transform2One (single output) and a Transform2N (multi output).
 ================================================================================
 */
 
 module;
 
 // Header includes come here. Append as needed.
+#include "transform_macros.h"
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -93,7 +138,6 @@ module;
 
 export module schema:YOUR_SCHEMA_NAME;
 
-// Module imports come here. The imports below are required.
 import :core;
 import rdf_components;
 import field_transforms;
@@ -109,27 +153,20 @@ namespace schema {
 // =============================================================================
 namespace example_transforms {
 
-// Transform2One example (single output).
-// - Uses 2 args: lon, lat -> WKT POINT(lon lat)
-// - Demonstrates MULTI-ARG transform usage in placeholders: {lon,lat|wkt_point}
+// Transform2One example: lon,lat -> WKT POINT(lon lat)
 void wkt_point_lon_lat(const field_transforms::ArgSpan& args, std::string& out) {
   if (args.size() != 2) {
     throw std::runtime_error("wkt_point_lon_lat: expected 2 args (lon,lat)");
   }
   const auto& lon = args[0];
   const auto& lat = args[1];
-  if (lon.empty() || lat.empty()) {
-    // Up to you: throw (hard fail) or return empty (skip triple upstream)
-    throw std::runtime_error("wkt_point_lon_lat: empty lon/lat");
-  }
+  if (lon.empty() || lat.empty()) return;
   out = "POINT(" + lon + " " + lat + ")";
 }
 
-// Transform2N example (multi output).
-// - Takes 1 arg and splits on ';' into multiple outputs.
-// - Demonstrates MULTI-ROW expansion via placeholders: {field|split_semicolon}
+// Transform2N example: split on ';'
 void split_semicolon(const field_transforms::ArgSpan& args,
-                            std::vector<std::string>& out) {
+                     std::vector<std::string>& out) {
   if (args.size() != 1) {
     throw std::runtime_error("split_semicolon: expected 1 arg");
   }
@@ -144,9 +181,6 @@ void split_semicolon(const field_transforms::ArgSpan& args,
     }
   }
   if (!cur.empty()) out.push_back(cur);
-
-  // Optionally: if you want “no values” to mean “no triples”, just leave out empty.
-  // If you want to keep an empty marker, push_back("") instead.
 }
 
 } // namespace example_transforms
@@ -155,37 +189,22 @@ void split_semicolon(const field_transforms::ArgSpan& args,
 // =============================================================================
 // 2) REQUIRED: build function
 // =============================================================================
-//
-// Naming convention (required by build system):
-//   - module file:  src/schema/your_schema_name.cppm
-//   - build symbol: schema::buildYourSchemaNameSchema(registry)
-
 export Schema buildYourSchemaNameSchema(runtime::RuntimeContainer& rt) {
 
   // ---------------------------------------------------------------------------
   // (A) Register transforms (schema-local + shared)
   // ---------------------------------------------------------------------------
-  // Register schema-local transforms:
   rt.getTransformRegistry().registerTransform("wkt_point", example_transforms::wkt_point_lon_lat);
   rt.getTransformRegistry().registerTransform("split_semicolon", example_transforms::split_semicolon);
-
 
   // ---------------------------------------------------------------------------
   // (B) Columns that may appear in the GTFS file header
   // ---------------------------------------------------------------------------
-  // These are the columns your schema can reference in placeholders.
-  // If a column referenced in a triple is missing in the input header, the triple
-  // will be skipped for that file (see schema::Instruction validation).
   const std::vector<std::string> possible_columns = {
-    // Required/commonly present:
     "id",
     "name",
-
-    // Example for multi-arg transform:
     "lon",
     "lat",
-
-    // Example for multi-row expansion:
     "tags"
   };
 
@@ -195,51 +214,45 @@ export Schema buildYourSchemaNameSchema(runtime::RuntimeContainer& rt) {
   const std::unordered_map<std::string, std::string> prefixes = {
     { "ex",   "https://example.org/resource/" },
     { "rdf",  "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
-    { "xsd",  "http://www.w3.org/2001/XMLSchema#" },
+    { "xs",  "http://www.w3.org/2001/XMLSchema#" },
     { "gtfs", "https://w3id.org/gtfs2rdf#" }
   };
 
   // ---------------------------------------------------------------------------
   // (D) Subject IRI template
   // ---------------------------------------------------------------------------
-  // You can embed placeholders in the IRI local part.
-  // Example: ex:{id}
   const IRI subject = IRI("ex", "{id}");
 
   // ---------------------------------------------------------------------------
-  // (E) Triples
+  // (E) Triples (file output)
   // ---------------------------------------------------------------------------
   const std::vector<Triple> triples = {
-    // --- Type triple
     { subject, {"rdf","type"}, { IRI("gtfs","YourClass") } },
-
-    // --- Plain literal
     { subject, {"gtfs","name"}, { "{name}" } },
-
-    // --- Typed literal (e.g., xsd:decimal)
-    // { subject, {"gtfs","longitude"}, { "{lon}", IRI("xsd","decimal") } },
-
-    // --- Multi-arg placeholder + Transform2One
-    // Produces: "POINT(lon lat)" as a literal (use geo:wktLiteral if you have it)
-    // TODO: mention that there is a more efficient way for this
     { subject, {"gtfs","wktPoint"}, { "{lon,lat|wkt_point}" } },
-
-    // --- Multi-row expansion via Transform2N
-    // If tags = "a;b;c", this expands into THREE triples:
-    //   ex:{id} gtfs:tag "a" .
-    //   ex:{id} gtfs:tag "b" .
-    //   ex:{id} gtfs:tag "c" .
-    //
-    // Note: at most ONE Transform2N may appear in this whole *instruction string*.
     { subject, {"gtfs","tag"}, { "{tags|split_semicolon}" } },
   };
 
   // ---------------------------------------------------------------------------
-  // (F) Build Schema object
+  // (F) Side effects (storage only, no file output)
   // ---------------------------------------------------------------------------
-  // First argument is the GTFS file name this schema targets.
-  // (Use the real filename, e.g. "stops.txt", "trips.txt", etc.)
-  Schema sc("your_schema_name.txt", possible_columns, prefixes, triples, rt);
+  //
+  // NOTE: This is intentionally a vector<string> and NOT rdf::Triple.
+  // The engine can parse+execute these placeholders for each row, but does not
+  // append anything to the RDF writer.
+  //
+  // Example (keyed computed store): id -> formatted(name) only if some filter returns non-empty
+  //   "{ id : name | my_filter | my_format > some_map@your_schema_name.txt }"
+  //
+  const std::vector<std::string> side_effects = {
+    // Put schema-local storage instructions here, if needed.
+  };
+
+  // ---------------------------------------------------------------------------
+  // (G) Build Schema object
+  // ---------------------------------------------------------------------------
+  // CHANGE: Schema now also accepts side_effects (new field) so you can avoid fake triples.
+  Schema sc("your_schema_name.txt", possible_columns, prefixes, triples, side_effects, rt);
   return sc;
 }
 

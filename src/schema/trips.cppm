@@ -9,6 +9,8 @@
 
 module;
 
+#include "transform_macros.h"
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -43,7 +45,7 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rt) {
     { "shapes",   "https://gtfs.org/shapes/" },
 
     { "rdf",  "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
-    { "xsd",  "http://www.w3.org/2001/XMLSchema#" },
+    { "xs",  "http://www.w3.org/2001/XMLSchema#" },
     { "gtfs", "https://w3id.org/gtfs2rdf#" }
   };
 
@@ -61,18 +63,18 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rt) {
     { subj, {"gtfs","tripShortName"},         { "{trip_short_name}" } },
 
     // Direction (0/1)
-    { subj, {"gtfs","directionId"},           { "{direction_id}", IRI("xsd","integer") } },
+    { subj, {"gtfs","directionId"},           { "{direction_id}", IRI("xs","integer") } },
 
     // Block and shape
     { subj, {"gtfs","block"},                 { IRI("blocks","{block_id}") } },
     { subj, {"gtfs","shape"},                 { IRI("shapes","{shape_id}") } },
 
     // Accessibility / allowances (enums: 0/1/2)
-    { subj, {"gtfs","wheelchairAccessible"},  { "{wheelchair_accessible}", IRI("xsd","integer") } },
+    { subj, {"gtfs","wheelchairAccessible"},  { "{wheelchair_accessible}", IRI("xs","integer") } },
     { subj, {"gtfs","bikesAllowed"},
-                                              { "{bikes_allowed}", IRI("xsd","integer") } },
+                                              { "{bikes_allowed}", IRI("xs","integer") } },
     { subj, {"gtfs","carsAllowed"},
-                                              { "{cars_allowed}", IRI("xsd","integer") } }
+                                              { "{cars_allowed}", IRI("xs","integer") } }
   };
 
   Schema sc("trips.txt", possible_columns, prefixes, triples, rt);

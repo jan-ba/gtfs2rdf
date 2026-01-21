@@ -6,10 +6,20 @@ module;
 #include <string_view>
 #include <stdexcept>
 #include <algorithm>
+#include <chrono>
+#include <sstream>
 
 export module util:strings;
 
 export namespace util {
+
+// parse string in format "YYYYMMDD" into chrono::sys_days
+std::chrono::sys_days parseYYYYMMDD(const std::string& s) {
+    std::istringstream ss(s);
+    std::chrono::sys_days dp{};
+    ss >> std::chrono::parse("%Y%m%d", dp);
+    return dp;
+}
 
 // splits a string by a given delimiter character
 std::vector<std::string> split(const std::string& str, const char delimiter) {

@@ -14,280 +14,546 @@ module;
 #include <vector>
 #include <optional>
 #include <stdexcept>
-#include <iostream>
+#include <iostream>  // is this needed after debugging prints are removed?
 #include <functional>
 #include <span>
 #include <cstdint>
 #include <unordered_set>
+
+#include <deque>
+#include <array>
 
 export module schema:core;
 import rdf_components;
 import field_transforms;
 import runtime;
 import util;
+import schema_parser;
 
 using namespace rdf;
+
+using namespace field_transforms;
 
 namespace schema {
 
 struct Datagap {
-    size_t num_fields = 0;
+    size_t num_args = 0;
     size_t num_transforms = 0;
-    std::array<int, field_transforms::MaxArgs> column_indices;
+
+    // arguments for this placeholder (columns/litearls/storage/consts etc.)
+    std::array<ArgSource, field_transforms::MaxArgs> arg_sources;
+
+    // transforms as functors
     std::array<field_transforms::Transform, field_transforms::MaxTransforms> transforms;
     bool contains_transf2n = false;
     int transf2n_index = -1;
-    field_transforms::StorageInstruction storage_instruction;
+    StorageWriteSpec storage;  // full storage spec
+};
+
+struct InstructionTemplate {
+    std::string raw;
+    std::vector<std::string> parts;  // static parts between datagaps  TODO: could this be a string_view
+    std::vector<PlaceholderSpec> phs;  // dynamic parts, one per each placeholder '{...}'
+    bool suppress_output = false;  // if true, do not write to file (only store internally)
 };
 
 export class Instruction {
   private:
-    std::vector<std::string> parts_;  // static parts between datagaps
-    std::vector<Datagap> datagaps_;  // dynamic parts
+    std::vector<std::string> parts_;     // static parts between placeholders
+    std::vector<Datagap> datagaps_;      // bound placeholders
+
     std::array<const std::string*, field_transforms::MaxArgs> arg_buf_;
+
+    // stable storage for literal args (so ArgSource::literal pointer stays valid)
+    std::deque<std::string> literal_pool_;
+
     size_t base_len_ = 0;
     std::string out_;
     static inline const std::string empty_ = "";
+
     uint64_t counter_ = 0;
-    bool is_valid_ = true;  // set to false if instruction is invalid due to missing columns
+    bool is_valid_ = true;
+
     runtime::RuntimeContainer& rt_;
-    const field_transforms::TransformRegistry& registry_;
     const std::string raw_instruction_;
+
+    std::string tmp_a_;  // temporary storage for transform outputs
+    std::string tmp_b_;  // temporary swap storage
     bool contains_transf2n_ = false;
-    std::vector<std::string> transf_buf_;  // buffer for transforms whose outputs span across several rows
-    size_t transf2n_placeholder_index_ = 0;  // TODO: describe
+    std::vector<std::string> transf_buf_;
+    size_t transf2n_placeholder_index_ = 0;
+
+    bool suppress_output_ = false;
+
+    // helper: resolve an ArgSource to a string pointer for this row
+    const std::string* resolve_arg(const ArgSource& a,
+                                   std::span<const std::string> row) {
+        switch (a.kind) {
+            case ArgSourceKind::ColumnIndex: {
+                if (a.column_index < 0) return &empty_;
+                return &row[static_cast<size_t>(a.column_index)];
+            }
+            case ArgSourceKind::Literal: {
+                return &a.literal;
+            }
+            case ArgSourceKind::StorageConst: {
+                const auto& v = rt_.getStorage().get(a.ctx, a.name);
+                return &v;
+            }
+        }
+        return &empty_;
+    }
+
+    // helper: join key fields into a single string for MULTIMAP
+    // TODO: can this be outsourced to util?
+    std::string make_key_string(size_t key_arity) const {
+        std::string k;
+        for (size_t i = 0; i < key_arity; ++i) {
+            k.append(*arg_buf_[i]);
+        }
+        return k;
+    }
 
   public:
-    Instruction(const std::string& raw_instruction, const std::unordered_map<std::string, 
-                int>& column_map, runtime::RuntimeContainer& rt, const std::string& ctx_name)
-        : rt_(rt), registry_(rt.getConstTransformRegistry()), raw_instruction_(raw_instruction)
-      {
-        // parse raw_instruction into parts and column_indices
-        size_t pos = 0;
-        size_t start = 0;
-        while ((pos = raw_instruction.find('{', start)) != std::string::npos) {
-            size_t end = raw_instruction.find('}', pos);
-            if (end == std::string::npos) {
-                throw std::runtime_error("❌  Error: malformed instruction: " + raw_instruction);
-            }
-            parts_.push_back(raw_instruction.substr(start, pos - start));
-            base_len_ += parts_.back().size();
+    Instruction(const InstructionTemplate& tmpl,
+                const std::unordered_map<std::string, int>& column_map,
+                runtime::RuntimeContainer& rt,
+                const std::string& ctx_name)
+        : rt_(rt), raw_instruction_(tmpl.raw)
+    {
+        suppress_output_ = tmpl.suppress_output;
+        parts_ = tmpl.parts;
+        base_len_ = 0;
+        for (auto& p : parts_) base_len_ += p.size();
 
-            std::string field = raw_instruction.substr(pos + 1, end - pos - 1);
-            field_transforms::ParsedPlaceholder pp = registry_.parse_placeholder_with_functors(field);
+        datagaps_.reserve(tmpl.phs.size());
 
-            if (pp.field_names.size() > field_transforms::MaxArgs) {
-                throw std::runtime_error("❌  Error: too many function arguments in instruction: " 
-                                          + raw_instruction + " (max " + std::to_string(field_transforms::MaxArgs) + ")");
-            } 
-
-            if (pp.transforms.size() > field_transforms::MaxTransforms) {
-                throw std::runtime_error("❌  Error: too many chained transforms in instruction: " 
-                                          + raw_instruction + " (max " + std::to_string(field_transforms::MaxTransforms) + ")");
-            }
-
+        for (const auto& ph : tmpl.phs) {
             Datagap dg;
-            dg.num_fields = pp.field_names.size();
-            dg.num_transforms = pp.transforms.size();
-            dg.storage_instruction = pp.storage_instruction;
-            dg.storage_instruction.setContextName(ctx_name);
 
-            for (size_t j = 0; j < pp.transforms.size(); ++j) {
-                dg.transforms[j] = pp.transforms[j];
-                if (pp.transforms[j].kind == field_transforms::TransformKind::Multi) {
-                    if (contains_transf2n_ == true) {
-                        throw std::runtime_error("❌  Error: only 1 Transform2N transform allowed in total in instruction: "
-                                                 + raw_instruction);
+            // args
+            if (ph.args.size() > static_cast<size_t>(field_transforms::MaxArgs)) {
+                throw std::runtime_error("❌  Error: too many placeholder args in instruction: " + tmpl.raw);
+            }
+            dg.num_args = ph.args.size();
+
+            for (size_t i = 0; i < ph.args.size(); ++i) {
+                const auto& a = ph.args[i];
+                ArgSource src;
+
+                if (a.kind == ArgKind::Column) {
+                    if (!column_map.contains(a.name)) {
+                        throw std::runtime_error("❌  Error: unknown column '" + a.name + "' in instruction: " + tmpl.raw);
+                    }
+                    int idx = column_map.at(a.name);
+                    if (idx == -1) {
+                        // header missing required column -> skip this instruction
+                        is_valid_ = false;
+                        std::cerr << "⚠️  Warning: column '" << a.name << "' not found in header for triple: '" 
+                                  << raw_instruction_ << "' . Skipping this triple.\n";
+                        return;
+                    }
+                    src.kind = ArgSourceKind::ColumnIndex;
+                    src.column_index = idx;
+                } else if (a.kind == ArgKind::Literal) {
+                    src.kind = ArgSourceKind::Literal;
+                    // literal_pool_.push_back(a.name);
+                    // src.literal = &literal_pool_.back();
+                    src.literal = a.name;
+                } else { // StorageConst
+                    src.kind = ArgSourceKind::StorageConst;
+                    src.name = a.name;
+                    src.ctx  = a.ctx;
+                }
+
+                dg.arg_sources[i] = std::move(src);
+            }
+
+            // transforms
+            if (ph.transforms.size() > static_cast<size_t>(field_transforms::MaxTransforms)) {
+                throw std::runtime_error("❌  Error: too many chained transforms in instruction: " + tmpl.raw);
+            }
+            dg.num_transforms = ph.transforms.size();
+
+            for (size_t j = 0; j < ph.transforms.size(); ++j) {
+                dg.transforms[j] = ph.transforms[j].transform;
+                if (dg.transforms[j].kind == field_transforms::TransformKind::Multi) {
+                    if (contains_transf2n_) {
+                        throw std::runtime_error("❌  Error: only 1 Transform2N allowed in total in instruction: " + tmpl.raw);
                     }
                     contains_transf2n_ = true;
                     dg.contains_transf2n = true;
-                    dg.transf2n_index = j;
+                    dg.transf2n_index = static_cast<int>(j);
                 }
             }
 
-            for (size_t j = 0; j < dg.num_fields; ++j) {
-                const auto& column_name = pp.field_names[j];
-                if (!column_map.contains(column_name)) {
-                    throw std::runtime_error("❌  Error: unknown column in instruction: " + column_name);
-                } else if (column_map.at(column_name) == -1) {
-                    std::cerr << "⚠️  Warning: column '" << column_name << "' not found in header for triple: '" 
-                              << raw_instruction << "' . Skipping this triple.\n";
-                    is_valid_ = false;
-                    return;
+            // storage
+            dg.storage = ph.storage;
+            if (dg.storage.kind != StorageKind::None) {
+                if (dg.storage.target_ctx.empty()) {
+                    dg.storage.target_ctx = ctx_name; // default: current schema context
+                } else if (dg.storage.target_ctx != ctx_name) {
+                    throw std::runtime_error("❌  Error: storage context '" + dg.storage.target_ctx +
+                                             "' does not match current schema context '" + ctx_name +
+                                             "' in instruction: " + tmpl.raw);
                 }
-                dg.column_indices[j] = column_map.at(column_name);
             }
+
+            // some sanity checks
+            if (dg.storage.kind == StorageKind::Variable && dg.contains_transf2n) {
+                throw std::runtime_error("❌  Error: cannot store Transform2N output into a variable in: " + tmpl.raw);
+            }
+
             datagaps_.push_back(std::move(dg));
-            start = end + 1; 
         }
-        parts_.push_back(raw_instruction.substr(start));
+
+        // final newline
         parts_.back().append("\n");
-        base_len_ += parts_.back().size();
-        
-        // estimate output size
-        size_t approx_dg_len = 0;
-        for (const auto& dg : datagaps_) {
-            approx_dg_len += 20 * dg.num_fields;
+        base_len_ += 1;
+
+        out_.reserve(base_len_ + 256);
+    }
+
+    const std::string& render(std::span<const std::string> row) {
+        out_.clear();
+        out_.append(parts_[0]);
+
+        std::string& cur = tmp_a_;
+        std::string& next = tmp_b_;
+        const std::string* cur_ptr = &cur;
+        field_transforms::ArgSpan span1 { &cur_ptr, 1 };
+
+        for (size_t k = 0; k < datagaps_.size(); ++k) {
+            Datagap& dg = datagaps_[k];
+
+            cur.clear();
+            next.clear();
+
+            // resolve args to pointers
+            for (size_t j = 0; j < dg.num_args; ++j) {
+                const std::string* ptr = resolve_arg(dg.arg_sources[j], row);
+                arg_buf_[j] = ptr;
+            }
+
+            // compute placeholder output (and possibly Transform2N buffer)
+            if (dg.num_transforms > 0) {
+                field_transforms::ArgSpan spanN { arg_buf_.data(), dg.num_args };
+                if (dg.contains_transf2n) {
+                    transf_buf_.clear();
+                    transf2n_placeholder_index_ = out_.size();
+
+                    // apply transforms before the 2N
+                    for (int i = 0; i < dg.transf2n_index; i++) {
+                        cur_ptr = &cur;
+                        if (i == 0) { dg.transforms[i].single(spanN, next);
+                        } else { dg.transforms[i].single(span1, next); }
+                        cur.swap(next);
+                        next.clear();
+                    }
+
+                    cur_ptr = &cur;
+
+                    // run the 2N
+                    if (dg.transf2n_index == 0) { 
+                        dg.transforms[dg.transf2n_index].multi(spanN, transf_buf_); 
+                    } else { dg.transforms[dg.transf2n_index].multi(span1, transf_buf_); }
+
+                    // run remaining transforms elementwise on the produced vector
+                    for (size_t i = static_cast<size_t>(dg.transf2n_index + 1); i < dg.num_transforms; i++) {
+                        for (size_t buf_i = 0; buf_i < transf_buf_.size(); buf_i++) {
+                            cur_ptr = &transf_buf_[buf_i];
+                            dg.transforms[i].single(span1, next);
+                            transf_buf_[buf_i].swap(next);
+                            next.clear();
+                        }
+                    }
+                } else {  // no Transform2N
+                    dg.transforms[0].single(spanN, cur);
+                    
+                    if (dg.num_transforms > 1) {
+                        cur_ptr = &cur;
+                        
+                        for (size_t i = 1; i < dg.num_transforms; ++i) {
+                            cur_ptr = &cur;
+                            dg.transforms[i].single(span1, next);
+                            cur.swap(next);
+                            next.clear();
+                        }
+                    }
+
+                    
+                }
+            } else {
+                // no transforms: use first arg as placeholder output
+                cur = *arg_buf_[0];
+            }
+
+            // early exit: either transforms filter (empty output) or empty column or empty 
+            // computed Transform2N result which need not be rendered
+            if (!dg.contains_transf2n && cur.empty()) return empty_; 
+
+            // --- side effects: storage write ---
+            if (dg.storage.kind != StorageKind::None) {
+                auto& st = rt_.getStorage();
+
+                // helper: store computed outputs (1 or many)
+                auto store_computed = [&](const std::string& val) {
+                    if (dg.storage.kind == StorageKind::Variable) {
+                        st.store(dg.storage.target_ctx, dg.storage.target_name, val);
+                        return;
+                    }
+                    if (dg.storage.kind == StorageKind::MultiMap) {
+                        std::string key = make_key_string(dg.storage.key_arity);
+                        st.store(dg.storage.target_ctx, dg.storage.target_name, key, val);
+                        return;
+                    }
+                    // TupleMap: store computed result as 1-tuple
+                    if (dg.storage.kind == StorageKind::TupleMap) {
+                        std::vector<std::string> key;
+                        key.reserve(dg.storage.key_arity);
+                        for (size_t i = 0; i < dg.storage.key_arity; ++i) key.push_back(*arg_buf_[i]);
+
+                        std::vector<std::string> tup;
+                        tup.push_back(val);
+
+                        st.store(dg.storage.target_ctx, dg.storage.target_name, key, tup);
+                        return;
+                    }
+                };
+
+                if (dg.storage.mode == StoreMode::FilterStoreRaw) {
+                    // filter predicate: non-empty transform output
+                    if (dg.contains_transf2n) {
+                        // TODO: not happy with having this here -> should be caught before rendering
+                        throw std::runtime_error("❌  Error: FilterStoreRaw cannot be used with Transform2N in: " + raw_instruction_);
+                    }
+                    if (!cur.empty()) {
+                        if (dg.storage.kind == StorageKind::MultiMap) {
+                            std::string key = make_key_string(dg.storage.key_arity);
+                            // value fields start after key_arity
+                            const auto& v = *arg_buf_[dg.storage.key_arity + 0];
+                            st.store(dg.storage.target_ctx, dg.storage.target_name, key, v);
+                        } else if (dg.storage.kind == StorageKind::TupleMap) {
+                            std::vector<std::string> key;
+                            key.reserve(dg.storage.key_arity);
+                            for (size_t i = 0; i < dg.storage.key_arity; ++i) key.push_back(*arg_buf_[i]);
+
+                            std::vector<std::string> tup;
+                            tup.reserve(dg.storage.value_arity);
+                            for (size_t i = 0; i < dg.storage.value_arity; ++i) {
+                                tup.push_back(*arg_buf_[dg.storage.key_arity + i]);
+                            }
+                            st.store(dg.storage.target_ctx, dg.storage.target_name, key, tup);
+                        } else if (dg.storage.kind == StorageKind::Variable) {
+                            // rare, but: store transform output as variable (only when passes filter)
+                            // TODO: does that make sense?
+                            st.store(dg.storage.target_ctx, dg.storage.target_name, cur);
+                        }
+                    }
+                } else {
+                    // StoreComputed
+                    if (dg.contains_transf2n) {
+                        for (const auto& v : transf_buf_) {
+                            if (!v.empty()) store_computed(v);
+                        }
+                    } else {
+                        store_computed(cur);
+                    }
+                }
+            }
+
+            // --- output rendering ---
+            // suppress output for the whole instruction
+            if (!suppress_output_) {
+                if (!dg.contains_transf2n) {
+                    out_.append(cur);
+                }
+                out_.append(parts_[k + 1]);
+            }
         }
 
-        out_.reserve(base_len_ + approx_dg_len);
-      }
+        // If suppress_output_ => side effect only, skip writing entirely
+        if (suppress_output_) {
+            // counter_++;  // no triples written
+            return empty_;
+        }
 
-      const std::string& render(std::span<const std::string> row) {
-          out_.clear();
-          out_.append(parts_[0]);
-
-          for (size_t k = 0; k < datagaps_.size(); ++k) {
-              const Datagap& dg = datagaps_[k];
-              for (size_t j = 0; j < dg.num_fields; ++j) {
-                  arg_buf_[j] = &row[dg.column_indices[j]];
-                  if (arg_buf_[j]->empty()) {
-                      // missing value -> return empty string
-                      return empty_;
-                  }
-              }
-
-              // apply transforms
-              if (dg.num_transforms > 0) {
-                  std::string c;
-                  field_transforms::ArgSpan spanN {arg_buf_.data(), dg.num_fields};
-
-                  // handle Transform2N if present
-                  if (dg.contains_transf2n) {
-                      transf_buf_.clear();
-                      transf2n_placeholder_index_ = out_.size();
-                      std::string d = c;
-                      const std::string* d_ptr = &d;
-                      field_transforms::ArgSpan span1 {&d_ptr, 1};
-
-                      for (int i = 0; i < dg.transf2n_index; i++) {
-                          if (i == 0) {
-                              dg.transforms[i].single(spanN, c);
-                          } else {
-                              dg.transforms[i].single(span1, c);
-                          }
-                          d = c;
-                      }
-                      if (dg.transf2n_index == 0) {
-                          dg.transforms[dg.transf2n_index].multi(spanN, transf_buf_);
-                      } else { dg.transforms[dg.transf2n_index].multi(span1, transf_buf_); }
-
-                      for (size_t i = dg.transf2n_index + 1; i < dg.num_transforms; i++) {
-                          for (size_t j = 0; j < transf_buf_.size(); ++j) {
-                              d = transf_buf_[j];
-                              const std::string* d_ptr = &d;
-                              field_transforms::ArgSpan span1 {&d_ptr, 1};
-                              dg.transforms[i].single(span1, transf_buf_[j]);
-                          }
-                      }
-
-                  // no Transform2N
-                  } else {
-                      dg.transforms[0].single(spanN, c);
-
-                      if (dg.num_transforms > 1) {
-                          // multiple transforms
-                          std::string d = c;
-                          const std::string* d_ptr = &d;
-                          field_transforms::ArgSpan span1 {&d_ptr, 1};
-                          for (size_t j = 1; j < dg.num_transforms; ++j) {
-                              dg.transforms[j].single(span1, c);
-                              d = c;
-                          }
-                      }
-
-                      // TODO: what if c is empty? Is the resulting triple invalid then?
-                      out_.append(c);
-                      
-                  }
- 
-              } else {  // no transforms
-                  out_.append(*arg_buf_[0]);
-              }
-
-              out_.append(parts_[k + 1]);
-              // store internally if asked to
-              if (!(dg.storage_instruction.getOutputDestination()
-                  == field_transforms::OutputDestination::FILE) && !contains_transf2n_) {
-                  if (dg.num_fields == 1) {
-                      rt_.getStorage().store(dg.storage_instruction.getContextName(), 
-                                            dg.storage_instruction.getTargetName(),
-                                            row[dg.column_indices[0]]);
-                  }
-              }
-          }
-        
-          if (contains_transf2n_) {
-              std::string prefix = out_.substr(0, transf2n_placeholder_index_);
-              std::string suffix = out_.substr(transf2n_placeholder_index_);
-              out_.clear();
-              for (const auto& val : transf_buf_) {
-                  out_.append(prefix);
-                  out_.append(val);
-                  out_.append(suffix);
-              }
-              counter_ += transf_buf_.size();
-          } else {
-              counter_++;
-          }
-          return out_;
-      }
+        // replicate for Transform2N
+        if (contains_transf2n_) {
+            std::string prefix = out_.substr(0, transf2n_placeholder_index_);
+            std::string suffix = out_.substr(transf2n_placeholder_index_);
+            out_.clear();
+            for (const auto& val : transf_buf_) {
+                if (val.empty()) continue;
+                out_.append(prefix);
+                out_.append(val);
+                out_.append(suffix);
+                counter_++;
+            }
+        } else {
+            counter_++;
+        }
+        return out_;
+    }
 
     uint64_t getCount() const { return counter_; }
     bool isValid() const { return is_valid_; }
     const std::string& getRawInstruction() const { return raw_instruction_; }
+    const std::vector<Datagap>& getDatagaps() const { return datagaps_; }
+    std::vector<Datagap>& getModifiableDatagaps() { return datagaps_; }
 };
+
 
 export class Schema {
   private:
-    const std::string name_ = "";                // name of file with file type, e.g. "stops.txt"
-    const std::vector<std::string> possible_columns_ = {}; // all columns that could be contained by <name_>.txt  TODO: actually needed?
+    const std::string name_;                // name of file with file type, e.g. "stops.txt"
+    const std::vector<std::string> possible_columns_ = {}; // all columns that could be contained by <name_>  TODO: actually needed?
     std::unordered_map<std::string, std::string> prefixes_;
     std::vector<std::string> raw_instructions_;
+    size_t num_storage_only_instructions_ = 0;
     runtime::RuntimeContainer& rt_;
     const field_transforms::TransformRegistry& registry_;
     std::unordered_set<std::string> dependencies_;  // other schemas that this schema depends on
+    std::vector<InstructionTemplate> templates_;
+    bool compiled_ = false;
+    bool allow_storage_writes_ = true;
 
     // computed from header
     std::unordered_map<std::string, int> column_map_;  // column name -> index in file, -1 if not found
     std::vector<Instruction> instructions_;  // computed instructions 
 
   public:
-    // TODO: make more efficient (pass prefixes by reference? etc.)
     Schema(const std::string name, const std::vector<std::string> possible_columns,
           const std::unordered_map<std::string, std::string> prefixes,
           const std::vector<Triple>& triples, runtime::RuntimeContainer& rt)
         : name_(std::move(name)), possible_columns_(std::move(possible_columns)),
           prefixes_(std::move(prefixes)), rt_(rt), registry_(rt.getTransformRegistry()) {
-      for (const auto& col : this->possible_columns_) {
-        column_map_[col] = -1; // initialize all to -1 (not found)
-      }
-      
-      // build raw_instructions_ from triples
-      for (const auto& triple : triples) {
-        raw_instructions_.push_back(triple.toString(prefixes_, rt_));
-      }
+        if (!valid_ctx_name(name_)) {
+            throw std::runtime_error("❌  Error: invalid schema name (must end with .txt): " + name_);
+        }
+        
+        for (const auto& col : this->possible_columns_) {
+            column_map_[col] = -1; // initialize all to -1 (not found)
+        }
+
+        // build raw_instructions_ from triples
+        for (const auto& triple : triples) {
+            raw_instructions_.push_back(triple.toString(prefixes_, rt_));
+        }
     }
 
+    // allow side-effect only instructions to be added as well and add them to the front
+    Schema(const std::string name, const std::vector<std::string> possible_columns,
+          const std::unordered_map<std::string, std::string> prefixes,
+          const std::vector<Triple>& triples, const std::vector<std::string>& storage_only_instructions,
+          runtime::RuntimeContainer& rt)
+        : Schema(name, possible_columns, prefixes, triples, rt) {
+        // add side effect instructions
+        for (const auto& se : storage_only_instructions) {
+            raw_instructions_.insert(raw_instructions_.begin(), se);
+            num_storage_only_instructions_++;
+        }
+    }
 
+    // compile raw_instructions_ into templates_ and compute dependencies_ from other schemas
+    void compile() {
+        if (compiled_) return;
+
+        templates_.clear();
+        dependencies_.clear();
+
+        templates_.reserve(raw_instructions_.size());
+
+        for (const auto& raw_inst : raw_instructions_) {
+            InstructionTemplate t;
+            t.raw = raw_inst;
+
+            size_t start = 0;
+            size_t pos = 0;
+
+            while ((pos = raw_inst.find('{', start)) != std::string::npos) {
+                size_t end = raw_inst.find('}', pos);
+                if (end == std::string::npos) {
+                    throw std::runtime_error("❌  Error: malformed instruction (missing '}'): " + raw_inst);
+                }
+
+                t.parts.push_back(raw_inst.substr(start, pos - start));
+
+                std::string placeholder = raw_inst.substr(pos + 1, end - pos - 1);
+                auto spec = parse_placeholder(placeholder, registry_);
+
+                // dependencies from args
+                for (const auto& a : spec.args) {
+                    if (a.kind == ArgKind::StorageConst) {
+                        if (!a.ctx.empty() && a.ctx != name_) dependencies_.insert(a.ctx);
+                    }
+                }
+                // dependencies from transform ctx hints
+                for (const auto& tc : spec.transforms) {
+                    if (!tc.ctx_hint.empty() && tc.ctx_hint != name_) dependencies_.insert(tc.ctx_hint);
+                }
+
+                t.phs.push_back(std::move(spec));
+                start = end + 1;
+            }
+
+            t.parts.push_back(raw_inst.substr(start));
+            templates_.push_back(std::move(t));
+        }
+        
+        for (size_t i = 0; i < num_storage_only_instructions_; ++i) {
+            templates_[i].suppress_output = true;
+        }
+
+        compiled_ = true;
+    }
+
+    // set column map from header and build instructions_ once header from file has been read
     void setHeader(const std::vector<std::string>& header) {
+        instructions_.clear();
+        if (!compiled_) compile();
       // compute column_map_ from header
-      for (size_t file_idx = 0; file_idx < header.size(); ++file_idx) {
-        if (column_map_.contains(header[file_idx])) {
-            column_map_[header[file_idx]] = static_cast<int>(file_idx);
-        } else {
-            std::cerr << "⚠️  Warning: unknown column " << header[file_idx] << " in " 
-                      << name_ << "\n";
+        for (size_t file_idx = 0; file_idx < header.size(); ++file_idx) {
+            if (column_map_.contains(header[file_idx])) {
+                column_map_[header[file_idx]] = static_cast<int>(file_idx);
+            } else {
+                std::cerr << "⚠️  Warning: unknown column " << header[file_idx] << " in " 
+                        << name_ << "\n";
+            }
         }
-      }
-      // build instructions_
-      for (const auto& raw_inst : raw_instructions_) {
-        Instruction instr(raw_inst, column_map_, rt_, name_);
-        if (!instr.isValid()) {
-            continue; // skip invalid instructions (due to missing columns)
+        // build instructions_
+        // skip storage-only instructions if storage writes are forbidden which would be triggered
+        // if no other schema actually depends on storage from this one
+        size_t start_idx = allow_storage_writes_ ? 0 : num_storage_only_instructions_;
+        for (size_t i = start_idx; i < templates_.size(); ++i) {
+            const auto& tmp = templates_[i];
+            Instruction instr(tmp, column_map_, rt_, name_);
+            if (!instr.isValid()) { continue; }  // skip invalid instructions
+            if (!allow_storage_writes_) {
+                for (auto& dg : instr.getModifiableDatagaps()) {
+                    dg.storage.kind = StorageKind::None;
+                }
+            }
+            instructions_.push_back(std::move(instr));
         }
-        instructions_.push_back(instr);
-      }
+    }
+
+    // to be called after corresponding file has been fully processed
+    void finalise() {
+        // if an instruction used multimaps, finalise them now
+        bool stored_multimaps = false;
+        for (auto& instr : instructions_) {
+            for (const auto& dg : instr.getDatagaps()) {
+                if (dg.storage.kind == StorageKind::MultiMap) {
+                    stored_multimaps = true;
+                    break;
+                }   
+            }
+        }
+        if (stored_multimaps) {
+            rt_.getStorage().finalise_multimaps(name_);
+            std::cout << "🗄️  Finalised multimaps for schema context '" << name_ << "'.\n";
+        }
     }
 
     // Getters
@@ -299,32 +565,37 @@ export class Schema {
     const std::unordered_set<std::string>& getDependencies() const { return dependencies_; }
 
     // Setters
+    // TODO: check whether this can be changed, because its not very elegant
     void setPrefixes(std::unordered_map<std::string, std::string> prefixes) {
       prefixes_ = prefixes;
     }
+    void forbidStorageWrites() {
+        allow_storage_writes_ = false;
+    }
 };
 
+// merge prefixes from multiple schemas into one map, checking for conflicts
 export std::unordered_map<std::string, std::string> merge_prefixes(const std::vector<Schema>& schemas, 
                                                             bool strict_conflicts = true) {
-  std::unordered_map<std::string, std::string> out;
+    std::unordered_map<std::string, std::string> out;
 
-  for (const auto& sc : schemas) {
-    const auto& pfx = sc.getPrefixes();
-    for (const auto& [k, v] : pfx) {
-      if (auto it = out.find(k); it == out.end()) {
-        out.emplace(k, v);
-      } else if (it->second != v) {
-        if (strict_conflicts) {
-          throw std::runtime_error(
-            "Prefix conflict for '" + k + "': '" + it->second +
-            "' vs '" + v + "'");
-        } else {
-            
+    for (const auto& sc : schemas) {
+        const auto& pfx = sc.getPrefixes();
+        for (const auto& [k, v] : pfx) {
+        if (auto it = out.find(k); it == out.end()) {
+            out.emplace(k, v);
+        } else if (it->second != v) {
+            if (strict_conflicts) {
+            throw std::runtime_error(
+                "Prefix conflict for '" + k + "': '" + it->second +
+                "' vs '" + v + "'");
+            } else {
+                
+            }
         }
-      }
+        }
     }
-  }
-  return out;
+    return out;
 }
 
 } // namespace

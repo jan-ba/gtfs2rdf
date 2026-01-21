@@ -47,22 +47,27 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-
+    // TODO: if there is an error with the schemas or something, the output file should not even persist
+    // TODO: add parameter to deactivate all transform triples
     std::vector<std::string> files_in_dir;
     std::vector<schema::Schema> used_schemas;
+    std::unordered_map<std::string, size_t> schema_name_to_index;  // map from schema name to index
     field_transforms::TransformRegistry registry;
     t_lib::register_lib_transforms(registry);
     runtime::RuntimeContainer rt(settings, registry);
     writer::Writer writer(settings.OutputPath(), rt);
     gtfs::GTFSParser_Workspace ws(rt, writer);
 
+    // determine which schemas to use based on files present in the zip
     for ( const auto& [ file, factory ] : factories ) {
         if (zip_name_locate(za, file.c_str(), ZIP_FL_ENC_GUESS) != -1) {
             files_in_dir.push_back(file);
             used_schemas.emplace_back(factory(rt));  // call factory
+            schema_name_to_index[used_schemas.back().getName()] = used_schemas.size() - 1;
         }
     }
 
+    // error if no files found that correspond to known schemas
     if (files_in_dir.empty()) {
         zip_close(za);
         std::cerr << "❌  Error: No GTFS files corresponding to known schemas found in archive '" 
@@ -70,18 +75,35 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // compile schemas such that they are ready for use and dependency info is available
+    for (auto& sc : used_schemas) {
+        sc.compile();
+    }
+
     // determine processing order via topological sort of dependencies
     // this whole section is not very efficient, but then again we're looking at GTFS datasets
     // such that n < 50 in practice
     TopologicalSort toposort(files_in_dir.size());
+    std::vector<size_t> num_depending_schemas(files_in_dir.size(), 0);
     for (size_t i = 0; i < files_in_dir.size(); i++) {
         toposort.addNode(i);
+        std::cout << " File '" << files_in_dir[i] << "' depends on: " << used_schemas[i].getDependencies() << "\n";
         for (const auto& dep : used_schemas[i].getDependencies()) {
-            for (size_t j = 0; j < files_in_dir.size(); j++) {
-                if (files_in_dir[j] == dep) {
-                    toposort.addEdge(j, i);  // dep must come before i
-                }
+            if (!schema_name_to_index.contains(dep)) {
+                zip_close(za);
+                throw std::runtime_error("❌  Error: schema dependency '" + dep + "' of schema '" +
+                                         files_in_dir[i] + "' not found in GTFS dataset.");
             }
+            toposort.addEdge(schema_name_to_index[dep], i);  // dep must come before i
+            num_depending_schemas[schema_name_to_index[dep]]++;
+        }
+    }
+
+    // deactivate all storage writes from schemas that are not needed later on
+    for (size_t i = 0; i < files_in_dir.size(); i++) {
+        if (num_depending_schemas[i] == 0) {
+            used_schemas[i].forbidStorageWrites();
+            std::cout << "🛑  Deactivated storage writes for schema '" << used_schemas[i].getName() << "'\n";
         }
     }
 
@@ -104,6 +126,16 @@ int main(int argc, char* argv[]) {
         if (i == 0) used_schemas[order[i]].setPrefixes(merged_prefixes);
         gtfs::GTFSParser parser(zf, used_schemas[order[i]], i == 0, ws, rt);
         parser.parse();
+        used_schemas[order[i]].finalise();
+        for (auto& dep : used_schemas[order[i]].getDependencies()) {
+            num_depending_schemas[schema_name_to_index[dep]]--;
+            if (num_depending_schemas[schema_name_to_index[dep]] == 0) {
+                rt.getStorage().clear_context(dep);
+                std::cout << "🧹  Cleared storage context for schema '" << dep << "' after "
+                          << " last dependent schema '" << used_schemas[order[i]].getName() 
+                          << "' was processed.\n";
+            }
+        }
         zip_fclose(zf);
         stats = stats + parser.getStats();
     }
@@ -111,15 +143,12 @@ int main(int argc, char* argv[]) {
 
     std::cout << "🎉  Done.\n" + stats.briefPrint("Total GTFS Set") + "\n";
 
-    // test whether all constant/multimap/tuplemap storage targets used actually have data
+    // print hole storage contents for debugging
     // TODO: remove debug output later
-    for (auto& constant_maps : rt.getStorage().getAllConstants()) {
-        const auto& ctx = constant_maps.first;
-        for (const auto& [ name, _ ] : constant_maps.second) {
-            const auto& value = rt.getStorage().get(ctx, name);
-            std::cout << "🔍  Value for constant '" << name << "' in context '" << ctx << "' is " << value << "\n";
-        }
-    }
+    // std::cout << "\n🗄️  Persistent Storage Contents:\n";
+    std::cout << "VARIABLES: " << rt.getStorage().getAllVariables() << "\n";
+    std::cout << "MULTIMAPS: " << rt.getStorage().getAllMultimaps() << "\n";
+    std::cout << "TUPLEMAPS: " << rt.getStorage().getAllTuplemaps() << "\n";
 
     // dump ontology spec if requested
     if (settings.isSpecDump() && !used_schemas.empty()) {

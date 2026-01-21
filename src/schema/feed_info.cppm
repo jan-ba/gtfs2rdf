@@ -8,6 +8,8 @@
 
 module;
 
+#include "transform_macros.h"
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -38,21 +40,22 @@ export Schema buildFeedInfoSchema(runtime::RuntimeContainer& rt) {
     };
 
     const std::unordered_map<std::string, std::string> prefixes = {
-        { "feedinfo", "https://gtfs.org/feed_info/" },
+        { "feed_info", "https://gtfs.org/feed_info/" },
         { "gtfs",     "https://w3id.org/gtfs2rdf#" },
         { "rdf",      "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
-        { "xsd",      "http://www.w3.org/2001/XMLSchema#" }
+        { "xs",      "http://www.w3.org/2001/XMLSchema#" }
     };
 
-    const IRI subject = IRI("feedinfo", "feed");
+    const std::vector<std::string> storage_only_instructions = {
+        "{ feed_lang > FEED_LANG }",
+        "{ feed_start_date | convert_date > FEED_START_DATE }",
+        "{ feed_end_date | convert_date > FEED_END_DATE }",
+    };
 
     const std::vector<Triple> triples = {
-        { subject, {"gtfs","feedLang"}, { "{feed_lang > FEED_LANG}" } },
-        { subject, {"gtfs","feedStartDate"}, { "{feed_start_date | convert_date}"} },
-        { subject, {"gtfs","feedEndDate"}, { "{feed_end_date | convert_date}"} }
     };
 
-    Schema sc("feed_info.txt", possible_columns, prefixes, triples, rt);
+    Schema sc("feed_info.txt", possible_columns, prefixes, triples, storage_only_instructions, rt);
     return sc;
 }
 

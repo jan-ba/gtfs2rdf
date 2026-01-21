@@ -41,7 +41,7 @@ char _hex_upper(unsigned v) {
 
 // Gibt ein vollständig gültiges Turtle-Literal zurück, z.B.:
 //   escape_literal_ttl("A\nB", "de")           ->  "A\nB"@de
-//   escape_literal_ttl("3.14", {}, "xsd:decimal")-> "3.14"^^xsd:decimal
+//   escape_literal_ttl("3.14", {}, "xs:decimal")-> "3.14"^^xs:decimal
 // Regeln:
 //  - Escaped werden: \, ", \n, \r, \t, \b, \f sowie alle ASCII-Steuerzeichen 0x00..0x1F und 0x7F.
 //  - Nicht-ASCII (UTF-8) bleibt unverändert (Turtle erlaubt UTF-8 direkt).

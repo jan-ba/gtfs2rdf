@@ -15,12 +15,15 @@ module;
 #include <stdexcept>
 #include <cctype>
 #include <cstdint>
+#include <iostream> 
 
 export module schema_parser;
 import field_transforms;
 import util;
 
 namespace schema {
+
+// TODO: check whether these exports are at all needed (if only schema_core.cppm uses this parser internally)
 
 export enum class ArgKind {
   Column,     // e.g. stop_id
@@ -32,7 +35,7 @@ export enum class ArgKind {
 // i.e. "{ arg1, arg2, ... | transform1 | transform2 > STORAGE }"
 export struct ArgSpec {
   ArgKind kind;
-  std::string name;   // column name or constant name; for Literal: the literal text
+  std::string name;   // column name or variable name; for Literal: the literal text
   std::string ctx;    // only for StorageConst (and later maybe other storage reads)
 };
 
@@ -44,7 +47,7 @@ export enum class StoreMode {
 
 export enum class StorageKind {
   None,      // FILE output
-  Constant,  // > CONST
+  Variable,  // > CONST
   MultiMap,  // key -> vector<string> with quick lookup
   TupleMap   // key -> vector<vector<string...>>
 };
@@ -55,6 +58,8 @@ export struct StorageWriteSpec {
 
   std::string target_name;  // e.g. FEED_LANG, removed_dates
   std::string target_ctx;   // optional explicit ctx from > TARGET@ctx; else filled later with schema ctx
+  
+  // bool suppress_output = false;  // if true, do not write to file (only store internally)
 
   // partitioning of args for keyed storage:
   // args = [keys..., values..., extra...]
@@ -82,8 +87,9 @@ export enum class ArgSourceKind { ColumnIndex, StorageConst, Literal };
 export struct ArgSource {
   ArgSourceKind kind;
   int column_index = -1;          // ColumnIndex
-  const std::string* literal = nullptr; // Literal (points into InstructionTemplate-owned pool)
-  std::string name;               // StorageConst: constant name
+  // const std::string* literal = nullptr; // Literal (points into InstructionTemplate-owned pool)
+  std::string literal;
+  std::string name;               // StorageConst: variable name
   std::string ctx;                // StorageConst: context name
 };
 
@@ -93,7 +99,7 @@ export struct BoundPlaceholder {
   StorageWriteSpec storage;
 };
 
-bool valid_ctx_name(std::string_view ctx) {
+export bool valid_ctx_name(std::string_view ctx) {
   return ctx.size() >= 4 && ctx.ends_with(".txt");
 }
 
@@ -105,7 +111,7 @@ ArgSpec parse_arg(std::string_view tok) {
     return ArgSpec{ArgKind::Literal, util::unquote(tok), ""};
   }
 
-  // storage constant read: NAME@ctx
+  // storage variable read: NAME@ctx
   auto [lhs, rhs] = util::split_at(tok, '@');
   if (!rhs.empty()) {
     if (!valid_ctx_name(rhs)) {
@@ -253,13 +259,13 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
     }
 
   } else {
-    // non-keyed (constants or file output)
+    // non-keyed (variables or file output)
     auto arg_toks = util::split_top_level(fields_part, ',');
     for (auto tk : arg_toks) spec.args.push_back(parse_arg(tk));
 
     if (!spec.storage.target_name.empty()) {
-      // constant store
-      spec.storage.kind = StorageKind::Constant;
+      // variable store
+      spec.storage.kind = StorageKind::Variable;
       spec.storage.mode = StoreMode::StoreComputed;
     } else {
       spec.storage.kind = StorageKind::None;

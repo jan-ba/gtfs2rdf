@@ -7,6 +7,7 @@ module;
 #include <functional>
 #include <algorithm>
 #include <span>
+#include <ostream>
 
 #include <iostream>
 
@@ -16,8 +17,8 @@ using namespace util;
 
 namespace field_transforms {
 
-export const int MaxArgs = 9;  // expected maximum number of arguments for field transforms
-                               // 9 since this accounts for all days of the week in calendar.txt
+export const int MaxArgs = 10;  // expected maximum number of arguments for field transforms
+                               // 10 since this is required by calendar.txt generate_dates transform
 
 // expected maximum number of chained transforms per placeholder - if more are needed, consider 
 // chaining transforms inside a single transform function for performance
@@ -45,10 +46,25 @@ export class ArgSpan {
         // iterators
         const std::string* const* begin() const { return data_; }
         const std::string* const* end()   const { return data_ + size_; }
+
+        // convenience print function for debugging
+        friend std::ostream& operator<<(std::ostream& os, const ArgSpan& span) {
+            os << "ArgSpan[";
+            for (size_t i = 0; i < span.size_; ++i) {
+                if (i > 0) os << ", ";
+                os << *span.data_[i];
+            }
+            os << "]";
+            return os;
+        }
 };
 
-export using Transform2One = std::function<void(const ArgSpan&, std::string&)>;
-export using Transform2N = std::function<void(const ArgSpan&, std::vector<std::string>&)>;
+export using Args = field_transforms::ArgSpan;
+export using Out1 = std::string;
+export using OutN = std::vector<std::string>;
+
+export using Transform2One = std::function<void(const Args&, Out1&)>;
+export using Transform2N = std::function<void(const Args&, OutN&)>;
 
 export enum class TransformKind { Single, Multi };
 
@@ -57,52 +73,6 @@ export struct Transform {
     Transform2One single;  // valid if kind == Single
     Transform2N   multi;  // valid if kind == Multi
 };
-
-export enum class OutputDestination { CONSTANT, MULTIMAP, TUPLEMAP, FILE };
-
-export class StorageInstruction {
-  private:
-    const std::string* context_name_ = nullptr;  // context (schema/file) name
-    std::string target_name_;  // name of constant/multimap/tuplemap
-    OutputDestination output_destination_ = OutputDestination::FILE;
-    bool write_ = false;  // whether to write to storage (else, just read) (only if OutputDestination != FILE)
-
-  public:
-    StorageInstruction(const std::string& target_name) 
-        : target_name_(target_name) {
-        output_destination_ = OutputDestination::CONSTANT;
-    }
-
-    StorageInstruction() 
-        : target_name_(""), output_destination_(OutputDestination::FILE) {}
-
-    void setContextName(const std::string& context_name) {
-        context_name_ = &context_name;
-    }
-
-    const std::string& getContextName() const {
-        if (context_name_ == nullptr) {
-            throw std::runtime_error("❌  Error: StorageInstruction context name not set");
-        }
-        return *context_name_;
-    }
-
-    const std::string& getTargetName() const {
-        return target_name_;
-    }
-
-    OutputDestination getOutputDestination() const {
-        return output_destination_;
-    }
-};
-
-// return type: field name + list of functors.
-export struct ParsedPlaceholder {
-    std::vector<std::string> field_names;
-    std::vector<Transform> transforms;
-    StorageInstruction storage_instruction;
-};
-
 
 export class TransformRegistry {
   private:
@@ -140,54 +110,10 @@ export class TransformRegistry {
 
     const Transform& getTransform(const std::string& name) const {
         if (!registry_.contains(name)) {
+            // TODO: add context information perhaps
             throw std::runtime_error("❌  Error: unknown field transform: " + name);
         }
         return registry_.at(name);
-    }
-
-    const ParsedPlaceholder parse_placeholder_with_functors(const std::string& raw) const
-    {
-        ParsedPlaceholder result;
-
-        // remove whitespace
-        std::string s = raw;
-
-        util::remove_ws(s);
-
-        // find first '>' if any (then, this placeholder is meant for persistent storage)
-        size_t dest_pos = s.find('>');
-        std::vector<std::string> tmp;
-        if (dest_pos != std::string::npos) {
-            tmp = util::split(s, '>');
-            if (tmp.size() != 2) {
-                throw std::runtime_error("❌  Transform error: invalid placeholder syntax (multiple '>'): " + raw);
-            }
-            result.storage_instruction = StorageInstruction(tmp[1]);
-            s = tmp[0];
-        }
-
-
-        // find first '|'
-        std::size_t pos = s.find('|');
-        if (pos == std::string::npos) {  // no '|', only field name
-            result.field_names.push_back(s);
-            return result;
-        }
-
-        // field name = part before first '|'
-        result.field_names = util::split(s.substr(0, pos), ',');
-
-        auto transforms = util::split(s.substr(pos + 1), '|');
-
-        for (const auto& name : transforms) {
-            if (name.empty()) {
-                // skip empty transform names
-                continue;
-            }
-
-            result.transforms.push_back(getTransform(name));
-        }
-        return result;
     }
 
   private:

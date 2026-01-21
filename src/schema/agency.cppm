@@ -9,6 +9,8 @@
 
 module;
 
+#include "transform_macros.h"
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -43,7 +45,7 @@ export Schema buildAgencySchema(runtime::RuntimeContainer& rt) {
   const std::unordered_map<std::string, std::string> prefixes = {
     { "agencies", "https://gtfs.org/agencies/" },
     { "rdf",      "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
-    { "xsd",      "http://www.w3.org/2001/XMLSchema#" },
+    { "xs",      "http://www.w3.org/2001/XMLSchema#" },
     { "gtfs",     "https://w3id.org/gtfs2rdf#" }
   };
 
@@ -57,17 +59,17 @@ export Schema buildAgencySchema(runtime::RuntimeContainer& rt) {
 
     // Core fields
     { subject,      {"gtfs","agencyName"},           { "{agency_name}" } },
-    { subject,      {"gtfs","agencyUrl"},            { "{agency_url}", IRI("xsd","anyURI") } },
+    { subject,      {"gtfs","agencyUrl"},            { "{agency_url}", IRI("xs","anyURI") } },
     { subject,      {"gtfs","agencyTimezone"},       { "{agency_timezone}" } },
 
     // Optional fields
-    { subject,      {"gtfs","agencyLang"},           { "{agency_lang}", IRI("xsd","language") } },
+    { subject,      {"gtfs","agencyLang"},           { "{agency_lang}", IRI("xs","language") } },
     { subject,      {"gtfs","agencyPhone"},          { "{agency_phone}" } },
-    { subject,      {"gtfs","agencyFareUrl"},        { "{agency_fare_url}", IRI("xsd","anyURI") } },
+    { subject,      {"gtfs","agencyFareUrl"},        { "{agency_fare_url}", IRI("xs","anyURI") } },
     { subject,      {"gtfs","agencyEmail"},          { "{agency_email}" } },
 
     // cEMV support enum (0/1/2)
-    { subject,      {"gtfs","cemvSupport"},          { "{cemv_support}", IRI("xsd","integer") } }
+    { subject,      {"gtfs","cemvSupport"},          { "{cemv_support}", IRI("xs","integer") } }
   };
 
   Schema sc("agencies.txt", possible_columns, prefixes, triples, rt);

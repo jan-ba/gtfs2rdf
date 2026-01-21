@@ -11,6 +11,7 @@ module;
 
 #include <string>
 #include <unordered_map>
+#include <stdexcept>
 
 export module rdf_components;
 import runtime;
@@ -24,21 +25,26 @@ class IRI {
 
   public:
     IRI(const std::string& prefix, const std::string& local_name)
-      : prefix_(prefix), local_name_(local_name) {}
+      : prefix_(prefix), local_name_(local_name) {
+          // empty IRIs not allowed
+          if (local_name_.empty()) {
+              throw std::runtime_error("❌  Error: empty IRI is not allowed");
+          }
+      }
 
     IRI() : prefix_(""), local_name_("") {}
       
-  const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
-                             const runtime::RuntimeContainer& rt) const {
-    if (!rt.getSettings().isNTriplesOutput() && !prefix_.empty()) {
-      return prefix_ + ":" + local_name_;
-    } else if (!prefix_.empty()) {
-      return "<" + prefixes.at(prefix_) + local_name_ + ">";
-      // might add other functionality later
-    } else {
-      return local_name_;
+    const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
+                              const runtime::RuntimeContainer& rt) const {
+        if (!rt.getSettings().isNTriplesOutput() && !prefix_.empty()) {
+            return prefix_ + ":" + local_name_;
+        } else if (!prefix_.empty()) {
+            return "<" + prefixes.at(prefix_) + local_name_ + ">";
+            // might add other functionality later
+        } else {
+            return local_name_;
+        }
     }
-  }
 };
 
 class Object {
@@ -54,11 +60,19 @@ class Object {
 
     // literal - only language tag (if any)
     Object(const std::string& literal, const std::string& lang = "")
-      : type_(Type::Literal), name_(IRI("", literal)), datatype_(IRI("", "")), lang_(lang) {}
+      : type_(Type::Literal), name_(IRI("", literal)), datatype_(IRI()), lang_(lang) {
+        // if (literal.empty()) {
+        //     throw std::runtime_error("❌  Error: empty literal is not allowed");
+        // }
+    }
 
     // literal - with datatype
     Object(const std::string& literal, const IRI& datatype)
-      : type_(Type::Literal), name_(IRI("", literal)), datatype_(datatype) {}
+      : type_(Type::Literal), name_(IRI("", literal)), datatype_(datatype) {
+        // if (literal.empty()) {
+        //     throw std::runtime_error("❌  Error: empty literal is not allowed");
+        // }
+    }
 
     const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
                               const runtime::RuntimeContainer& rt) const {
