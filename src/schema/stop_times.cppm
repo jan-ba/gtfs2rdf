@@ -71,7 +71,7 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rt) {
     // Core fields
     { subj, {"gtfs","stopSequence"},             { "{stop_sequence}", IRI("xs","integer") } },
 
-    // Times (plain literals; GTFS allows >24:00:00) TODO: add transform that caps time above 24:00:00?
+    // Times (converted to xs:time, i.e. capped at 24:00:00)
     { subj, {"gtfs","arrivalTime"},              { "{arrival_time | convert_time}", IRI("xs", "time") } },
     { subj, {"gtfs","departureTime"},            { "{departure_time | convert_time}", IRI("xs", "time") } },
 

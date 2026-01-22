@@ -58,11 +58,7 @@ class TopologicalSort {
         S_.reserve(num_nodes);
     }
 
-    void addEdge(size_t from, size_t to) {
-        if (from == to) {
-            throw std::runtime_error("❌ TopologicalSort error: self-loop detected for node '" 
-                                        + std::to_string(from) + "'");
-        }
+    void addEdge(size_t from, size_t to, bool allow_self_loops = false) {
         auto [it, res] = node_index_.emplace(from, node_index_.size());
         if (res) {
             index_to_name_.push_back(from);
@@ -71,7 +67,15 @@ class TopologicalSort {
         if (res2) {
             index_to_name_.push_back(to);
         }
-        edges_.emplace_back(it->second, it2->second);
+
+        if (from == to) {
+            if (!allow_self_loops) {
+                throw std::runtime_error("❌ TopologicalSort error: self-loop detected for node " + std::to_string(from));
+            }
+        } else {
+            // don't add self-loops as edges, that would be pointless
+            edges_.emplace_back(it->second, it2->second);
+        }
     }
 
     // this can be used for nodes which might not have any edges but should still appear in the sorted output
@@ -123,7 +127,7 @@ class TopologicalSort {
             if (!isRowFalse(i)) {
                 throw std::runtime_error("❌ TopologicalSort error: graph has at least one cycle");
             }
-    }
+        }
 
         // build result
         std::vector<size_t> result;

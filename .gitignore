@@ -55,4 +55,4 @@ gcm.cache/*
 *.log
 *.png
 
-./RAM_monitor*
+RAM_monitor/

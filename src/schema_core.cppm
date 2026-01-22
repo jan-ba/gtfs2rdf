@@ -96,7 +96,7 @@ export class Instruction {
             case ArgSourceKind::Literal: {
                 return &a.literal;
             }
-            case ArgSourceKind::StorageConst: {
+            case ArgSourceKind::StorageVar: {
                 const auto& v = rt_.getStorage().get(a.ctx, a.name);
                 return &v;
             }
@@ -160,8 +160,8 @@ export class Instruction {
                     // literal_pool_.push_back(a.name);
                     // src.literal = &literal_pool_.back();
                     src.literal = a.name;
-                } else { // StorageConst
-                    src.kind = ArgSourceKind::StorageConst;
+                } else { // StorageVar
+                    src.kind = ArgSourceKind::StorageVar;
                     src.name = a.name;
                     src.ctx  = a.ctx;
                 }
@@ -423,6 +423,10 @@ export class Schema {
     std::vector<Instruction> instructions_;  // computed instructions 
 
   public:
+    Schema(const Schema&) = delete;
+    Schema& operator=(const Schema&) = delete;
+    Schema(Schema&&) noexcept = default;
+    Schema& operator=(Schema&&) noexcept = delete;
     Schema(const std::string name, const std::vector<std::string> possible_columns,
           const std::unordered_map<std::string, std::string> prefixes,
           const std::vector<Triple>& triples, runtime::RuntimeContainer& rt)
@@ -448,11 +452,10 @@ export class Schema {
           const std::vector<Triple>& triples, const std::vector<std::string>& storage_only_instructions,
           runtime::RuntimeContainer& rt)
         : Schema(name, possible_columns, prefixes, triples, rt) {
-        // add side effect instructions
-        for (const auto& se : storage_only_instructions) {
-            raw_instructions_.insert(raw_instructions_.begin(), se);
-            num_storage_only_instructions_++;
-        }
+        // add side effect instructions in front (so that triples could depend on them)
+        num_storage_only_instructions_ = storage_only_instructions.size();
+        raw_instructions_.insert(raw_instructions_.begin(), storage_only_instructions.begin(), 
+                                 storage_only_instructions.end());
     }
 
     // compile raw_instructions_ into templates_ and compute dependencies_ from other schemas
@@ -484,13 +487,35 @@ export class Schema {
 
                 // dependencies from args
                 for (const auto& a : spec.args) {
-                    if (a.kind == ArgKind::StorageConst) {
-                        if (!a.ctx.empty() && a.ctx != name_) dependencies_.insert(a.ctx);
+                    if (a.kind == ArgKind::StorageVar) {
+                        if (!a.ctx.empty()) {
+                            // if self-reference, check that the variable was already written
+                            // in a previous instruction
+                            if (a.ctx == name_) {
+                                bool found = false;
+                                for (const auto& instr : templates_) {
+                                    for (const auto& ph : instr.phs) {
+                                        std::cout << "Checking ph storage target: " << ph.storage.target_name << "\n"; // debug
+                                        if (ph.storage.target_name == a.name) {
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                    if (found) break;
+                                }
+                                if (!found) {
+                                    throw std::runtime_error("❌  Error: self-reference to storage variable '" + a.name +
+                                                             "' in context '" + a.ctx +
+                                                             "' before it was written in instruction: " + raw_inst);
+                                }
+                            } else
+                            dependencies_.insert(a.ctx);
+                        } 
                     }
                 }
                 // dependencies from transform ctx hints
                 for (const auto& tc : spec.transforms) {
-                    if (!tc.ctx_hint.empty() && tc.ctx_hint != name_) dependencies_.insert(tc.ctx_hint);
+                    if (!tc.ctx_hint.empty()) dependencies_.insert(tc.ctx_hint);
                 }
 
                 t.phs.push_back(std::move(spec));
@@ -565,10 +590,6 @@ export class Schema {
     const std::unordered_set<std::string>& getDependencies() const { return dependencies_; }
 
     // Setters
-    // TODO: check whether this can be changed, because its not very elegant
-    void setPrefixes(std::unordered_map<std::string, std::string> prefixes) {
-      prefixes_ = prefixes;
-    }
     void forbidStorageWrites() {
         allow_storage_writes_ = false;
     }

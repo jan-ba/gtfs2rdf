@@ -19,14 +19,14 @@
     #NAME,                                                                           \
     field_transforms::Transform2One{                                                 \
       [&](const field_transforms::Args& ARGS, field_transforms::Out1& OUT_VAL) -> void {     \
-        auto& STORAGE = rt.getStorage();
+        [[maybe_unused]] auto& STORAGE = rt.getStorage();
 
 #define TRANSFORM2MANY(NAME, ARGS, OUT_VALS, STORAGE)                                \
   rt.getTransformRegistry().registerTransform(                                       \
     #NAME,                                                                           \
     field_transforms::Transform2N{                                                   \
       [&](const field_transforms::Args& ARGS, field_transforms::OutN& OUT_VALS) -> void { \
-        auto& STORAGE = rt.getStorage();
+        [[maybe_unused]] auto& STORAGE = rt.getStorage();
 
 #define TRANSFORM_END                                                                \
       }                                                                              \

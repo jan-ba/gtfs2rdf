@@ -78,6 +78,7 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer& rt) {
     TRANSFORM_END
 
     TRANSFORM2ONE(filter_if_record_id_defined, ARGS, OUT_VAL, STORAGE)
+        (void)ARGS;  // unused on purpose
         if (STORAGE.get("translations.txt", "is_record_id_defined").empty()) OUT_VAL = "1";
     TRANSFORM_END
 
@@ -102,10 +103,10 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer& rt) {
 
     const std::vector<std::string> storage_only_instructions = {
         // store whether record_id is defined in variable
-        "{ record_id > is_record_id_defined}"
+        "{ record_id > is_record_id_defined}",
 
         "{ table_name, field_name , field_value: (translation, language)"
-        " | filter_if_record_id_defined > translations_by_value@translations.txt }"
+        " | filter_if_record_id_defined@translations.txt > translations_by_value@translations.txt }"
     };
 
     const std::vector<Triple> triples = {

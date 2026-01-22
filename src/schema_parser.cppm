@@ -27,7 +27,7 @@ namespace schema {
 
 export enum class ArgKind {
   Column,     // e.g. stop_id
-  StorageConst, // e.g. FEED_LANG@feed_info.txt
+  StorageVar, // e.g. FEED_LANG@feed_info.txt
   Literal     // e.g. "hardcoded"
 };
 
@@ -36,7 +36,7 @@ export enum class ArgKind {
 export struct ArgSpec {
   ArgKind kind;
   std::string name;   // column name or variable name; for Literal: the literal text
-  std::string ctx;    // only for StorageConst (and later maybe other storage reads)
+  std::string ctx;    // only for StorageVar (and later maybe other storage reads)
 };
 
 export enum class StoreMode {
@@ -82,15 +82,15 @@ export struct PlaceholderSpec {
   StorageWriteSpec storage;                  // what to do with output / whether to store
 };
 
-export enum class ArgSourceKind { ColumnIndex, StorageConst, Literal };
+export enum class ArgSourceKind { ColumnIndex, StorageVar, Literal };
 
 export struct ArgSource {
   ArgSourceKind kind;
   int column_index = -1;          // ColumnIndex
   // const std::string* literal = nullptr; // Literal (points into InstructionTemplate-owned pool)
   std::string literal;
-  std::string name;               // StorageConst: variable name
-  std::string ctx;                // StorageConst: context name
+  std::string name;               // StorageVar: variable name
+  std::string ctx;                // StorageVar: context name
 };
 
 export struct BoundPlaceholder {
@@ -117,7 +117,7 @@ ArgSpec parse_arg(std::string_view tok) {
     if (!valid_ctx_name(rhs)) {
       throw std::runtime_error("❌ Invalid context after '@' in arg: " + std::string(tok));
     }
-    return ArgSpec{ArgKind::StorageConst, std::string(lhs), std::string(rhs)};
+    return ArgSpec{ArgKind::StorageVar, std::string(lhs), std::string(rhs)};
   }
 
   // column

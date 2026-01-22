@@ -146,52 +146,55 @@ export class Settings {
     Settings(int argc, char* argv[]) {
         cxxopts::Options opts(
             "gtfs2rdf",
-            "GTFS->RDF converter\n\n"
-            "Note: garbage in, garbage out. It is recommended to validate your GTFS feed\n"
-            "with a GTFS validator beforehand to ensure the conversion to RDF is also correct.\n"
+            "GTFS->RDF converter\n"
+            "Note: garbage in, garbage out. Validate your GTFS feed first.\n"
+            "\n"
+            "Examples:\n"
+            "  gtfs2rdf feed.zip --format nt\n"
+            "  gtfs2rdf --dataset feed.zip --output out/\n"
         );
 
-        opts.add_options()
-            ("d,dataset", "Path to GTFS .zip archive", cxxopts::value<std::string>())
-            ("o,output",  "Output directory", cxxopts::value<std::string>()->default_value("."))
+        opts.custom_help("[options]");
 
-            ("read-chunk-size",  "Read chunk size in mb",
-                cxxopts::value<double>()->default_value(std::to_string(READ_CHUNK_SIZE_DEFAULT)))
-            ("write-chunk-size", "Write chunk size in mb",
-                cxxopts::value<double>()->default_value(std::to_string(WRITE_CHUNK_SIZE_DEFAULT)))
+        opts.add_options("Standard")
+        ("d,dataset", "Path to GTFS .zip archive", cxxopts::value<std::string>())
+        ("o,output",  "Output directory", cxxopts::value<std::string>()->default_value("."))
+        ("format",    "Output format: ttl|nt", cxxopts::value<std::string>()->default_value("ttl"))
+        ("overwrite", "Overwrite existing output files.",
+            cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
+        ("h,help", "Show help");
 
-            ("format", "Output format: ttl|nt",
-                cxxopts::value<std::string>()->default_value("ttl"))
+        opts.add_options("RAM / runtime")
+        ("read-chunk-size",  "Read chunk size in MB (bigger = more RAM, often faster)",
+            cxxopts::value<double>()->default_value(std::to_string(READ_CHUNK_SIZE_DEFAULT)))
+        ("write-chunk-size", "Write chunk size in MB (bigger = more RAM, fewer flushes)",
+            cxxopts::value<double>()->default_value(std::to_string(WRITE_CHUNK_SIZE_DEFAULT)));
 
-            ("spec-dump", "Dump onthology spec to disk",
-                cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
+        opts.add_options("Diagnostics / advanced")
+        ("spec-dump", "Dump ontology spec to disk",
+            cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
+        ("warning-level", "Warning verbosity: quiet|default|verbose",
+            cxxopts::value<std::string>()->default_value("quiet"))
+        ("strict", "Fail fast: treat warnings/issues as errors.",
+            cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
+        ("stats", "Statistics mode: none|verbose|dry-verbose",
+            cxxopts::value<std::string>()->default_value("none")->implicit_value("verbose"));
 
-            // NEW: warning verbosity levels
-            ("warning-level", "Warning verbosity: quiet|default|verbose",
-                cxxopts::value<std::string>()->default_value("quiet")) // TODO
-            ("strict", "Fail fast: treat warnings/GTFS+spec issues as errors.",
-                cxxopts::value<bool>()->default_value("false")->implicit_value("true")) // TODO: enforce
-
-            ("overwrite", "Overwrite existing output files in output directory.",
-                cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
-
-            ("stats",
-                "Statistics mode: none|verbose|dry-verbose\n"
-                "'dry-verbose' disables output and prints verbose stats.",
-                cxxopts::value<std::string>()->default_value("none")->implicit_value("verbose")) // TODO: implement
-
-            ("h,help", "Show help");
-
-        opts.positional_help("GTFS_ZIP");
         opts.parse_positional({"dataset"});
+        opts.positional_help("GTFS_ZIP");
 
         auto result = opts.parse(argc, argv);
 
-        if (result.count("help")) { std::cout << opts.help() << '\n'; std::exit(0); }
+        if (result.count("help")) {
+        std::cout << opts.help({"Standard", "RAM / runtime", "Diagnostics / advanced"}) << "\n";
+        std::exit(0);
+        }
+
         if (!result.count("dataset")) {
             std::cerr << "Input GTFS dataset required. Type --help for more information!\n";
-            std::exit(0);
-        }        
+            std::exit(1);
+        }
+
 
         // output format
         std::string format = result["format"].as<std::string>();

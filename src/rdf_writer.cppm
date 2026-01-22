@@ -22,6 +22,7 @@ module;
 #include <string_view>
 #include <stdexcept>
 #include <span>
+#include <unordered_map>
 
 export module rdf_writer;
 import schema;
@@ -74,9 +75,9 @@ export class Writer {
     }
 
 
-    void writePrefixes(const Schema& sc) {
+    void writePrefixes(const std::unordered_map<std::string, std::string>& map) {
         std::string out;
-        for (const auto& [pfx, iri] : sc.getPrefixes()) {
+        for (const auto& [pfx, iri] : map) {
             out += "@prefix " + pfx + ": <" + iri + "> .\n";
         }
         out += "\n";
@@ -96,6 +97,13 @@ export class Writer {
             for (auto& instr : instructions) {
                 append(instr.render(row));
             }
+        }
+    }
+
+    void convertRow(Schema& sc, const std::vector<std::string>& row) {
+        auto& instructions = sc.getInstructions();
+        for (auto& instr : instructions) {
+            append(instr.render(row));
         }
     }
 

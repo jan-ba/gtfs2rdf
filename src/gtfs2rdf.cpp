@@ -94,7 +94,7 @@ int main(int argc, char* argv[]) {
                 throw std::runtime_error("❌  Error: schema dependency '" + dep + "' of schema '" +
                                          files_in_dir[i] + "' not found in GTFS dataset.");
             }
-            toposort.addEdge(schema_name_to_index[dep], i);  // dep must come before i
+            toposort.addEdge(schema_name_to_index[dep], i, true);  // dep must come before i
             num_depending_schemas[schema_name_to_index[dep]]++;
         }
     }
@@ -107,6 +107,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // allow loops (schema may read from its own previously written storage)
     auto order = toposort.sort();
 
     std::cout << "🔀  Processing GTFS files in order: ";
@@ -123,8 +124,8 @@ int main(int argc, char* argv[]) {
             zip_close(za);
             throw std::runtime_error("❌  Error: cannot open entry inside ZIP: " + files_in_dir[order[i]]);
         }
-        if (i == 0) used_schemas[order[i]].setPrefixes(merged_prefixes);
-        gtfs::GTFSParser parser(zf, used_schemas[order[i]], i == 0, ws, rt);
+        if (i == 0 && !settings.isNTriplesOutput()) writer.writePrefixes(merged_prefixes);
+        gtfs::GTFSParser parser(zf, used_schemas[order[i]], ws, rt);
         parser.parse();
         used_schemas[order[i]].finalise();
         for (auto& dep : used_schemas[order[i]].getDependencies()) {
@@ -155,7 +156,7 @@ int main(int argc, char* argv[]) {
         std::filesystem::path specPath = settings.OutputPath();
         specPath.replace_extension(".spec.txt");
         writer::Writer onth_writer(specPath, rt, 1.0);  // small buffer for spec writing
-        if (!settings.isNTriplesOutput()) onth_writer.writePrefixes(used_schemas[0]);
+        if (!settings.isNTriplesOutput()) onth_writer.writePrefixes(merged_prefixes);
         for (auto& schema : used_schemas) {
             for (auto& inst : schema.getInstructions()) {
                 onth_writer.append(inst.getRawInstruction() + "\n");
