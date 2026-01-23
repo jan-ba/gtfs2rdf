@@ -12,13 +12,112 @@ module;
 #include <string>
 #include <unordered_map>
 #include <stdexcept>
+#include <vector>
+#include <string_view>
 
 export module rdf_components;
 import runtime;
 
-export namespace rdf {
+namespace rdf {
 
-class IRI {
+export enum class RenderKind {
+    Raw,            // no escaping / fallback
+    IriRef,         // placeholder is inside <...> (e.g. for ntriples)
+    PrefixedLocal,  // placeholder is a prefixed name (e.g. ex:{LocalName})
+    Literal,         // placeholder is inside "..." (e.g. for literals)
+    LangTag         // placeholder is a language tag (e.g. @en)
+};
+
+// template string for one instruction / triple -> one RenderKind per placeholder from left to right
+export struct TemplateString {
+    std::string raw;
+    std::vector<RenderKind> render_kinds;
+};
+
+static size_t _count_placeholders(std::string_view s) {
+    size_t n = 0;
+    for (size_t pos = 0; (pos = s.find("{", pos)) != std::string_view::npos; ++pos) ++n;
+    return n;
+}
+
+// percent-encode bytes not in RFC3986 "unreserved" (A-Z, a-z, 0-9, '-', '.', '_', '~'). 
+// This keeps IRIREF safe, such as in <http://example.com/{value}>
+export void percent_encode_iriref(std::string& out, std::string_view value) {
+    auto is_unreserved = [](unsigned char c) {
+        return (c >= 'A' && c <= 'Z') ||
+              (c >= 'a' && c <= 'z') ||
+              (c >= '0' && c <= '9') ||
+              c == '-' || c == '.' || c == '_' || c == '~';
+    };
+    static constexpr char H[] = "0123456789ABCDEF";
+    for (unsigned char c : value) {
+        if (is_unreserved(c) && c != '%') {
+            out.push_back(static_cast<char>(c));
+        } else {
+            out.push_back('%');
+            out.push_back(H[(c >> 4) & 0xF]);
+            out.push_back(H[c & 0xF]);
+        }
+    }
+}
+
+// percent-encode bytes not in PN_LOCAL per Turtle spec (letters, digits, '_', '-'),
+// E.g. for prefixed names such as ex:{Local Name} where space must be encoded
+export void percent_encode_prefixed_local(std::string& out, std::string_view value) {
+    auto is_safe = [](unsigned char c) {
+      return (c >= 'A' && c <= 'Z') ||
+            (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') ||
+            c == '_' || c == '-';
+    };
+    static constexpr char H[] = "0123456789ABCDEF";
+    for (unsigned char c : value) {
+        if (is_safe(c) && c != '%') {
+          out.push_back(static_cast<char>(c));
+        } else {
+          out.push_back('%');
+          out.push_back(H[(c >> 4) & 0xF]);
+          out.push_back(H[c & 0xF]);
+        }
+    }
+}
+
+// percent-encode special characters in literals per RDF spec
+export void percent_encode_literal(std::string& out, std::string_view value) {
+    bool needsEscape = false;
+    for (unsigned char c : value) {
+        if (c < 0x20 || c == 0x7F || c == '\\' || c == '"') { needsEscape = true; break; }
+    }
+    if (!needsEscape) {
+        out.append(value);
+        return;
+    }
+
+    static constexpr char H[] = "0123456789ABCDEF";
+
+    for (unsigned char c : value) {
+        switch (c) {
+            case '\\': out.append("\\\\"); break;
+            case '"' : out.append("\\\""); break;
+            case '\n': out.append("\\n");  break;
+            case '\r': out.append("\\r");  break;
+            case '\t': out.append("\\t");  break;
+            case '\b': out.append("\\b");  break;
+            case '\f': out.append("\\f");  break;
+            default:
+                if (c < 0x20 || c == 0x7F) {
+                    out.push_back('\\'); out.push_back('u');
+                    out.push_back('0');  out.push_back('0');
+                    out.push_back(H[(c >> 4) & 0xF]);
+                    out.push_back(H[c & 0xF]);
+                } else {
+                    out.push_back(static_cast<char>(c));
+                }
+        }
+    }
+}
+
+export class IRI {
   private:
     const std::string prefix_;
     const std::string local_name_;
@@ -34,20 +133,55 @@ class IRI {
 
     IRI() : prefix_(""), local_name_("") {}
       
+    // convert to template, allowing proper escaping based on context
+    TemplateString toTemplate(const std::unordered_map<std::string, std::string>& prefixes,
+                              const runtime::RuntimeContainer& rt) const
+    {
+        TemplateString t;
+
+        const bool ntriples = rt.getSettings().isNTriplesOutput();
+
+        // N-Triples: always use IRIREF <...>
+        if (ntriples) {
+            if (!prefix_.empty()) {
+                t.raw = "<" + prefixes.at(prefix_) + local_name_ + ">";
+                const size_t cnt = _count_placeholders(local_name_);
+                if (cnt) t.render_kinds.assign(cnt, RenderKind::IriRef);
+                return t;
+            }
+            // prefix_ empty: assume already serialized token (<...> or _:...) TODO: validate?
+            t.raw = local_name_;
+            const size_t cnt = _count_placeholders(local_name_);
+            if (cnt) t.render_kinds.assign(cnt, RenderKind::IriRef);
+            return t;
+        }
+
+        // Turtle: prefer prefixed names when safe/desired
+        if (!prefix_.empty()) {
+            t.raw = prefix_ + ":" + local_name_;
+
+            const size_t cnt = _count_placeholders(local_name_);
+            if (cnt) t.render_kinds.assign(cnt, RenderKind::PrefixedLocal);
+
+            return t;
+        }
+
+        // prefix_ empty: treat as already-serialized token
+        t.raw = local_name_;
+        const size_t cnt = _count_placeholders(local_name_);
+        if (cnt) t.render_kinds.assign(cnt, RenderKind::IriRef);
+        return t;
+    }
+
+    // convert to string directly (no escaping)
     const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
                               const runtime::RuntimeContainer& rt) const {
-        if (!rt.getSettings().isNTriplesOutput() && !prefix_.empty()) {
-            return prefix_ + ":" + local_name_;
-        } else if (!prefix_.empty()) {
-            return "<" + prefixes.at(prefix_) + local_name_ + ">";
-            // might add other functionality later
-        } else {
-            return local_name_;
-        }
+        return toTemplate(prefixes, rt).raw;
     }
+
 };
 
-class Object {
+export class Object {
   private:
     const enum class Type { IRI, Literal, BlankNode } type_;
     const IRI name_;
@@ -61,42 +195,68 @@ class Object {
     // literal - only language tag (if any)
     Object(const std::string& literal, const std::string& lang = "")
       : type_(Type::Literal), name_(IRI("", literal)), datatype_(IRI()), lang_(lang) {
-        // if (literal.empty()) {
-        //     throw std::runtime_error("❌  Error: empty literal is not allowed");
-        // }
     }
 
     // literal - with datatype
     Object(const std::string& literal, const IRI& datatype)
       : type_(Type::Literal), name_(IRI("", literal)), datatype_(datatype) {
-        // if (literal.empty()) {
-        //     throw std::runtime_error("❌  Error: empty literal is not allowed");
-        // }
+    }
+
+    TemplateString toTemplate(const std::unordered_map<std::string, std::string>& prefixes,
+                            const runtime::RuntimeContainer& rt) const
+    {
+        TemplateString t;
+
+        switch (type_) {
+            case Type::IRI: {
+                return name_.toTemplate(prefixes, rt);
+            }
+            case Type::Literal: {
+                const auto lex_t = name_.toTemplate(prefixes, rt);
+
+                t.raw.reserve(lex_t.raw.size() + 16);
+                t.raw.push_back('"');
+                t.raw.append(lex_t.raw);
+                t.raw.push_back('"');
+
+                // mark placeholders in lexical form as Literal
+                const size_t cnt_lex = _count_placeholders(lex_t.raw);
+                if (cnt_lex) t.render_kinds.assign(cnt_lex, RenderKind::Literal);
+
+                if (!lang_.empty()) {
+                    t.raw += "@";
+                    t.raw += lang_;
+
+                    // allow placeholders in language tag (e.g. @{FEED_LANG@feed_info.txt})
+                    const size_t cnt_lang = _count_placeholders(lang_);
+                    if (cnt_lang) t.render_kinds.insert(t.render_kinds.end(), cnt_lang, RenderKind::LangTag);
+                } else {
+                    const auto dt_t = datatype_.toTemplate(prefixes, rt);
+                    if (!dt_t.raw.empty()) {
+                        t.raw += "^^" + dt_t.raw;
+                        t.render_kinds.insert(t.render_kinds.end(),
+                                            dt_t.render_kinds.begin(), dt_t.render_kinds.end());
+                    }
+                }
+                return t;
+            }
+            case Type::BlankNode: {
+                t.raw = "_:" + name_.toString(prefixes, rt);
+                const size_t cnt = _count_placeholders(t.raw);
+                if (cnt) t.render_kinds.assign(cnt, RenderKind::Raw);
+                return t;
+            }
+        }
+        return t;
     }
 
     const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
-                              const runtime::RuntimeContainer& rt) const {
-      switch (type_) {
-        case Type::IRI:
-          return name_.toString(prefixes, rt);
-        case Type::Literal: {
-          std::string lit = "\"" 
-                + name_.toString(prefixes, rt) + "\"";
-          if (!lang_.empty()) {
-            lit += "@" + lang_;
-          } else if (!datatype_.toString(prefixes, rt).empty()) {
-            lit += "^^" + datatype_.toString(prefixes, rt);
-          }
-          return lit;
-        }
-        case Type::BlankNode:  // required?
-          return "_:" + name_.toString(prefixes, rt);
-      }
-      return ""; // should not reach here
+                            const runtime::RuntimeContainer& rt) const {
+        return toTemplate(prefixes, rt).raw;
     }
 };
 
-class Triple {
+export class Triple {
   private:
     const IRI subject_;
     const IRI predicate_;
@@ -106,11 +266,26 @@ class Triple {
     Triple(const IRI& subject, const IRI& predicate, const Object& object)
       : subject_(subject), predicate_(predicate), object_(object) {}
 
+    TemplateString toTemplate(const std::unordered_map<std::string, std::string>& prefixes,
+                            const runtime::RuntimeContainer& rt) const
+    {
+        auto s = subject_.toTemplate(prefixes, rt);
+        auto p = predicate_.toTemplate(prefixes, rt);
+        auto o = object_.toTemplate(prefixes, rt);
+
+        TemplateString t;
+        t.raw = s.raw + " " + p.raw + " " + o.raw + " .";
+
+        t.render_kinds.reserve(s.render_kinds.size() + p.render_kinds.size() + o.render_kinds.size());
+        t.render_kinds.insert(t.render_kinds.end(), s.render_kinds.begin(), s.render_kinds.end());
+        t.render_kinds.insert(t.render_kinds.end(), p.render_kinds.begin(), p.render_kinds.end());
+        t.render_kinds.insert(t.render_kinds.end(), o.render_kinds.begin(), o.render_kinds.end());
+        return t;
+    }
+
     const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
-                             const runtime::RuntimeContainer& rt) const {
-      return subject_.toString(prefixes, rt) + " " +
-             predicate_.toString(prefixes, rt) + " " +
-             object_.toString(prefixes, rt) + " .";
+                            const runtime::RuntimeContainer& rt) const {
+        return toTemplate(prefixes, rt).raw;
     }
 };
 

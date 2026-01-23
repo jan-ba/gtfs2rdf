@@ -48,12 +48,15 @@ struct Datagap {
     bool contains_transf2n = false;
     int transf2n_index = -1;
     StorageWriteSpec storage;  // full storage spec
+
+    RenderKind render_kind = RenderKind::Raw;  // how to render this placeholder
 };
 
 struct InstructionTemplate {
     std::string raw;
     std::vector<std::string> parts;  // static parts between datagaps  TODO: could this be a string_view
     std::vector<PlaceholderSpec> phs;  // dynamic parts, one per each placeholder '{...}'
+    std::vector<RenderKind> render_kinds; // per placeholder in order
     bool suppress_output = false;  // if true, do not write to file (only store internally)
 };
 
@@ -61,6 +64,7 @@ export class Instruction {
   private:
     std::vector<std::string> parts_;     // static parts between placeholders
     std::vector<Datagap> datagaps_;      // bound placeholders
+
 
     std::array<const std::string*, field_transforms::MaxArgs> arg_buf_;
 
@@ -80,6 +84,7 @@ export class Instruction {
     std::string tmp_a_;  // temporary storage for transform outputs
     std::string tmp_b_;  // temporary swap storage
     bool contains_transf2n_ = false;
+    RenderKind transf2n_render_kind_ = RenderKind::Raw;
     std::vector<std::string> transf_buf_;
     size_t transf2n_placeholder_index_ = 0;
 
@@ -128,7 +133,8 @@ export class Instruction {
 
         datagaps_.reserve(tmpl.phs.size());
 
-        for (const auto& ph : tmpl.phs) {
+        for (size_t ph_i = 0; ph_i < tmpl.phs.size(); ++ph_i) {
+            const auto& ph = tmpl.phs[ph_i];
             Datagap dg;
 
             // args
@@ -157,8 +163,6 @@ export class Instruction {
                     src.column_index = idx;
                 } else if (a.kind == ArgKind::Literal) {
                     src.kind = ArgSourceKind::Literal;
-                    // literal_pool_.push_back(a.name);
-                    // src.literal = &literal_pool_.back();
                     src.literal = a.name;
                 } else { // StorageVar
                     src.kind = ArgSourceKind::StorageVar;
@@ -204,6 +208,8 @@ export class Instruction {
                 throw std::runtime_error("❌  Error: cannot store Transform2N output into a variable in: " + tmpl.raw);
             }
 
+            dg.render_kind = (ph_i < tmpl.render_kinds.size()) ? tmpl.render_kinds[ph_i] : RenderKind::Raw;
+
             datagaps_.push_back(std::move(dg));
         }
 
@@ -239,6 +245,7 @@ export class Instruction {
             if (dg.num_transforms > 0) {
                 field_transforms::ArgSpan spanN { arg_buf_.data(), dg.num_args };
                 if (dg.contains_transf2n) {
+                    transf2n_render_kind_ = dg.render_kind;
                     transf_buf_.clear();
                     transf2n_placeholder_index_ = out_.size();
 
@@ -366,7 +373,24 @@ export class Instruction {
             // suppress output for the whole instruction
             if (!suppress_output_) {
                 if (!dg.contains_transf2n) {
-                    out_.append(cur);
+                    switch (dg.render_kind) { // how to escape the placeholder
+                        case RenderKind::IriRef:
+                            percent_encode_iriref(out_, cur);
+                            break;
+                        case RenderKind::PrefixedLocal:
+                            percent_encode_prefixed_local(out_, cur);
+                            break;
+                        case RenderKind::Literal:
+                            percent_encode_literal(out_, cur);
+                            break;
+                        case RenderKind::LangTag:
+                            out_.append(cur);  // language tags do not need escaping
+                            break;
+                        case RenderKind::Raw:
+                        default:
+                            out_.append(cur);
+                            break;
+                    }
                 }
                 out_.append(parts_[k + 1]);
             }
@@ -386,7 +410,24 @@ export class Instruction {
             for (const auto& val : transf_buf_) {
                 if (val.empty()) continue;
                 out_.append(prefix);
-                out_.append(val);
+                switch (transf2n_render_kind_) { // how to escape the placeholder
+                    case RenderKind::IriRef:
+                        percent_encode_iriref(out_, val);
+                        break;
+                    case RenderKind::PrefixedLocal:
+                        percent_encode_prefixed_local(out_, val);
+                        break;
+                    case RenderKind::Literal:
+                        percent_encode_literal(out_, val);
+                        break;
+                    case RenderKind::LangTag:
+                        out_.append(val);  // language tags do not need escaping
+                        break;
+                    case RenderKind::Raw:
+                    default:
+                        out_.append(val);
+                        break;
+                }
                 out_.append(suffix);
                 counter_++;
             }
@@ -410,6 +451,8 @@ export class Schema {
     const std::vector<std::string> possible_columns_ = {}; // all columns that could be contained by <name_>  TODO: actually needed?
     std::unordered_map<std::string, std::string> prefixes_;
     std::vector<std::string> raw_instructions_;
+    std::vector<std::vector<RenderKind>> raw_render_kinds_;  // per instruction, per placeholder
+
     size_t num_storage_only_instructions_ = 0;
     runtime::RuntimeContainer& rt_;
     const field_transforms::TransformRegistry& registry_;
@@ -442,7 +485,9 @@ export class Schema {
 
         // build raw_instructions_ from triples
         for (const auto& triple : triples) {
-            raw_instructions_.push_back(triple.toString(prefixes_, rt_));
+            auto t = triple.toTemplate(prefixes_, rt_);
+            raw_instructions_.push_back(t.raw);
+            raw_render_kinds_.push_back(t.render_kinds);
         }
     }
 
@@ -456,6 +501,7 @@ export class Schema {
         num_storage_only_instructions_ = storage_only_instructions.size();
         raw_instructions_.insert(raw_instructions_.begin(), storage_only_instructions.begin(), 
                                  storage_only_instructions.end());
+        raw_render_kinds_.insert(raw_render_kinds_.begin(), num_storage_only_instructions_, {});  // TODO: verify
     }
 
     // compile raw_instructions_ into templates_ and compute dependencies_ from other schemas
@@ -467,7 +513,11 @@ export class Schema {
 
         templates_.reserve(raw_instructions_.size());
 
-        for (const auto& raw_inst : raw_instructions_) {
+        for (size_t inst_i = 0; inst_i < raw_instructions_.size(); ++inst_i) {
+            const auto& raw_inst = raw_instructions_[inst_i];
+            const auto& kinds = raw_render_kinds_[inst_i];
+            size_t kind_i = 0;
+
             InstructionTemplate t;
             t.raw = raw_inst;
 
@@ -519,6 +569,15 @@ export class Schema {
                 }
 
                 t.phs.push_back(std::move(spec));
+
+                // preserve render kind per placeholder coming from Triple::toTemplate
+                if (kind_i < kinds.size()) {
+                    t.render_kinds.push_back(kinds[kind_i]);
+                    kind_i++;
+                } else {
+                    t.render_kinds.push_back(RenderKind::Raw); // default
+                }
+
                 start = end + 1;
             }
 

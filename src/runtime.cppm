@@ -169,6 +169,8 @@ export class Settings {
             cxxopts::value<double>()->default_value(std::to_string(READ_CHUNK_SIZE_DEFAULT)))
         ("write-chunk-size", "Write chunk size in MB (bigger = more RAM, fewer flushes)",
             cxxopts::value<double>()->default_value(std::to_string(WRITE_CHUNK_SIZE_DEFAULT)));
+        ("grouping", "Enable grouping in schemas with buffer size in MB (0 = disabled)",
+            cxxopts::value<double>()->default_value("0"));
 
         opts.add_options("Diagnostics / advanced")
         ("spec-dump", "Dump ontology spec to disk",
