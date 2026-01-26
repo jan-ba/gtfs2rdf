@@ -20,10 +20,12 @@ import runtime;
 
 namespace rdf {
 
+// this determines how to escape strings that fill the placeholders in a Instruction during
+// writing RDF output
 export enum class RenderKind {
     Raw,            // no escaping / fallback
     IriRef,         // placeholder is inside <...> (e.g. for ntriples)
-    PrefixedLocal,  // placeholder is a prefixed name (e.g. ex:{LocalName})
+    PrefixedLocal,  // placeholder is a prefixed name (e.g. gtfs:{LocalName})
     Literal,         // placeholder is inside "..." (e.g. for literals)
     LangTag         // placeholder is a language tag (e.g. @en)
 };
@@ -34,6 +36,7 @@ export struct TemplateString {
     std::vector<RenderKind> render_kinds;
 };
 
+// count number of placeholders ("{") in a string_view, expects correct syntax
 static size_t _count_placeholders(std::string_view s) {
     size_t n = 0;
     for (size_t pos = 0; (pos = s.find("{", pos)) != std::string_view::npos; ++pos) ++n;
@@ -54,6 +57,7 @@ export void percent_encode_iriref(std::string& out, std::string_view value) {
         if (is_unreserved(c) && c != '%') {
             out.push_back(static_cast<char>(c));
         } else {
+            // percent-encode by hex representation 
             out.push_back('%');
             out.push_back(H[(c >> 4) & 0xF]);
             out.push_back(H[c & 0xF]);
@@ -62,7 +66,7 @@ export void percent_encode_iriref(std::string& out, std::string_view value) {
 }
 
 // percent-encode bytes not in PN_LOCAL per Turtle spec (letters, digits, '_', '-'),
-// E.g. for prefixed names such as ex:{Local Name} where space must be encoded
+// e.g. for prefixed names such as gtfs:{Local Name} where space must be encoded
 export void percent_encode_prefixed_local(std::string& out, std::string_view value) {
     auto is_safe = [](unsigned char c) {
       return (c >= 'A' && c <= 'Z') ||
@@ -82,7 +86,8 @@ export void percent_encode_prefixed_local(std::string& out, std::string_view val
     }
 }
 
-// percent-encode special characters in literals per RDF spec
+// percent-encode special characters in literals per RDF spec 
+// (e.g. \n, \r, \t, \", \\, and control characters)
 export void percent_encode_literal(std::string& out, std::string_view value) {
     bool needsEscape = false;
     for (unsigned char c : value) {
@@ -133,7 +138,7 @@ export class IRI {
 
     IRI() : prefix_(""), local_name_("") {}
       
-    // convert to template, allowing proper escaping based on context
+    // convert to template, which combines raw string with RenderKinds for its placeholders
     TemplateString toTemplate(const std::unordered_map<std::string, std::string>& prefixes,
                               const runtime::RuntimeContainer& rt) const
     {
@@ -145,31 +150,31 @@ export class IRI {
         if (ntriples) {
             if (!prefix_.empty()) {
                 t.raw = "<" + prefixes.at(prefix_) + local_name_ + ">";
-                const size_t cnt = _count_placeholders(local_name_);
-                if (cnt) t.render_kinds.assign(cnt, RenderKind::IriRef);
+                const size_t num_ph = _count_placeholders(local_name_);
+                if (num_ph) t.render_kinds.assign(num_ph, RenderKind::IriRef);
                 return t;
             }
-            // prefix_ empty: assume already serialized token (<...> or _:...) TODO: validate?
+            // prefix_ empty: assume already serialized token (<...> or _:...)
             t.raw = local_name_;
-            const size_t cnt = _count_placeholders(local_name_);
-            if (cnt) t.render_kinds.assign(cnt, RenderKind::IriRef);
+            const size_t num_ph = _count_placeholders(local_name_);
+            if (num_ph) t.render_kinds.assign(num_ph, RenderKind::IriRef);
             return t;
         }
 
-        // Turtle: prefer prefixed names when safe/desired
+        // Turtle: keep prefixed names if possible
         if (!prefix_.empty()) {
             t.raw = prefix_ + ":" + local_name_;
 
-            const size_t cnt = _count_placeholders(local_name_);
-            if (cnt) t.render_kinds.assign(cnt, RenderKind::PrefixedLocal);
+            const size_t num_ph = _count_placeholders(local_name_);
+            if (num_ph) t.render_kinds.assign(num_ph, RenderKind::PrefixedLocal);
 
             return t;
         }
 
         // prefix_ empty: treat as already-serialized token
         t.raw = local_name_;
-        const size_t cnt = _count_placeholders(local_name_);
-        if (cnt) t.render_kinds.assign(cnt, RenderKind::IriRef);
+        const size_t num_ph = _count_placeholders(local_name_);
+        if (num_ph) t.render_kinds.assign(num_ph, RenderKind::IriRef);
         return t;
     }
 
@@ -184,24 +189,25 @@ export class IRI {
 export class Object {
   private:
     const enum class Type { IRI, Literal, BlankNode } type_;
-    const IRI name_;
+    const IRI value_;
     const IRI datatype_;
     const std::string lang_;
 
   public:
     // IRI
-    Object(const IRI& name) : type_(Type::IRI), name_(name) {}
+    Object(const IRI& value) : type_(Type::IRI), value_(value) {}
 
     // literal - only language tag (if any)
     Object(const std::string& literal, const std::string& lang = "")
-      : type_(Type::Literal), name_(IRI("", literal)), datatype_(IRI()), lang_(lang) {
+      : type_(Type::Literal), value_(IRI("", literal)), datatype_(IRI()), lang_(lang) {
     }
 
     // literal - with datatype
     Object(const std::string& literal, const IRI& datatype)
-      : type_(Type::Literal), name_(IRI("", literal)), datatype_(datatype) {
+      : type_(Type::Literal), value_(IRI("", literal)), datatype_(datatype) {
     }
 
+    // convert to template, which combines raw string with RenderKinds for its placeholders
     TemplateString toTemplate(const std::unordered_map<std::string, std::string>& prefixes,
                             const runtime::RuntimeContainer& rt) const
     {
@@ -209,41 +215,41 @@ export class Object {
 
         switch (type_) {
             case Type::IRI: {
-                return name_.toTemplate(prefixes, rt);
+                return value_.toTemplate(prefixes, rt);
             }
             case Type::Literal: {
-                const auto lex_t = name_.toTemplate(prefixes, rt);
+                const auto lit_t = value_.toTemplate(prefixes, rt);
 
-                t.raw.reserve(lex_t.raw.size() + 16);
+                t.raw.reserve(lit_t.raw.size() + 16);
                 t.raw.push_back('"');
-                t.raw.append(lex_t.raw);
+                t.raw.append(lit_t.raw);
                 t.raw.push_back('"');
 
                 // mark placeholders in lexical form as Literal
-                const size_t cnt_lex = _count_placeholders(lex_t.raw);
-                if (cnt_lex) t.render_kinds.assign(cnt_lex, RenderKind::Literal);
+                const size_t num_lit_ph = _count_placeholders(lit_t.raw);
+                if (num_lit_ph) t.render_kinds.assign(num_lit_ph, RenderKind::Literal);
 
                 if (!lang_.empty()) {
                     t.raw += "@";
                     t.raw += lang_;
 
                     // allow placeholders in language tag (e.g. @{FEED_LANG@feed_info.txt})
-                    const size_t cnt_lang = _count_placeholders(lang_);
-                    if (cnt_lang) t.render_kinds.insert(t.render_kinds.end(), cnt_lang, RenderKind::LangTag);
+                    const size_t num_lang_ph = _count_placeholders(lang_);
+                    if (num_lang_ph) t.render_kinds.insert(t.render_kinds.end(), num_lang_ph, RenderKind::LangTag);
                 } else {
                     const auto dt_t = datatype_.toTemplate(prefixes, rt);
                     if (!dt_t.raw.empty()) {
                         t.raw += "^^" + dt_t.raw;
                         t.render_kinds.insert(t.render_kinds.end(),
-                                            dt_t.render_kinds.begin(), dt_t.render_kinds.end());
+                                              dt_t.render_kinds.begin(), dt_t.render_kinds.end());
                     }
                 }
                 return t;
             }
             case Type::BlankNode: {
-                t.raw = "_:" + name_.toString(prefixes, rt);
-                const size_t cnt = _count_placeholders(t.raw);
-                if (cnt) t.render_kinds.assign(cnt, RenderKind::Raw);
+                t.raw = "_:" + value_.toString(prefixes, rt);
+                const size_t num_ph = _count_placeholders(t.raw);
+                if (num_ph) t.render_kinds.assign(num_ph, RenderKind::Raw);
                 return t;
             }
         }

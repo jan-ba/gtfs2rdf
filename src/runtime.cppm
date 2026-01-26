@@ -18,30 +18,12 @@ import field_transforms;
 
 namespace runtime {
 
-// TODO: is it possible to disallow transforms to access more than get / contains, at least outside
-// of their own context, if so enforce
+// Persistent storage for variables, multimaps, and tuplemaps across schema executions / gtfs file
+// reads. Data is namespaced by context (usually file name).
 class PersistentStorage {
-  private:
-    // context (this is data for one file/schema) -> (variable name -> value)
-    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> variables_;
-    
-    // context -> (multimap name -> (key -> list(values)))
-    std::unordered_map<std::string, 
-        std::unordered_map<std::string, 
-            std::unordered_map<std::string, std::vector<std::string>>>> multimaps_;
-
-    // context -> (tuplemap name -> (key -> list(value_tuples)))
-    std::unordered_map<std::string,
-        std::unordered_map<std::string,
-            std::unordered_map<std::string, std::vector<std::vector<std::string>>>>> tuplemaps_;
-
-    static inline const std::string empty_ = "";
-
-    static inline const std::vector<std::string> empty_vector_ = {};
-
-    static inline const std::vector<std::vector<std::string>> empty_vector_of_vectors_ = {};
   public:
-    // VARIABLES API
+    // --- VARIABLES API ---
+
     void store(const std::string& ctx, const std::string& variable, const std::string& value) {
         variables_[ctx][variable] = value;
     }
@@ -54,7 +36,8 @@ class PersistentStorage {
         return it2->second;
     }
 
-    // MULTIMAPS API
+    // --- MULTIMAPS API ---
+
     void store(const std::string& ctx, const std::string& multimap,
                const std::string& key, const std::string& value) {
         multimaps_[ctx][multimap][key].push_back(value);
@@ -72,6 +55,7 @@ class PersistentStorage {
         return it3->second;
     }
 
+    // sorts all value lists in a given multimap for a given context for quick lookups
     void finalise_multimaps(const std::string& ctx) {
         auto it = multimaps_.find(ctx);
         if (it == multimaps_.end()) return;
@@ -83,7 +67,7 @@ class PersistentStorage {
     }
 
     // Check if a value exists in a multimap
-    // invariant: multimaps are finalised (sorted)  TODO: enforce this
+    // invariant: multimaps are finalised before this is called, else binary search won't work
     bool contains(const std::string& ctx, const std::string& multimap,
                   const std::string& key, const std::string& value) const {
         const auto& vec = get(ctx, multimap, key);
@@ -91,7 +75,8 @@ class PersistentStorage {
         return std::binary_search(vec.begin(), vec.end(), value);
     }
 
-    // TUPLEMAPS API
+    // --- TUPLEMAPS API ---
+
     void store(const std::string& ctx, const std::string& tuplemap,
                const std::vector<std::string>& key, const std::vector<std::string>& value_tuple) {
         tuplemaps_[ctx][tuplemap][util::concat(key)].push_back(value_tuple);
@@ -121,26 +106,29 @@ class PersistentStorage {
     const auto& getAllVariables() const { return variables_; }
     const auto& getAllMultimaps() const { return multimaps_; }
     const auto& getAllTuplemaps() const { return tuplemaps_; }
+
+  private:
+    // context (this is data for one file/schema) -> (variable name -> value)
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> variables_;
+    
+    // context -> (multimap name -> (key -> list(values)))
+    std::unordered_map<std::string, 
+        std::unordered_map<std::string, 
+            std::unordered_map<std::string, std::vector<std::string>>>> multimaps_;
+
+    // context -> (tuplemap name -> (key -> list(value_tuples)))
+    std::unordered_map<std::string,
+        std::unordered_map<std::string,
+            std::unordered_map<std::string, std::vector<std::vector<std::string>>>>> tuplemaps_;
+
+    static inline const std::string empty_ = "";
+
+    static inline const std::vector<std::string> empty_vector_ = {};
+
+    static inline const std::vector<std::vector<std::string>> empty_vector_of_vectors_ = {};
 };
 
 export class Settings {
-  private:
-    // default parameters
-    const double READ_CHUNK_SIZE_DEFAULT = 10.0;
-    const double WRITE_CHUNK_SIZE_DEFAULT = 20.0;
-
-
-    bool ntriples_output_;
-    bool debug_warnings_;
-    bool spec_dump_;
-    double read_chunk_size_mb_;
-    double write_chunk_size_mb_;
-    bool overwrite_output_;
-
-    std::filesystem::path inputPath_;
-    std::filesystem::path outputPath_;
-    
-
   public:
     // checks validity of command line arguments and sets settings accordingly
     Settings(int argc, char* argv[]) {
@@ -165,10 +153,10 @@ export class Settings {
         ("h,help", "Show help");
 
         opts.add_options("RAM / runtime")
-        ("read-chunk-size",  "Read chunk size in MB (bigger = more RAM, often faster)",
+        ("read-buffer-size",  "Read buffer size in MB (bigger = more RAM, often faster)",
             cxxopts::value<double>()->default_value(std::to_string(READ_CHUNK_SIZE_DEFAULT)))
-        ("write-chunk-size", "Write chunk size in MB (bigger = more RAM, fewer flushes)",
-            cxxopts::value<double>()->default_value(std::to_string(WRITE_CHUNK_SIZE_DEFAULT)));
+        ("write-buffer-size", "Write buffer size in MB (bigger = more RAM, fewer flushes)",
+            cxxopts::value<double>()->default_value(std::to_string(WRITE_CHUNK_SIZE_DEFAULT)))
         ("grouping", "Enable grouping in schemas with buffer size in MB (0 = disabled)",
             cxxopts::value<double>()->default_value("0"));
 
@@ -208,18 +196,18 @@ export class Settings {
 
         spec_dump_ = result["spec-dump"].as<bool>();
 
-        // read chunk size
-        read_chunk_size_mb_ = result["read-chunk-size"].as<double>();
-        if (read_chunk_size_mb_ <= 0.0) {
-            std::cerr << "⚠️  Warning: read chunk size must be positive. Using default value of " << READ_CHUNK_SIZE_DEFAULT << " mb.\n";
-            read_chunk_size_mb_ = READ_CHUNK_SIZE_DEFAULT;
+        // read buffer size
+        read_buffer_size_mb_ = result["read-buffer-size"].as<double>();
+        if (read_buffer_size_mb_ <= 0.0) {
+            std::cerr << "⚠️  Warning: read buffer size must be positive. Using default value of " << READ_CHUNK_SIZE_DEFAULT << " mb.\n";
+            read_buffer_size_mb_ = READ_CHUNK_SIZE_DEFAULT;
         }
 
-        // write chunk size
-        write_chunk_size_mb_ = result["write-chunk-size"].as<double>();
-        if (read_chunk_size_mb_ <= 0.0) {
-            std::cerr << "⚠️  Warning: write chunk size must be positive. Using default value of " << WRITE_CHUNK_SIZE_DEFAULT << " mb.\n";
-            write_chunk_size_mb_ = WRITE_CHUNK_SIZE_DEFAULT;
+        // write buffer size
+        write_buffer_size_mb_ = result["write-buffer-size"].as<double>();
+        if (read_buffer_size_mb_ <= 0.0) {
+            std::cerr << "⚠️  Warning: write buffer size must be positive. Using default value of " << WRITE_CHUNK_SIZE_DEFAULT << " mb.\n";
+            write_buffer_size_mb_ = WRITE_CHUNK_SIZE_DEFAULT;
         }
 
         // input path       
@@ -240,19 +228,31 @@ export class Settings {
     bool isNTriplesOutput() const { return ntriples_output_; }
     bool isDebugWarnings() const { return debug_warnings_; }
     bool isSpecDump() const { return spec_dump_; }
-    double ReadChunkSizeMB() const { return read_chunk_size_mb_; }
-    double WriteChunkSizeMB() const { return write_chunk_size_mb_; }
+    double ReadBufferSizeMB() const { return read_buffer_size_mb_; }
+    double WriteBufferSizeMB() const { return write_buffer_size_mb_; }
     bool isOverwriteOutput() const { return overwrite_output_; }
     const std::filesystem::path& InputPath() const { return inputPath_; }
     const std::filesystem::path& OutputPath() const { return outputPath_; }
+
+  private:
+    // default parameters
+    const double READ_CHUNK_SIZE_DEFAULT = 10.0;
+    const double WRITE_CHUNK_SIZE_DEFAULT = 20.0;
+
+
+    bool ntriples_output_;
+    bool debug_warnings_;
+    bool spec_dump_;
+    double read_buffer_size_mb_;
+    double write_buffer_size_mb_;
+    bool overwrite_output_;
+
+    std::filesystem::path inputPath_;
+    std::filesystem::path outputPath_;
 };
 
+// container for runtime settings, transform registry, and persistent storage across GTFS files
 export class RuntimeContainer {
-  private:
-    const Settings& settings_;
-    field_transforms::TransformRegistry& registry_;
-    PersistentStorage storage_;
-
   public:
     RuntimeContainer(const Settings& settings, field_transforms::TransformRegistry& registry)
         : settings_(settings), registry_(registry) {}
@@ -261,8 +261,14 @@ export class RuntimeContainer {
     field_transforms::TransformRegistry& getTransformRegistry() { return registry_; }
     const field_transforms::TransformRegistry& getConstTransformRegistry() const { return registry_; }
     PersistentStorage& getStorage() { return storage_; }
+
+  private:
+    const Settings& settings_;
+    field_transforms::TransformRegistry& registry_;
+    PersistentStorage storage_;
 };
 
+// container for runtime statistics collected during GTFS processing
 export class Statistics {
   public:
     uint32_t chunks = 0;

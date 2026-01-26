@@ -156,7 +156,8 @@ std::pair<std::string_view,std::string_view> split_once_top_level(std::string_vi
   return {s.substr(0,pos), s.substr(pos+1)};
 }
 
-// removes surrounding quotes and unescapes minimal escape sequences
+// removes surrounding quotes and unescapes minimal escape sequences, meaning \" and \\ will
+// be unescaped
 std::string unquote(std::string_view tok) {
   if (tok.size() >= 2 && tok.front() == '"' && tok.back() == '"') {
     std::string out;

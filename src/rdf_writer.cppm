@@ -34,24 +34,26 @@ using Rows = std::vector<std::vector<std::string>>;
 
 namespace writer {
 
+// RDF writer with buffered output
+// one instance per output file
 export class Writer {
   private:
     std::FILE* file_;
-    std::string chunk_;
+    std::string buffer_;
     const runtime::RuntimeContainer& rt_;
     size_t threshold_;
 
     void flush() {
-        if (chunk_.empty()) return;
-        size_t n = chunk_.size();
-        const char* d = chunk_.data(); 
+        if (buffer_.empty()) return;
+        size_t n = buffer_.size();
+        const char* d = buffer_.data(); 
         while (n) {
             size_t w = std::fwrite(d , 1, n, file_);
             if (w == 0) throw std::runtime_error("❌ Write error: Could not flush to disk.");
             d += w;
             n -= w;
         }
-        chunk_.clear();
+        buffer_.clear();
     }
 
   public:
@@ -66,12 +68,11 @@ export class Writer {
         }
         file_ = std::fopen(path.string().c_str(), "wb");
         if (!file_) throw std::runtime_error("❌ Write error: Cannot open '" + path.string() + "' for writing.");
-        chunk_.reserve(threshold_);
+        buffer_.reserve(threshold_);
     }
 
-    // TODO: perhaps rename chunk to buffer everywhere?
     Writer(const std::filesystem::path& path, runtime::RuntimeContainer& rt)
-        : Writer(path, rt, rt.getSettings().WriteChunkSizeMB()) {
+        : Writer(path, rt, rt.getSettings().WriteBufferSizeMB()) {
     }
 
 
@@ -85,21 +86,11 @@ export class Writer {
     }
 
     void append(const std::string& s) {
-        chunk_.append(s.data(), s.size());
-        if (chunk_.size() >= threshold_) flush();
+        buffer_.append(s.data(), s.size());
+        if (buffer_.size() >= threshold_) flush();
     }
 
-    void convert2RDF(Schema& sc, const std::vector<std::string>& flat, size_t num_cols) {
-        auto& instructions = sc.getInstructions();
-        for (size_t base = 0; base < flat.size(); base += num_cols) {
-            std::span<const std::string> row(flat.data() + base, num_cols);
-
-            for (auto& instr : instructions) {
-                append(instr.render(row));
-            }
-        }
-    }
-
+    // converts gtfs row according to given schema and appends to buffer
     void convertRow(Schema& sc, const std::vector<std::string>& row) {
         auto& instructions = sc.getInstructions();
         for (auto& instr : instructions) {
@@ -119,4 +110,4 @@ export class Writer {
     }
 };
 
-} // namespace
+} // namespace writer

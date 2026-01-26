@@ -75,24 +75,12 @@ export struct Transform {
 };
 
 export class TransformRegistry {
-  private:
-    // function that finds permitted characters in transform names
-    // these include: ':', ' ',', '|', '>', '{}', '}' (TODO: to be extended in the future?)
-    bool is_permitted_name(const std::string& s) const {
-        for (char c : s) {
-            if (!(c == '_' || ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || ('0' <= c && c <= '9'))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
   public:   
     void registerTransform(const std::string& name, Transform2One fn) {
         if (registry_.contains(name)) {
             throw std::runtime_error("❌  Transform error: field transform already registered: " + name);
         }
-        if (!is_permitted_name(name)) {
+        if (!is_permitted_name_(name)) {
             throw std::runtime_error("❌  Transform error: invalid characters in transform name: " + name);
         }
         registry_[name] = Transform{TransformKind::Single, fn, {}};
@@ -102,7 +90,7 @@ export class TransformRegistry {
         if (registry_.contains(name)) {
             throw std::runtime_error("❌  Transform error: field transform already registered: " + name);
         }
-        if (!is_permitted_name(name)) {
+        if (!is_permitted_name_(name)) {
             throw std::runtime_error("❌  Transform error: invalid characters in transform name: " + name);
         }
         registry_[name] = Transform{TransformKind::Multi, {}, fn};
@@ -118,6 +106,17 @@ export class TransformRegistry {
 
   private:
     std::unordered_map<std::string, Transform> registry_;
+
+    // function that finds permitted characters in transform names
+    // these include: a-z, A-Z, 0-9, _
+    bool is_permitted_name_(const std::string& s) const {
+        for (char c : s) {
+            if (!(c == '_' || ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || ('0' <= c && c <= '9'))) {
+                return false;
+            }
+        }
+        return true;
+    }
 };
 
-}  // namespace
+}  // namespace field_transforms

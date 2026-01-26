@@ -34,6 +34,7 @@ using Rows = std::vector<std::string>;
 
 namespace gtfs {
 
+// remove UTF-8 BOM from start of string, if present
 void strip_utf8_bom(std::string& s) {
     if (s.size() >= 3 &&
         static_cast<unsigned char>(s[0]) == 0xEF &&
@@ -59,7 +60,7 @@ export class GTFSParser_Workspace {
   public:
     GTFSParser_Workspace(runtime::RuntimeContainer& rt, writer::Writer& writer)
     : writer_(writer), rt_(rt) {
-        read_buffer_capacity_ = rt.getSettings().ReadChunkSizeMB() * 1024 * 1024 + 1;
+        read_buffer_capacity_ = rt.getSettings().ReadBufferSizeMB() * 1024 * 1024 + 1;
         read_buffer_.resize(read_buffer_capacity_);
     }
 
@@ -84,9 +85,9 @@ export class GTFSParser {
     writer::Writer& writer_;
     runtime::RuntimeContainer& rt_;
 
-    // shared chunk buffer
+    // shared buffer buffer
     std::vector<char>& read_buffer_;
-    zip_uint64_t chunk_size_ = 0;
+    zip_uint64_t buffer_size_ = 0;
 
     // parsing state (needs to persist across chunk boundaries)
     std::vector<std::string> row_;   // current csv row being built / reused
@@ -152,11 +153,8 @@ export class GTFSParser {
             schema_.setHeader(row_);
             num_cols_ = row_.size();
 
-            // switch to fixed-width reusable row buffer
             row_.clear();
-            row_.resize(num_cols_);
-            // TODO: reserve a bit per field (only if profiling shows benefit)
-            // for (auto& s : row_) s.reserve(32);
+            row_.resize(num_cols_);  // row_ size will remain fixed from now on
 
             header_seen_ = true;
             beginDataRow_IfNeeded_();
@@ -173,6 +171,8 @@ export class GTFSParser {
             // write this single row (writer buffers internally)
             parseTimerPause_();
             auto t0 = Clock::now();
+
+            // TODO: let writer take care of timing itself
             writer_.convertRow(schema_, row_);
             stats_.write_s += std::chrono::duration<double>(Clock::now() - t0).count();
             parseTimerResume_();
@@ -253,7 +253,7 @@ export class GTFSParser {
       rt_(rt),
       read_buffer_(ws.getReadBuffer())
     {
-        chunk_size_ = ws.getReadBufferCapacity();
+        buffer_size_ = ws.getReadBufferCapacity();
 
         row_.clear();
         cache_.clear();
@@ -268,9 +268,9 @@ export class GTFSParser {
     void parse() {
         parseTimerResume_();
         while (true) {
-            zip_int64_t n = zip_fread(file_, read_buffer_.data(), chunk_size_);
+            zip_int64_t n = zip_fread(file_, read_buffer_.data(), buffer_size_);
             if (n < 0) {
-                throw std::runtime_error("❌  Parsing error: can't read chunk number " + std::to_string(stats_.chunks)
+                throw std::runtime_error("❌  Parsing error: can't read buffer number " + std::to_string(stats_.chunks)
                                         + " from file '" + filename_ + "'");
             }
             if (n == 0) break;

@@ -23,8 +23,7 @@ import util;
 
 namespace schema {
 
-// TODO: check whether these exports are at all needed (if only schema_core.cppm uses this parser internally)
-
+// type of argument in a placeholder {arg1, arg2, ... | transform1 | transform2 > STORAGE}
 export enum class ArgKind {
   Column,     // e.g. stop_id
   StorageVar, // e.g. FEED_LANG@feed_info.txt
@@ -86,8 +85,7 @@ export enum class ArgSourceKind { ColumnIndex, StorageVar, Literal };
 
 export struct ArgSource {
   ArgSourceKind kind;
-  int column_index = -1;          // ColumnIndex
-  // const std::string* literal = nullptr; // Literal (points into InstructionTemplate-owned pool)
+  int column_index = -1;          // ColumnIndex: if valid, index in CSV row
   std::string literal;
   std::string name;               // StorageVar: variable name
   std::string ctx;                // StorageVar: context name

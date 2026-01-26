@@ -23,6 +23,9 @@ bool is_gtfs_file_char (char c) {
     return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '.' || c == '-';
 };
 
+// _________________________________________________________________________________________________
+// overloaded stream operators for STL containers (for convenient pretty printing)
+
 template<typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec) {
     os << "[";
