@@ -287,50 +287,29 @@ export class Instruction {
                     }    
                 }
             cur_sv = cur;
+
             } else {
-                // no transforms: use first arg as placeholder output
-                cur_sv = *arg_buf_[0];
+                // no transforms:
+                // - non-keyed: placeholder output is arg0
+                // - keyed: placeholder output is the first VALUE field (right side), not key0
+                if (dg.storage.is_keyed()) {
+                    cur_sv = *arg_buf_[dg.storage.key_arity];
+                } else {
+                    cur_sv = *arg_buf_[0];
+                }
             }
 
             // early exit: either transforms filter (empty output) or empty column or empty 
             // computed Transform2Many result which need not be rendered
-            if (!dg.contains_transf2n && cur_sv.empty()) return empty_; 
+            if (!dg.contains_transf2n && cur_sv.empty()) return empty_;
 
             // --- side effects: storage write ---
             if (dg.storage.kind != StorageKind::None) {
                 auto& st = rt_.getStorage();
 
-                // helper: store computed outputs (1 or many)
-                // auto store_computed = [&](std::string_view val) {
-                //     if (dg.storage.kind == StorageKind::Variable) {
-                //         st.store(dg.storage.target_ctx, dg.storage.target_name, val);
-                //         return;
-                //     }
-                //     if (dg.storage.kind == StorageKind::MultiMap) {
-                //         std::string key = make_key_string(dg.storage.key_arity);
-                //         st.store(dg.storage.target_ctx, dg.storage.target_name, key, val);
-                //         return;
-                //     }
-                    // TupleMap: store computed result as 1-tuple  TODO: this case is not possible
-                    // if (dg.storage.kind == StorageKind::TupleMap) {
-                    //     std::vector<std::string> key;
-                    //     key.reserve(dg.storage.key_arity);
-                    //     for (size_t i = 0; i < dg.storage.key_arity; ++i) key.push_back(*arg_buf_[i]);
-
-                    //     std::vector<std::string> tup;
-                    //     tup.push_back(val);
-
-                    //     st.store(dg.storage.target_ctx, dg.storage.target_name, key, tup);
-                    //     return;
-                    // }
-                // };
-
                 if (dg.storage.mode == StoreMode::FilterStoreRaw) {
                     // filter predicate: non-empty transform output
-                    if (dg.contains_transf2n) {
-                        // TODO: not happy with having this here -> should be caught before rendering
-                        throw std::runtime_error("❌  Error: FilterStoreRaw cannot be used with Transform2Many in: " + raw_instruction_);
-                    }
+
                     if (!cur_sv.empty()) {
                         if (dg.storage.kind == StorageKind::MultiMap) {
                             std::string key = make_key_string(dg.storage.key_arity);
@@ -349,39 +328,37 @@ export class Instruction {
                             }
                             st.store(dg.storage.target_ctx, dg.storage.target_name, key, tup);
                         } else if (dg.storage.kind == StorageKind::Variable) {
-                            // rare, but: store transform output as variable (only when passes filter)
-                            // TODO: does that make sense?
-                            st.store(dg.storage.target_ctx, dg.storage.target_name, cur_sv);
+                            st.store(dg.storage.target_ctx, dg.storage.target_name, *arg_buf_[0]);
                         }
+                    }
+                } else if (dg.storage.mode == StoreMode::StoreRaw) {
+                    // store RHS tuple directly, unconditionally
+
+                    if (dg.storage.kind == StorageKind::MultiMap) {
+                        std::string key = make_key_string(dg.storage.key_arity);
+                        const auto& v = *arg_buf_[dg.storage.key_arity + 0];
+                        st.store(dg.storage.target_ctx, dg.storage.target_name, key, v);
+                    } else if (dg.storage.kind == StorageKind::TupleMap) {
+                        std::vector<std::string> key;
+                        key.reserve(dg.storage.key_arity);
+                        for (size_t i = 0; i < dg.storage.key_arity; ++i) key.push_back(*arg_buf_[i]);
+
+                        std::vector<std::string> tup;
+                        tup.reserve(dg.storage.value_arity);
+                        for (size_t i = 0; i < dg.storage.value_arity; ++i) {
+                            tup.push_back(*arg_buf_[dg.storage.key_arity + i]);
+                        }
+                        st.store(dg.storage.target_ctx, dg.storage.target_name, key, tup);
                     }
                 } else {
                     // StoreComputed
                     if (dg.contains_transf2n) {
-                        switch (dg.storage.kind) {
-                            case StorageKind::Variable:
-                                // TODO: all these throws here might be moved to compile / parse time
-                                throw std::runtime_error("❌  Error: cannot store Transform2Many output into Variable in: " + raw_instruction_);
-                                break;
-                            case StorageKind::MultiMap: {
-                                throw std::runtime_error("❌  Error: storing Transform2Many output into MultiMap not supported in: " + raw_instruction_);
-                                break;
-                            }
-                            case StorageKind::TupleMap: {
-                                std::vector<std::string> key;
-                                key.reserve(dg.storage.key_arity);
-                                for (size_t i = 0; i < dg.storage.key_arity; ++i) key.push_back(*arg_buf_[i]);
-                                std::vector<std::string> tup;
-                                // for (const auto& val : transf_buf_) {
-                                //     tup.push_back(val);  // empty outputs are not ignored here
-                                //                          // since fixed-size tuples might be expected
-                                // }
-                                st.store(dg.storage.target_ctx, dg.storage.target_name, key, transf_buf_);
-
-                                break;
-                            }
-                            default:
-                                break;
-                        }    
+                        if (transf_buf_.empty()) {
+                            std::vector<std::string> key;
+                            key.reserve(dg.storage.key_arity);
+                            for (size_t i = 0; i < dg.storage.key_arity; ++i) key.push_back(*arg_buf_[i]);
+                            st.store(dg.storage.target_ctx, dg.storage.target_name, key, transf_buf_);
+                        }
                     } else {
                         switch (dg.storage.kind) {
                             case StorageKind::Variable:
@@ -392,12 +369,6 @@ export class Instruction {
                                 st.store(dg.storage.target_ctx, dg.storage.target_name, key, cur_sv);
                                 break;
                             }
-                            case StorageKind::TupleMap: {
-                                throw std::runtime_error("❌  Error: storing single value into TupleMap not supported in: " + raw_instruction_);
-                                break;
-                            }
-                            default:
-                                break;
                         }
                     }
                 }
@@ -504,6 +475,7 @@ export class Schema {
     Schema& operator=(const Schema&) = delete;
     Schema(Schema&&) noexcept = default;
     Schema& operator=(Schema&&) noexcept = delete;
+
     Schema(const std::string name, const std::vector<std::string> possible_columns,
           const std::unordered_map<std::string, std::string> prefixes,
           const std::vector<Triple>& triples, runtime::RuntimeContainer& rt)

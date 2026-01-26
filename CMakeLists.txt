@@ -39,11 +39,11 @@ find_package(libzip REQUIRED)
 # SQLite (amalgamation)
 # ------------------------------------------------------------
 add_library(sqlite3_amalgamation STATIC
-  "${CMAKE_SOURCE_DIR}/src/util/sqlite3/sqlite3.c"
+  "${CMAKE_SOURCE_DIR}/src/third_party/sqlite3/sqlite3.c"
 )
 
 target_include_directories(sqlite3_amalgamation PUBLIC
-  "${CMAKE_SOURCE_DIR}/src/util/sqlite3"
+  "${CMAKE_SOURCE_DIR}/src/third_party/sqlite3"
 )
 
 # Optional but recommended for embedding

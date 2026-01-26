@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include "util/cxxopts.hpp"
+#include "third_party/cxxopts/cxxopts.hpp"
 #include "zip.h"
 
 import gtfs_parser;
@@ -33,7 +33,6 @@ const auto& factories = schema::factories();  // implemented in schema:registry 
 
 int main(int argc, char* argv[]) {
     runtime::Settings settings(argc, argv);
-    runtime::SqliteBackingStore store("mydatabase.db");
     zip_t *za;
     int err;
 

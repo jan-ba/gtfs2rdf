@@ -52,6 +52,7 @@ export Schema buildFeedInfoSchema(runtime::RuntimeContainer& rt) {
         "{ feed_end_date | convert_date > FEED_END_DATE }",
     };
 
+    // TODO: overload Schema constructor so that triples are not required as argument
     const std::vector<Triple> triples = {
     };
 

@@ -25,30 +25,31 @@ namespace schema {
 
 // type of argument in a placeholder {arg1, arg2, ... | transform1 | transform2 > STORAGE}
 export enum class ArgKind {
-  Column,     // e.g. stop_id
-  StorageVar, // e.g. FEED_LANG@feed_info.txt
-  Literal     // e.g. "hardcoded"
+    Column,     // e.g. stop_id
+    StorageVar, // e.g. FEED_LANG@feed_info.txt
+    Literal     // e.g. "hardcoded"
 };
 
 // describes one argument in a placeholder, 
 // i.e. "{ arg1, arg2, ... | transform1 | transform2 > STORAGE }"
 export struct ArgSpec {
-  ArgKind kind;
-  std::string name;   // column name or variable name; for Literal: the literal text
-  std::string ctx;    // only for StorageVar (and later maybe other storage reads)
+    ArgKind kind;
+    std::string name;   // column name or variable name; for Literal: the literal text
+    std::string ctx;    // only for StorageVar (and later maybe other storage reads)l
 };
 
 export enum class StoreMode {
-  None,           // no storage write (normal FILE placeholder)
-  StoreComputed,  // store transform output (no (...) on value side)
-  FilterStoreRaw  // (...) present -> transforms act as filter, store raw tuple
+    None,           // no storage write (normal FILE placeholder)
+    StoreComputed,  // store transform output (no (...) on value side)
+    FilterStoreRaw, // (...) present -> transforms act as filter, store raw tuple
+    StoreRaw        // store raw args without transforms
 };
 
 export enum class StorageKind {
-  None,      // FILE output
-  Variable,  // > CONST
-  MultiMap,  // key -> vector<string> with quick lookup
-  TupleMap   // key -> vector<vector<string...>>
+    None,      // FILE output
+    Variable,  // > CONST
+    MultiMap,  // key -> vector<string> with quick lookup
+    TupleMap   // key -> vector<vector<string...>>
 };
 
 export struct StorageWriteSpec {
@@ -246,15 +247,37 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
       }
 
     } else {
-      // COMPUTE MODE
-      spec.storage.mode = StoreMode::StoreComputed;
-      spec.storage.kind = StorageKind::MultiMap; // computed output is strings; store as key -> list<string>
+      // RHS without (...) : either
+      //  - StoreRaw (no transforms): store RHS tuple directly (MultiMap if 1 value else TupleMap)
+      //  - StoreComputed (has transforms): store transform output (TupleMap if Transform2Many involved)
 
       auto rhs_toks = util::split_top_level(right_of_colon, ',');
       if (rhs_toks.empty()) throw std::runtime_error("❌ Missing value inputs after ':'");
       for (auto tk : rhs_toks) spec.args.push_back(parse_arg(tk));
-      // value_arity/extra_arity are not used in this mode; keep at 0
+
+      spec.storage.value_arity = static_cast<uint8_t>(rhs_toks.size());
+      spec.storage.extra_arity = 0;
+
+      bool has_multi = false;
+      for (const auto& tc : spec.transforms) {
+        if (tc.transform.kind == field_transforms::TransformKind::Multi) {
+          has_multi = true;
+          break;
+        }
+      }
+
+      if (spec.transforms.empty()) {
+        // raw store, no filtering
+        spec.storage.mode = StoreMode::StoreRaw;
+        spec.storage.kind = (spec.storage.value_arity == 1) ? StorageKind::MultiMap : StorageKind::TupleMap;
+      } else {
+        // computed store
+        spec.storage.mode = StoreMode::StoreComputed;
+        // Transform2Many output is a vector => must be TupleMap
+        spec.storage.kind = has_multi ? StorageKind::TupleMap : StorageKind::MultiMap;
+      }
     }
+
 
   } else {
     // non-keyed (variables or file output)
@@ -270,6 +293,48 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
       spec.storage.mode = StoreMode::None;
     }
   }
+
+    // --- ensure correctness of the parsed spec ---
+
+    if (spec.args.empty()) {
+      throw std::runtime_error("❌ Placeholder must have at least 1 argument in: " + std::string(raw));
+    }
+
+    // count Transform2Many occurrences
+    size_t num_multi = 0;
+    for (const auto& tc : spec.transforms) {
+      if (tc.transform.kind == field_transforms::TransformKind::Multi) ++num_multi;
+    }
+    if (num_multi > 1) {
+      throw std::runtime_error("❌ Only one Transform2Many allowed per placeholder in: " + std::string(raw));
+    }
+
+    const bool has_transforms = !spec.transforms.empty();
+    const bool is_keyed = spec.storage.is_keyed();
+
+    // non-keyed placeholders: multi-arg is only allowed if transforms exist
+    if (!is_keyed) {
+      if (!has_transforms && spec.args.size() != 1) {
+        throw std::runtime_error(
+          "❌ Non-keyed placeholder with multiple args requires transforms in: " + std::string(raw));
+      }
+    }
+
+    // FilterStoreRaw should actually have transforms (otherwise there's not a filter)
+    if (spec.storage.mode == StoreMode::FilterStoreRaw && !has_transforms) {
+      throw std::runtime_error("❌ FilterStoreRaw '(...)' requires at least one filter transform in: " + std::string(raw));
+    }
+
+    // Transform2Many must never target Variable or MultiMap
+    if (num_multi == 1) {
+      if (spec.storage.kind == StorageKind::Variable) {
+        throw std::runtime_error("❌ Transform2Many cannot store into Variable in: " + std::string(raw));
+      }
+      if (spec.storage.kind == StorageKind::MultiMap) {
+        throw std::runtime_error("❌ Transform2Many cannot store into MultiMap (use TupleMap) in: " + std::string(raw));
+      }
+    }
+
 
   return spec;
 }

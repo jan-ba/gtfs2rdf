@@ -33,3 +33,7 @@ Plot RAM-Usage using (example dataset, modify as desired)
 ```bash
 psrecord "build/gtfs2rdf ../data/öv_de_shapes.zip" --interval 0.5 --include-children --plot ram.png --log ram.log
 ```
+
+## Third-party code
+This repository vendors third-party components under `src/third_party/`.
+See `THIRD_PARTY_NOTICES.md` for details and license information.

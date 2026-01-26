@@ -10,8 +10,8 @@ module;
 #include <string_view>
 #include <unordered_map>
 #include <cstdlib>
-#include "util/cxxopts.hpp"
-#include "util/sqlite3/sqlite3.h"
+#include "third_party/cxxopts/cxxopts.hpp"
+#include "third_party/sqlite3/sqlite3.h"
 
 export module runtime;
 
@@ -22,7 +22,15 @@ namespace runtime {
 
 export class SqliteBackingStore {
 public:
-  explicit SqliteBackingStore(const std::string& path) {
+  explicit SqliteBackingStore() {
+    // create temporary directory and file
+    // ensure directory didn't exist before to avoid accidental user data overwrite
+    if (std::filesystem::exists("./.tmp/"))
+      throw std::runtime_error("Temporary directory './.tmp/' already exists. Aborting to avoid data loss.");
+    std::filesystem::create_directories("./.tmp/");
+    std::filesystem::path path = "./.tmp/.runtime_storage.db";
+
+    
     if (sqlite3_open(path.c_str(), &db_) != SQLITE_OK) throw std::runtime_error(sqlite3_errmsg(db_));
 
     exec("PRAGMA journal_mode=WAL;");
@@ -43,6 +51,8 @@ public:
     flush();
     finalize_all();
     if (db_) sqlite3_close(db_);
+    // delete temporary directory and file
+    std::filesystem::remove_all("./.tmp/");
   }
 
   void store_multimap(const std::string& ctx, const std::string& name,
@@ -387,6 +397,7 @@ export class RuntimeContainer {
     const Settings& settings_;
     field_transforms::TransformRegistry& registry_;
     PersistentStorage storage_;
+    // SqliteBackingStore sqlite_store_;
 };
 
 // container for runtime statistics collected during GTFS processing

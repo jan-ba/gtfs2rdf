@@ -77,10 +77,11 @@ export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rt) {
         //                        else ignored)
         { subject,   {"gtfs","serviceDate"}, { "{ date, exception_type | ignore_disabled_dates | "\
                                                   "convert_date }", IRI("xs", "date") } },
-                      
-        { subject, {"gtfs","movelater"},
-        { "{ service_id : date, exception_type | is_disabled_date | convert_date"
-          "> disabled_dates@calendar_dates.txt }" } }
+    };
+
+    const std::vector<std::string> raw_storage_only_instructions = {
+        // store disabled dates for later use in calendar.txt
+        "{ service_id : date, exception_type | is_disabled_date | convert_date > disabled_dates@calendar_dates.txt }"
     };
 
     Schema sc("calendar_dates.txt", possible_columns, prefixes, triples, rt);
