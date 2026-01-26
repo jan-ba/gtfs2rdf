@@ -37,24 +37,24 @@ Rules:
   - MaxArgs is currently 9.
 
 -------------------------------------------------------------------------------
-2) Transform kinds: Transform2One vs Transform2N
+2) Transform kinds: Transform2One vs Transform2Many
 -------------------------------------------------------------------------------
 Transform2One:
   - signature: void(const ArgSpan& args, std::string& out)
   - produces a single output string (c)
 
-Transform2N:
+Transform2Many:
   - signature: void(const ArgSpan& args, std::vector<std::string>& out)
   - produces multiple outputs and duplicates the rendered instruction over them
     (one per element in transf_buf_)
 
 Important limitation (current implementation):
-  - within ONE rendered instruction string, only ONE Transform2N may appear in total.
+  - within ONE rendered instruction string, only ONE Transform2Many may appear in total.
 
 Evaluation order:
-  - transforms BEFORE a Transform2N can take spanN (all args)
-  - Transform2N (multi) produces transf_buf_
-  - transforms AFTER Transform2N are applied element-wise to transf_buf_
+  - transforms BEFORE a Transform2Many can take spanN (all args)
+  - Transform2Many (multi) produces transf_buf_
+  - transforms AFTER Transform2Many are applied element-wise to transf_buf_
 
 -------------------------------------------------------------------------------
 3) Storage write syntax (persistent storage)
@@ -164,7 +164,7 @@ void wkt_point_lon_lat(const field_transforms::ArgSpan& args, std::string& out) 
   out = "POINT(" + lon + " " + lat + ")";
 }
 
-// Transform2N example: split on ';'
+// Transform2Many example: split on ';'
 void split_semicolon(const field_transforms::ArgSpan& args,
                      std::vector<std::string>& out) {
   if (args.size() != 1) {

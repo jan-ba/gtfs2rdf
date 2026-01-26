@@ -10,7 +10,7 @@
 // information for developers: the STORAGE variable is created automatically inside the lambda
 // by getting it from the runtime container passed to build<Schema> such that the user does not
 // have to care about it. 
-// For information regarding the type definitions of Transform2One and Transform2N, see 
+// For information regarding the type definitions of Transform2One and Transform2Many, see 
 // field_transforms.cppm
 
 
@@ -24,7 +24,7 @@
 #define TRANSFORM2MANY(NAME, ARGS, OUT_VALS, STORAGE)                                \
   rt.getTransformRegistry().registerTransform(                                       \
     #NAME,                                                                           \
-    field_transforms::Transform2N{                                                   \
+    field_transforms::Transform2Many{                                                   \
       [&](const field_transforms::Args& ARGS, field_transforms::OutN& OUT_VALS) -> void { \
         [[maybe_unused]] auto& STORAGE = rt.getStorage();
 

@@ -78,10 +78,11 @@ export class Writer {
 
     void writePrefixes(const std::unordered_map<std::string, std::string>& map) {
         std::string out;
+        out.reserve(map.size() * 15);  // rough estimate
         for (const auto& [pfx, iri] : map) {
-            out += "@prefix " + pfx + ": <" + iri + "> .\n";
+            out.append("@prefix ").append(pfx).append(": <").append(iri).append("> .\n");
         }
-        out += "\n";
+        out.append("\n");
         append(out);
     }
 

@@ -43,18 +43,26 @@ static size_t _count_placeholders(std::string_view s) {
     return n;
 }
 
+
+// lookup table for unreserved characters in IRIREF per RFC3986
+constexpr std::array<bool, 256> is_unreserved_table_iridef = []{
+    std::array<bool, 256> table = {};
+    for (unsigned char c = 'A'; c <= 'Z'; ++c) table[c] = true;
+    for (unsigned char c = 'a'; c <= 'z'; ++c) table[c] = true;
+    for (unsigned char c = '0'; c <= '9'; ++c) table[c] = true;
+    table[static_cast<unsigned char>('-')] = true;
+    table[static_cast<unsigned char>('.')] = true;
+    table[static_cast<unsigned char>('_')] = true;
+    table[static_cast<unsigned char>('~')] = true;
+    return table;
+}();
+
 // percent-encode bytes not in RFC3986 "unreserved" (A-Z, a-z, 0-9, '-', '.', '_', '~'). 
 // This keeps IRIREF safe, such as in <http://example.com/{value}>
 export void percent_encode_iriref(std::string& out, std::string_view value) {
-    auto is_unreserved = [](unsigned char c) {
-        return (c >= 'A' && c <= 'Z') ||
-              (c >= 'a' && c <= 'z') ||
-              (c >= '0' && c <= '9') ||
-              c == '-' || c == '.' || c == '_' || c == '~';
-    };
     static constexpr char H[] = "0123456789ABCDEF";
     for (unsigned char c : value) {
-        if (is_unreserved(c) && c != '%') {
+        if (is_unreserved_table_iridef[c] && c != '%') {
             out.push_back(static_cast<char>(c));
         } else {
             // percent-encode by hex representation 
@@ -65,18 +73,23 @@ export void percent_encode_iriref(std::string& out, std::string_view value) {
     }
 }
 
+// lookup table for safe characters in prefixed name local part
+constexpr std::array<bool, 256> is_safe_table_prefixed_local = []{
+    std::array<bool, 256> table = {};
+    for (unsigned char c = 'A'; c <= 'Z'; ++c) table[c] = true;
+    for (unsigned char c = 'a'; c <= 'z'; ++c) table[c] = true;
+    for (unsigned char c = '0'; c <= '9'; ++c) table[c] = true;
+    table[static_cast<unsigned char>('_')] = true;
+    table[static_cast<unsigned char>('-')] = true;
+    return table;
+}();
+
 // percent-encode bytes not in PN_LOCAL per Turtle spec (letters, digits, '_', '-'),
 // e.g. for prefixed names such as gtfs:{Local Name} where space must be encoded
 export void percent_encode_prefixed_local(std::string& out, std::string_view value) {
-    auto is_safe = [](unsigned char c) {
-      return (c >= 'A' && c <= 'Z') ||
-            (c >= 'a' && c <= 'z') ||
-            (c >= '0' && c <= '9') ||
-            c == '_' || c == '-';
-    };
     static constexpr char H[] = "0123456789ABCDEF";
     for (unsigned char c : value) {
-        if (is_safe(c) && c != '%') {
+        if (is_safe_table_prefixed_local[c] && c != '%') {
           out.push_back(static_cast<char>(c));
         } else {
           out.push_back('%');

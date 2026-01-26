@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(GTFS2RDF LANGUAGES CXX)
+project(GTFS2RDF LANGUAGES C CXX)
 
 # ------------------------------------------------------------
 # Language / Standard
@@ -34,6 +34,24 @@ endfunction()
 
 # Find libzip (provided by libzip-dev)
 find_package(libzip REQUIRED)
+
+# ------------------------------------------------------------
+# SQLite (amalgamation)
+# ------------------------------------------------------------
+add_library(sqlite3_amalgamation STATIC
+  "${CMAKE_SOURCE_DIR}/src/util/sqlite3/sqlite3.c"
+)
+
+target_include_directories(sqlite3_amalgamation PUBLIC
+  "${CMAKE_SOURCE_DIR}/src/util/sqlite3"
+)
+
+# Optional but recommended for embedding
+target_compile_definitions(sqlite3_amalgamation PRIVATE
+  SQLITE_THREADSAFE=1
+  SQLITE_OMIT_LOAD_EXTENSION
+)
+
 
 # ------------------------------------------------------------
 # Auto-generate schema primary module + registry from src/schema/*.cppm
@@ -194,6 +212,11 @@ setup_warnings(gtfs_modules)
 # Executable (main)
 # ------------------------------------------------------------
 add_executable(gtfs2rdf src/gtfs2rdf.cpp)
+
+target_link_libraries(gtfs_modules
+  PUBLIC
+    sqlite3_amalgamation
+)
 
 target_link_libraries(gtfs2rdf
   PRIVATE

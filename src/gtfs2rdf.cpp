@@ -33,7 +33,7 @@ const auto& factories = schema::factories();  // implemented in schema:registry 
 
 int main(int argc, char* argv[]) {
     runtime::Settings settings(argc, argv);
-
+    runtime::SqliteBackingStore store("mydatabase.db");
     zip_t *za;
     int err;
 

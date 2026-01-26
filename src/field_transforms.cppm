@@ -64,14 +64,14 @@ export using Out1 = std::string;
 export using OutN = std::vector<std::string>;
 
 export using Transform2One = std::function<void(const Args&, Out1&)>;
-export using Transform2N = std::function<void(const Args&, OutN&)>;
+export using Transform2Many = std::function<void(const Args&, OutN&)>;
 
 export enum class TransformKind { Single, Multi };
 
 export struct Transform {
     TransformKind kind;
     Transform2One single;  // valid if kind == Single
-    Transform2N   multi;  // valid if kind == Multi
+    Transform2Many   multi;  // valid if kind == Multi
 };
 
 export class TransformRegistry {
@@ -86,7 +86,7 @@ export class TransformRegistry {
         registry_[name] = Transform{TransformKind::Single, fn, {}};
     }
 
-    void registerTransform(const std::string& name, Transform2N fn) {
+    void registerTransform(const std::string& name, Transform2Many fn) {
         if (registry_.contains(name)) {
             throw std::runtime_error("❌  Transform error: field transform already registered: " + name);
         }

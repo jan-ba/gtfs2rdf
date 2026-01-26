@@ -238,10 +238,10 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
       // kind: multimap if 1 value, else tuplemap
       spec.storage.kind = (spec.storage.value_arity == 1) ? StorageKind::MultiMap : StorageKind::TupleMap;
 
-      // disallow Transform2N in filter-mode
+      // disallow Transform2Many in filter-mode
       for (auto& tc : spec.transforms) {
         if (tc.transform.kind == field_transforms::TransformKind::Multi) {
-          throw std::runtime_error("❌ Transform2N not allowed with filter-mode '(...)' in: " + std::string(raw));
+          throw std::runtime_error("❌ Transform2Many not allowed with filter-mode '(...)' in: " + std::string(raw));
         }
       }
 
