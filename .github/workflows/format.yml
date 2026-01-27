@@ -1,0 +1,32 @@
+name: clang-format
+
+on:
+  pull_request:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-18 || sudo apt-get install -y clang-format
+
+      - name: Check formatting
+        run: |
+          files=$(git ls-files 'src/**' \
+            | grep -Ev '^src/third_party/' \
+            | grep -E '\.(c|cc|cpp|cxx|h|hh|hpp|hxx|ipp|inl|ixx|cppm)$' || true)
+
+          [ -z "$files" ] && exit 0
+
+          # Run clang-format into a temp copy and diff
+          echo "$files" | xargs -r clang-format-18 -i --style=file || \
+          echo "$files" | xargs -r clang-format -i --style=file
+
+          # Fail if clang-format changed anything
+          git diff --exit-code

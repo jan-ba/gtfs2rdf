@@ -6,20 +6,18 @@
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
-
 module;
-#include <chrono>
 #include <algorithm>
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <string>
+#include <chrono>
 #include <filesystem>
-#include <utility>
+#include <fstream>
+#include <iostream>
+#include <sstream>
 #include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 #include <zip.h>
-#include <string>   
 
 export module gtfs_parser;
 
@@ -29,268 +27,266 @@ import rdf_writer;
 import runtime;
 
 using namespace util;
-using util::operator<<;  // only bringing in required operator
+using util::operator<<; // only bringing in required operator
 using Rows = std::vector<std::string>;
 
 namespace gtfs {
 
 // remove UTF-8 BOM from start of string, if present
-void strip_utf8_bom(std::string& s) {
-    if (s.size() >= 3 &&
-        static_cast<unsigned char>(s[0]) == 0xEF &&
-        static_cast<unsigned char>(s[1]) == 0xBB &&
-        static_cast<unsigned char>(s[2]) == 0xBF) {
-        s.erase(0, 3);
-    }
+void strip_utf8_bom(std::string &s) {
+	if (s.size() >= 3 && static_cast<unsigned char>(s[0]) == 0xEF &&
+	    static_cast<unsigned char>(s[1]) == 0xBB && static_cast<unsigned char>(s[2]) == 0xBF) {
+		s.erase(0, 3);
+	}
 }
 
 enum class CSVState {
-    UnquotedField,
-    InQuotedField,
-    QuoteInQuotedField  // just saw a " inside a quoted field
+	UnquotedField,
+	InQuotedField,
+	QuoteInQuotedField // just saw a " inside a quoted field
 };
 
 export class GTFSParser_Workspace {
   private:
-    std::vector<char> read_buffer_;
-    zip_uint64_t read_buffer_capacity_;
-    writer::Writer& writer_;
-    runtime::RuntimeContainer& rt_;
+	std::vector<char> read_buffer_;
+	zip_uint64_t read_buffer_capacity_;
+	writer::Writer &writer_;
+	runtime::RuntimeContainer &rt_;
 
   public:
-    GTFSParser_Workspace(runtime::RuntimeContainer& rt, writer::Writer& writer)
-    : writer_(writer), rt_(rt) {
-        read_buffer_capacity_ = rt.getSettings().ReadBufferSizeMB() * 1024 * 1024 + 1;
-        read_buffer_.resize(read_buffer_capacity_);
-    }
+	GTFSParser_Workspace(runtime::RuntimeContainer &rt, writer::Writer &writer)
+	    : writer_(writer)
+	    , rt_(rt) {
+		read_buffer_capacity_ = rt.getSettings().ReadBufferSizeMB() * 1024 * 1024 + 1;
+		read_buffer_.resize(read_buffer_capacity_);
+	}
 
-    std::vector<char>& getReadBuffer() { return read_buffer_; }
-    zip_uint64_t getReadBufferCapacity() { return read_buffer_capacity_; }
-    writer::Writer& getWriter() { return writer_; }
+	std::vector<char> &getReadBuffer() { return read_buffer_; }
+	zip_uint64_t getReadBufferCapacity() { return read_buffer_capacity_; }
+	writer::Writer &getWriter() { return writer_; }
 
-    GTFSParser_Workspace(const GTFSParser_Workspace&) = delete;
-    GTFSParser_Workspace& operator=(const GTFSParser_Workspace&) = delete;
+	GTFSParser_Workspace(const GTFSParser_Workspace &) = delete;
+	GTFSParser_Workspace &operator=(const GTFSParser_Workspace &) = delete;
 
-    GTFSParser_Workspace(GTFSParser_Workspace&&) = delete;
-    GTFSParser_Workspace& operator=(GTFSParser_Workspace&&) = delete;
+	GTFSParser_Workspace(GTFSParser_Workspace &&) = delete;
+	GTFSParser_Workspace &operator=(GTFSParser_Workspace &&) = delete;
 };
 
 export class GTFSParser {
   private:
-    using Clock = std::chrono::steady_clock;
+	using Clock = std::chrono::steady_clock;
 
-    const std::string filename_;
-    zip_file_t* file_;
-    schema::Schema& schema_;
-    writer::Writer& writer_;
-    runtime::RuntimeContainer& rt_;
+	const std::string filename_;
+	zip_file_t *file_;
+	schema::Schema &schema_;
+	writer::Writer &writer_;
+	runtime::RuntimeContainer &rt_;
 
-    // shared buffer buffer
-    std::vector<char>& read_buffer_;
-    zip_uint64_t buffer_size_ = 0;
+	// shared buffer buffer
+	std::vector<char> &read_buffer_;
+	zip_uint64_t buffer_size_ = 0;
 
-    // parsing state (needs to persist across chunk boundaries)
-    std::vector<std::string> row_;   // current csv row being built / reused
-    std::string cache_;              // current csv field being built
-    CSVState state_ = CSVState::UnquotedField;
-    bool header_seen_ = false;
-    size_t num_cols_ = 0;            // fixed width after header
-    size_t col_i_ = 0;               // current column index in row_ (data rows)
+	// parsing state (needs to persist across chunk boundaries)
+	std::vector<std::string> row_; // current csv row being built / reused
+	std::string cache_;            // current csv field being built
+	CSVState state_ = CSVState::UnquotedField;
+	bool header_seen_ = false;
+	size_t num_cols_ = 0; // fixed width after header
+	size_t col_i_ = 0;    // current column index in row_ (data rows)
 
-    // statistics
-    runtime::Statistics stats_;
+	// statistics
+	runtime::Statistics stats_;
 
-    Clock::time_point parse_t0_{};
-    bool parse_running_ = false;
+	Clock::time_point parse_t0_{};
+	bool parse_running_ = false;
 
-    inline void parseTimerResume_() {
-        if (!parse_running_) {
-            parse_t0_ = Clock::now();
-            parse_running_ = true;
-        }
-    }
+	inline void parseTimerResume_() {
+		if (!parse_running_) {
+			parse_t0_ = Clock::now();
+			parse_running_ = true;
+		}
+	}
 
-    inline void parseTimerPause_() {
-        if (parse_running_) {
-            stats_.parse_s += std::chrono::duration<double>(Clock::now() - parse_t0_).count();
-            parse_running_ = false;
-        }
-    }
+	inline void parseTimerPause_() {
+		if (parse_running_) {
+			stats_.parse_s += std::chrono::duration<double>(Clock::now() - parse_t0_).count();
+			parse_running_ = false;
+		}
+	}
 
-    inline void beginDataRow_IfNeeded_() {
-        // For data rows, ensure row_ has fixed width (already resized after header)
-        // and reset the column index. We don't clear all strings here because we enforce
-        // exact width; every position will be assigned exactly once.
-        col_i_ = 0;
-    }
+	inline void beginDataRow_IfNeeded_() {
+		// For data rows, ensure row_ has fixed width (already resized after header)
+		// and reset the column index. We don't clear all strings here because we enforce
+		// exact width; every position will be assigned exactly once.
+		col_i_ = 0;
+	}
 
-    void finishField_() {
-        if (!header_seen_) {
-            row_.push_back(cache_);
-        } else {
-            if (col_i_ >= num_cols_) {
-                throw std::runtime_error(
-                    "❌  Parsing error: too many columns in file '" + filename_ +
-                    "' (expected " + std::to_string(num_cols_) + " columns)"
-                );
-            }
-            // overwrite in-place (reuses row_[col_i_] capacity when possible)
-            row_[col_i_].assign(cache_);
-            ++col_i_;
-        }
-        cache_.clear();
-    }
+	void finishField_() {
+		if (!header_seen_) {
+			row_.push_back(cache_);
+		} else {
+			if (col_i_ >= num_cols_) {
+				throw std::runtime_error("❌  Parsing error: too many columns in file '" +
+				                         filename_ + "' (expected " + std::to_string(num_cols_) +
+				                         " columns)");
+			}
+			// overwrite in-place (reuses row_[col_i_] capacity when possible)
+			row_[col_i_].assign(cache_);
+			++col_i_;
+		}
+		cache_.clear();
+	}
 
-    void finishRow_() {
-        finishField_();
+	void finishRow_() {
+		finishField_();
 
-        if (!header_seen_) {
-            if (row_.empty()) {
-                throw std::runtime_error("❌  Parsing error: empty header in file '" + filename_ + "'");
-            }
-            strip_utf8_bom(row_[0]);
+		if (!header_seen_) {
+			if (row_.empty()) {
+				throw std::runtime_error("❌  Parsing error: empty header in file '" + filename_ +
+				                         "'");
+			}
+			strip_utf8_bom(row_[0]);
 
-            schema_.setHeader(row_);
-            num_cols_ = row_.size();
+			schema_.setHeader(row_);
+			num_cols_ = row_.size();
 
-            row_.clear();
-            row_.resize(num_cols_);  // row_ size will remain fixed from now on
+			row_.clear();
+			row_.resize(num_cols_); // row_ size will remain fixed from now on
 
-            header_seen_ = true;
-            beginDataRow_IfNeeded_();
-        } else {
-            // GTFS validity: enforce fixed width
-            if (col_i_ != num_cols_) {
-                throw std::runtime_error(
-                    "❌  Parsing error: inconsistent row width in file '" + filename_ +
-                    "' (expected " + std::to_string(num_cols_) +
-                    " columns, got " + std::to_string(col_i_) + ")"
-                );
-            }
+			header_seen_ = true;
+			beginDataRow_IfNeeded_();
+		} else {
+			// GTFS validity: enforce fixed width
+			if (col_i_ != num_cols_) {
+				throw std::runtime_error("❌  Parsing error: inconsistent row width in file '" +
+				                         filename_ + "' (expected " + std::to_string(num_cols_) +
+				                         " columns, got " + std::to_string(col_i_) + ")");
+			}
 
-            // write this single row (writer buffers internally)
-            parseTimerPause_();
-            auto t0 = Clock::now();
+			// write this single row (writer buffers internally)
+			parseTimerPause_();
+			auto t0 = Clock::now();
 
-            // TODO: let writer take care of timing itself
-            writer_.convertRow(schema_, row_);
-            stats_.write_s += std::chrono::duration<double>(Clock::now() - t0).count();
-            parseTimerResume_();
-            
-            stats_.rows += 1;
+			// TODO: let writer take care of timing itself
+			writer_.convertRow(schema_, row_);
+			stats_.write_s += std::chrono::duration<double>(Clock::now() - t0).count();
+			parseTimerResume_();
 
-            // prepare for next row
-            beginDataRow_IfNeeded_();
-        }
-    }
+			stats_.rows += 1;
 
-    void consumeByte_(char c) {
-        switch (state_) {
-            case CSVState::UnquotedField:
-                if (c == ',') {
-                    finishField_();
-                } else if (c == '"') {
-                    state_ = CSVState::InQuotedField;
-                } else if (c == '\n') {
-                    finishRow_();
-                } else if (c == '\r') {
-                    // ignore CR in CRLF
-                } else {
-                    cache_.push_back(c);
-                }
-                break;
+			// prepare for next row
+			beginDataRow_IfNeeded_();
+		}
+	}
 
-            case CSVState::InQuotedField:
-                if (c == '"') {
-                    state_ = CSVState::QuoteInQuotedField;
-                } else {
-                    cache_.push_back(c);
-                }
-                break;
+	void consumeByte_(char c) {
+		switch (state_) {
+		case CSVState::UnquotedField:
+			if (c == ',') {
+				finishField_();
+			} else if (c == '"') {
+				state_ = CSVState::InQuotedField;
+			} else if (c == '\n') {
+				finishRow_();
+			} else if (c == '\r') {
+				// ignore CR in CRLF
+			} else {
+				cache_.push_back(c);
+			}
+			break;
 
-            case CSVState::QuoteInQuotedField:
-                if (c == '"') {
-                    cache_.push_back('"');
-                    state_ = CSVState::InQuotedField;
-                } else if (c == ',') {
-                    finishField_();
-                    state_ = CSVState::UnquotedField;
-                } else if (c == '\n') {
-                    state_ = CSVState::UnquotedField;
-                    finishRow_();
-                } else if (c == '\r') {
-                    // ignore; wait for '\n'
-                } else {
-                    std::cerr << "⚠️  Parsing warning: unexpected character '" << c
-                              << "' after closing quote in quoted field\n";
-                    cache_.push_back(c);
-                    state_ = CSVState::UnquotedField;
-                }
-                break;
-        }
-    }
+		case CSVState::InQuotedField:
+			if (c == '"') {
+				state_ = CSVState::QuoteInQuotedField;
+			} else {
+				cache_.push_back(c);
+			}
+			break;
 
-    void consumeChunk_(zip_int64_t n) {
-        for (zip_int64_t i = 0; i < n; ++i) {
-            consumeByte_(read_buffer_[i]);
-        }
-    }
+		case CSVState::QuoteInQuotedField:
+			if (c == '"') {
+				cache_.push_back('"');
+				state_ = CSVState::InQuotedField;
+			} else if (c == ',') {
+				finishField_();
+				state_ = CSVState::UnquotedField;
+			} else if (c == '\n') {
+				state_ = CSVState::UnquotedField;
+				finishRow_();
+			} else if (c == '\r') {
+				// ignore; wait for '\n'
+			} else {
+				std::cerr << "⚠️  Parsing warning: unexpected character '" << c
+				          << "' after closing quote in quoted field\n";
+				cache_.push_back(c);
+				state_ = CSVState::UnquotedField;
+			}
+			break;
+		}
+	}
 
-    void flushRemainder_() {
-        // if file doesn't end with newline, finalise last row/field.
-        if (!cache_.empty() || (!header_seen_ && !row_.empty()) || (header_seen_ && col_i_ > 0)) {
-            finishRow_();
-        }
-    }
+	void consumeChunk_(zip_int64_t n) {
+		for (zip_int64_t i = 0; i < n; ++i) {
+			consumeByte_(read_buffer_[i]);
+		}
+	}
+
+	void flushRemainder_() {
+		// if file doesn't end with newline, finalise last row/field.
+		if (!cache_.empty() || (!header_seen_ && !row_.empty()) || (header_seen_ && col_i_ > 0)) {
+			finishRow_();
+		}
+	}
 
   public:
-    GTFSParser(zip_file_t* zf, schema::Schema& schema,
-               GTFSParser_Workspace& ws, runtime::RuntimeContainer& rt)
-    : filename_(schema.getName()),
-      file_(zf),
-      schema_(schema),
-      writer_(ws.getWriter()),
-      rt_(rt),
-      read_buffer_(ws.getReadBuffer())
-    {
-        buffer_size_ = ws.getReadBufferCapacity();
+	GTFSParser(zip_file_t *zf,
+	           schema::Schema &schema,
+	           GTFSParser_Workspace &ws,
+	           runtime::RuntimeContainer &rt)
+	    : filename_(schema.getName())
+	    , file_(zf)
+	    , schema_(schema)
+	    , writer_(ws.getWriter())
+	    , rt_(rt)
+	    , read_buffer_(ws.getReadBuffer()) {
+		buffer_size_ = ws.getReadBufferCapacity();
 
-        row_.clear();
-        cache_.clear();
-        cache_.reserve(256);
+		row_.clear();
+		cache_.clear();
+		cache_.reserve(256);
 
-        header_seen_ = false;
-        num_cols_ = 0;
-        col_i_ = 0;
-        state_ = CSVState::UnquotedField;
-    }
+		header_seen_ = false;
+		num_cols_ = 0;
+		col_i_ = 0;
+		state_ = CSVState::UnquotedField;
+	}
 
-    void parse() {
-        parseTimerResume_();
-        while (true) {
-            zip_int64_t n = zip_fread(file_, read_buffer_.data(), buffer_size_);
-            if (n < 0) {
-                throw std::runtime_error("❌  Parsing error: can't read buffer number " + std::to_string(stats_.chunks)
-                                        + " from file '" + filename_ + "'");
-            }
-            if (n == 0) break;
+	void parse() {
+		parseTimerResume_();
+		while (true) {
+			zip_int64_t n = zip_fread(file_, read_buffer_.data(), buffer_size_);
+			if (n < 0) {
+				throw std::runtime_error("❌  Parsing error: can't read buffer number " +
+				                         std::to_string(stats_.chunks) + " from file '" +
+				                         filename_ + "'");
+			}
+			if (n == 0)
+				break;
 
-            stats_.chunks++;
-            consumeChunk_(n);
-        }
+			stats_.chunks++;
+			consumeChunk_(n);
+		}
 
-        flushRemainder_();
-        parseTimerPause_();   // stop timing parsing before stats post-processing
+		flushRemainder_();
+		parseTimerPause_(); // stop timing parsing before stats post-processing
 
+		for (const auto &instr : schema_.getInstructions()) {
+			stats_.triples += instr.getCount();
+		}
+	}
 
-        for (const auto& instr : schema_.getInstructions()) {
-            stats_.triples += instr.getCount();
-        }
-    }
-
-    const runtime::Statistics& getStats() const { return stats_; }
-    std::string_view getFilename() const { return filename_; }
+	const runtime::Statistics &getStats() const { return stats_; }
+	std::string_view getFilename() const { return filename_; }
 };
 
-
-} // namespace
+} // namespace gtfs

@@ -10,11 +10,11 @@ module;
 
 #include "transform_macros.h"
 
+#include <optional>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <optional>
-#include <stdexcept>
 
 export module schema:routes;
 import :core;
@@ -28,68 +28,69 @@ using namespace rdf;
 namespace schema {
 
 // GTFS -> RDF schema for routes.txt
-export Schema buildRoutesSchema(runtime::RuntimeContainer& rt) {
-  const std::vector<std::string> possible_columns = {
-    "route_id", "agency_id",
-    "route_short_name", "route_long_name", "route_desc",
-    "route_type",
-    "route_url",
-    "route_color", "route_text_color",
-    "route_sort_order",
-    "continuous_pickup", "continuous_drop_off",
-    "network_id",
-    "cemv_support"
-  };
+export Schema buildRoutesSchema(runtime::RuntimeContainer &rt) {
+	const std::vector<std::string> possible_columns = {"route_id",
+	                                                   "agency_id",
+	                                                   "route_short_name",
+	                                                   "route_long_name",
+	                                                   "route_desc",
+	                                                   "route_type",
+	                                                   "route_url",
+	                                                   "route_color",
+	                                                   "route_text_color",
+	                                                   "route_sort_order",
+	                                                   "continuous_pickup",
+	                                                   "continuous_drop_off",
+	                                                   "network_id",
+	                                                   "cemv_support"};
 
-  const std::unordered_map<std::string, std::string> prefixes = {
-    { "routes",   "https://gtfs.org/routes/" },
-    { "agencies", "https://gtfs.org/agencies/" },
-    { "networks", "https://gtfs.org/networks/" },
+	const std::unordered_map<std::string, std::string> prefixes = {
+	    {"routes", "https://gtfs.org/routes/"},
+	    {"agencies", "https://gtfs.org/agencies/"},
+	    {"networks", "https://gtfs.org/networks/"},
 
-    { "rdf",  "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
-    { "xs",  "http://www.w3.org/2001/XMLSchema#" },
-    { "gtfs", "https://w3id.org/gtfs2rdf#" }
-  };
+	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
+	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
-  const IRI subj = IRI("routes","{route_id}");
+	const IRI subj = IRI("routes", "{route_id}");
 
-  const std::vector<Triple> triples = {
-    // SUBJECT  PREDICATE                  OBJECT
-    // Identity / type
-    { subj, {"rdf","type"},               { IRI("gtfs","Route") } },
+	const std::vector<Triple> triples = {
+	    // SUBJECT  PREDICATE                  OBJECT
+	    // Identity / type
+	    {subj, {"rdf", "type"}, {IRI("gtfs", "Route")}},
 
-    // Foreign keys
-    { subj, {"gtfs","agency"},            { IRI("agencies","{agency_id}") } },
-    { subj, {"gtfs","network"},           { IRI("networks","{network_id}") } },
+	    // Foreign keys
+	    {subj, {"gtfs", "agency"}, {IRI("agencies", "{agency_id}")}},
+	    {subj, {"gtfs", "network"}, {IRI("networks", "{network_id}")}},
 
-    // Names / description
-    { subj, {"gtfs","routeShortName"},    { "{route_short_name}" } },
-    { subj, {"gtfs","routeLongName"},     { "{route_long_name}", "{FEED_LANG@feed_info.txt}" } },
-    { subj, {"gtfs","routeDesc"},         { "{route_desc}", "{FEED_LANG@feed_info.txt}" } },
+	    // Names / description
+	    {subj, {"gtfs", "routeShortName"}, {"{route_short_name}"}},
+	    {subj, {"gtfs", "routeLongName"}, {"{route_long_name}", "{FEED_LANG@feed_info.txt}"}},
+	    {subj, {"gtfs", "routeDesc"}, {"{route_desc}", "{FEED_LANG@feed_info.txt}"}},
 
-    // Type (required)
-    { subj, {"gtfs","routeType"},         { "{route_type}", IRI("xs","integer") } },
+	    // Type (required)
+	    {subj, {"gtfs", "routeType"}, {"{route_type}", IRI("xs", "integer")}},
 
-    // URL
-    { subj, {"gtfs","routeUrl"},          { "{route_url}", IRI("xs","anyURI") } },
+	    // URL
+	    {subj, {"gtfs", "routeUrl"}, {"{route_url}", IRI("xs", "anyURI")}},
 
-    // Colors
-    { subj, {"gtfs","routeColor"},        { "{route_color}" } },
-    { subj, {"gtfs","routeTextColor"},    { "{route_text_color}" } },
+	    // Colors
+	    {subj, {"gtfs", "routeColor"}, {"{route_color}"}},
+	    {subj, {"gtfs", "routeTextColor"}, {"{route_text_color}"}},
 
-    // Sort order (non-negative integer)
-    { subj, {"gtfs","routeSortOrder"},  { "{route_sort_order}", IRI("xs","nonNegativeInteger") } },
+	    // Sort order (non-negative integer)
+	    {subj, {"gtfs", "routeSortOrder"}, {"{route_sort_order}", IRI("xs", "nonNegativeInteger")}},
 
-    // Continuous pickup/drop-off (enums)
-    { subj, {"gtfs","continuousPickup"},  { "{continuous_pickup}", IRI("xs","integer") } },
-    { subj, {"gtfs","continuousDropOff"}, { "{continuous_drop_off}", IRI("xs","integer") } },
+	    // Continuous pickup/drop-off (enums)
+	    {subj, {"gtfs", "continuousPickup"}, {"{continuous_pickup}", IRI("xs", "integer")}},
+	    {subj, {"gtfs", "continuousDropOff"}, {"{continuous_drop_off}", IRI("xs", "integer")}},
 
-    // cEMV support (enum)
-    { subj, {"gtfs","cemvSupport"},       { "{cemv_support}", IRI("xs","integer") } }
-  };
+	    // cEMV support (enum)
+	    {subj, {"gtfs", "cemvSupport"}, {"{cemv_support}", IRI("xs", "integer")}}};
 
-  Schema sc("routes.txt", possible_columns, prefixes, triples, rt);
-  return sc;
+	Schema sc("routes.txt", possible_columns, prefixes, triples, rt);
+	return sc;
 }
 
-} // namespace
+} // namespace schema

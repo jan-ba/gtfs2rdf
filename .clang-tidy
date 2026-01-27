@@ -1,0 +1,22 @@
+# .clang-tidy
+Checks: >
+  -*,
+  bugprone-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  readability-identifier-naming
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '^(?!.*src/third_party/).*'  # exclude headers under third_party
+
+CheckOptions:
+  # Naming examples (tune to your taste)
+  - { key: readability-identifier-naming.VariableCase,           value: lower_case }
+  - { key: readability-identifier-naming.ParameterCase,          value: lower_case }
+  - { key: readability-identifier-naming.FunctionCase,           value: camelBack }
+  - { key: readability-identifier-naming.MethodCase,             value: camelBack }
+  - { key: readability-identifier-naming.MemberCase,             value: lower_case }
+  - { key: readability-identifier-naming.MemberSuffix,           value: _ }
+  - { key: readability-identifier-naming.ConstantCase,           value: UPPER_CASE }
+  - { key: readability-identifier-naming.MacroDefinitionCase,    value: UPPER_CASE }
