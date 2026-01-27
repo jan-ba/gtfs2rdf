@@ -25,13 +25,11 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          # clang-tools-18 provides clang-scan-deps-18 (useful for modules)
-          # libzip-tools provides zipcmp/zipmerge/ziptool (nice for your zip notes)
           sudo apt-get install -y \
             ninja-build \
             clang-18 clang-tools-18 lld-18 \
             pkg-config \
-            libzip-dev libzip-tools \
+            libzip-dev zipmerge zipcmp \
             zip
 
       - name: Configure
