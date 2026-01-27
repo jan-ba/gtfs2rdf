@@ -29,7 +29,7 @@ jobs:
             ninja-build \
             clang-18 clang-tools-18 lld-18 \
             pkg-config \
-            libzip-dev zipmerge zipcmp \
+            libzip-dev zipmerge zipcmp ziptool \
             zip
 
       - name: Configure
