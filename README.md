@@ -11,6 +11,19 @@ cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-18
 cmake --build build -j
 ```
 
+*Note:* Add build option ```-DCMAKE_EXPORT_COMPILE_COMMANDS=ON``` in order to use clang-tidy afterwards.
+
+## Style checking
+
+Run this command to enforce style and naming conventions for this project using clang-tidy.
+
+```bash
+git ls-files 'src/**' \
+  | grep -Ev '^src/third_party/' \
+  | grep -E '\.(c|cc|cpp|cxx|cppm|ixx)$' \
+  | xargs -r clang-tidy-18 -p build --quiet -warnings-as-errors='*'
+```
+
 ## Testing
 
 To create custom mock data (in a zip archive since this is the expected input) use the command below

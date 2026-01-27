@@ -1,7 +1,19 @@
 #!/bin/sh
 set -eu
 
-# Format only staged source files under src/, excluding third_party.
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# prefers clang-format-18, fall back to clang-format
+CF=clang-format-18
+have "$CF" || CF=clang-format
+
+if ! have "$CF"; then
+  echo "[pre-commit] WARNING: clang-format not found; skipping auto-format."
+  echo "           Install clang-format (preferably v18) to enable auto-format on commit."
+  exit 0
+fi
+
+# format only staged source files under src/, excluding third_party.
 files=$(
   git diff --cached --name-only --diff-filter=ACMR \
     | grep -E '^src/' \
@@ -12,10 +24,10 @@ files=$(
 
 [ -z "${files}" ] && exit 0
 
-echo "[pre-commit] clang-format on staged files"
-printf "%s\n" "${files}" | xargs -r clang-format-18 -i --style=file
+echo "[pre-commit] $CF on staged files"
+printf "%s\n" "${files}" | xargs -r "$CF" -i --style=file
 
-# Re-stage files that were reformatted
+# re-stage files that were reformatted
 printf "%s\n" "${files}" | xargs -r git add
 
 exit 0
