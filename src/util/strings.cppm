@@ -7,11 +7,26 @@ module;
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 export module util:strings;
 
-export namespace util {
+export namespace util::strings {
+
+// custom hash for string_view and string to be used in unordered_map
+// taken from https://www.cppstories.com/2021/heterogeneous-access-cpp20/
+struct string_hash {
+	using is_transparent = void;
+
+	size_t operator()(std::string_view sv) const noexcept {
+		return std::hash<std::string_view>{}(sv);
+	}
+	size_t operator()(const std::string &s) const noexcept { return (*this)(std::string_view{s}); }
+	// size_t operator()(const char* s) const noexcept {
+	//   return (*this)(std::string_view{s}); // assumes null-terminated
+	// }
+};
 
 // parse string in format "YYYYMMDD" into chrono::sys_days
 std::chrono::sys_days parseYYYYMMDD(const std::string &s) {
@@ -197,4 +212,18 @@ std::pair<std::string_view, std::string_view> split_at(std::string_view s, char 
 	return {s.substr(0, pos), s.substr(pos + 1)};
 }
 
-} // namespace util
+bool is_gtfs_file_char(char c) { return std::isalpha(static_cast<unsigned char>(c)) || c == '_'; };
+
+bool valid_ctx_name(std::string_view ctx) {
+	// splits by '.' and checks that last part is "txt" and all chars are valid
+	auto [name_part, ext_part] = split_at(ctx, '.');
+	if (ext_part != "txt")
+		return false;
+	for (char c : name_part) {
+		if (!is_gtfs_file_char(c))
+			return false;
+	}
+	return true;
+}
+
+} // namespace util::strings

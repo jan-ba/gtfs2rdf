@@ -28,6 +28,16 @@ export class ArgSpan {
 	const std::string *const *const data_;
 	const size_t size_ = 0;
 
+	struct Iterator {
+		const std::string *const *ptr_;
+		const std::string &operator*() const { return **ptr_; }
+		Iterator &operator++() {
+			++ptr_;
+			return *this;
+		}
+		bool operator!=(const Iterator &other) const { return ptr_ != other.ptr_; }
+	};
+
   public:
 	ArgSpan(const std::string *const *data, size_t size)
 	    : data_(data)
@@ -45,8 +55,8 @@ export class ArgSpan {
 	const std::string *const *data() const { return data_; }
 
 	// iterators
-	const std::string *const *begin() const { return data_; }
-	const std::string *const *end() const { return data_ + size_; }
+	Iterator begin() const { return Iterator{data_}; }
+	Iterator end() const { return Iterator{data_ + size_}; }
 
 	// convenience print function for debugging
 	friend std::ostream &operator<<(std::ostream &os, const ArgSpan &span) {

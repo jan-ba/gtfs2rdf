@@ -29,7 +29,7 @@ import util;
 import schema_parser;
 
 using namespace rdf;
-
+using namespace util::strings;
 using namespace field_transforms;
 
 namespace schema {
@@ -66,6 +66,11 @@ export class Instruction {
 
 	std::array<const std::string *, field_transforms::MaxArgs> arg_buf_;
 
+	std::vector<std::string_view>
+	    key_buf_sv_; // for storing views to keys of format (col1, col2, ...)
+	std::vector<std::string_view>
+	    tup_buf_sv_; // for storing views to tuple values of format (val1, val2, ...)
+
 	size_t base_len_ = 0;
 	std::string out_;
 	static inline const std::string empty_ = "";
@@ -97,7 +102,7 @@ export class Instruction {
 			return &a.literal;
 		}
 		case ArgSourceKind::StorageVar: {
-			const auto &v = rt_.getStorage().get(a.ctx, a.name);
+			const auto &v = rt_.getStorage().get_variable(a.ctx, a.name);
 			return &v;
 		}
 		}
@@ -332,21 +337,38 @@ export class Instruction {
 							std::string key = make_key_string(dg.storage.key_arity);
 							// value fields start after key_arity
 							const auto &v = *arg_buf_[dg.storage.key_arity + 0];
-							st.store(dg.storage.target_ctx, dg.storage.target_name, key, v);
+							st.store_value(dg.storage.target_ctx, dg.storage.target_name, key, v);
 						} else if (dg.storage.kind == StorageKind::TupleMap) {
-							std::vector<std::string> key;
-							key.reserve(dg.storage.key_arity);
-							for (size_t i = 0; i < dg.storage.key_arity; ++i)
-								key.push_back(*arg_buf_[i]);
+							// std::vector<std::string> key;
+							// key.reserve(dg.storage.key_arity);
+							// for (size_t i = 0; i < dg.storage.key_arity; ++i)
+							// 	key.push_back(*arg_buf_[i]);
 
-							std::vector<std::string> tup;
-							tup.reserve(dg.storage.value_arity);
+							// std::vector<std::string> tup;
+							// tup.reserve(dg.storage.value_arity);
+							// for (size_t i = 0; i < dg.storage.value_arity; ++i) {
+							// 	tup.push_back(*arg_buf_[dg.storage.key_arity + i]);
+							// }
+							// st.store_tuple(dg.storage.target_ctx, dg.storage.target_name, key,
+							// tup);
+
+							// TODO: this block might be moved into a helper function
+							key_buf_sv_.clear();
+							key_buf_sv_.reserve(dg.storage.key_arity);
+							for (size_t i = 0; i < dg.storage.key_arity; ++i)
+								key_buf_sv_.push_back(*arg_buf_[i]);
+							tup_buf_sv_.clear();
+							tup_buf_sv_.reserve(dg.storage.value_arity);
 							for (size_t i = 0; i < dg.storage.value_arity; ++i) {
-								tup.push_back(*arg_buf_[dg.storage.key_arity + i]);
+								tup_buf_sv_.push_back(*arg_buf_[dg.storage.key_arity + i]);
 							}
-							st.store(dg.storage.target_ctx, dg.storage.target_name, key, tup);
+							st.store_tuple(dg.storage.target_ctx,
+							               dg.storage.target_name,
+							               key_buf_sv_,
+							               tup_buf_sv_);
 						} else if (dg.storage.kind == StorageKind::Variable) {
-							st.store(dg.storage.target_ctx, dg.storage.target_name, *arg_buf_[0]);
+							st.store_variable(
+							    dg.storage.target_ctx, dg.storage.target_name, *arg_buf_[0]);
 						}
 					}
 				} else if (dg.storage.mode == StoreMode::StoreRaw) {
@@ -355,39 +377,69 @@ export class Instruction {
 					if (dg.storage.kind == StorageKind::MultiMap) {
 						std::string key = make_key_string(dg.storage.key_arity);
 						const auto &v = *arg_buf_[dg.storage.key_arity + 0];
-						st.store(dg.storage.target_ctx, dg.storage.target_name, key, v);
+						st.store_value(dg.storage.target_ctx, dg.storage.target_name, key, v);
 					} else if (dg.storage.kind == StorageKind::TupleMap) {
-						std::vector<std::string> key;
-						key.reserve(dg.storage.key_arity);
-						for (size_t i = 0; i < dg.storage.key_arity; ++i)
-							key.push_back(*arg_buf_[i]);
+						// std::vector<std::string> key;
+						// key.reserve(dg.storage.key_arity);
+						// for (size_t i = 0; i < dg.storage.key_arity; ++i)
+						// 	key.push_back(*arg_buf_[i]);
 
-						std::vector<std::string> tup;
-						tup.reserve(dg.storage.value_arity);
+						// std::vector<std::string> tup;
+						// tup.reserve(dg.storage.value_arity);
+						// for (size_t i = 0; i < dg.storage.value_arity; ++i) {
+						// 	tup.push_back(*arg_buf_[dg.storage.key_arity + i]);
+						// }
+						// st.store_tuple(dg.storage.target_ctx, dg.storage.target_name, key, tup);
+
+						key_buf_sv_.clear();
+						key_buf_sv_.reserve(dg.storage.key_arity);
+						for (size_t i = 0; i < dg.storage.key_arity; ++i)
+							key_buf_sv_.push_back(*arg_buf_[i]);
+						tup_buf_sv_.clear();
+						tup_buf_sv_.reserve(dg.storage.value_arity);
 						for (size_t i = 0; i < dg.storage.value_arity; ++i) {
-							tup.push_back(*arg_buf_[dg.storage.key_arity + i]);
+							tup_buf_sv_.push_back(*arg_buf_[dg.storage.key_arity + i]);
 						}
-						st.store(dg.storage.target_ctx, dg.storage.target_name, key, tup);
+						st.store_tuple(dg.storage.target_ctx,
+						               dg.storage.target_name,
+						               key_buf_sv_,
+						               tup_buf_sv_);
 					}
 				} else {
 					// StoreComputed
 					if (dg.contains_transf2n) {
-						if (transf_buf_.empty()) {
-							std::vector<std::string> key;
-							key.reserve(dg.storage.key_arity);
+						if (!transf_buf_.empty()) {
+							// std::vector<std::string> key;
+							// key.reserve(dg.storage.key_arity);
+							// for (size_t i = 0; i < dg.storage.key_arity; ++i)
+							// 	key.push_back(*arg_buf_[i]);
+							// st.store_tuple(
+							//     dg.storage.target_ctx, dg.storage.target_name, key, transf_buf_);
+
+							key_buf_sv_.clear();
+							key_buf_sv_.reserve(dg.storage.key_arity);
 							for (size_t i = 0; i < dg.storage.key_arity; ++i)
-								key.push_back(*arg_buf_[i]);
-							st.store(
-							    dg.storage.target_ctx, dg.storage.target_name, key, transf_buf_);
+								key_buf_sv_.push_back(*arg_buf_[i]);
+							tup_buf_sv_.clear();
+							tup_buf_sv_.reserve(transf_buf_.size());
+							for (const auto &val : transf_buf_) {
+								tup_buf_sv_.push_back(val);
+							}
+							st.store_tuple(dg.storage.target_ctx,
+							               dg.storage.target_name,
+							               key_buf_sv_,
+							               tup_buf_sv_);
 						}
 					} else {
 						switch (dg.storage.kind) {
 						case StorageKind::Variable:
-							st.store(dg.storage.target_ctx, dg.storage.target_name, cur_sv);
+							st.store_variable(
+							    dg.storage.target_ctx, dg.storage.target_name, cur_sv);
 							break;
 						case StorageKind::MultiMap: {
 							std::string key = make_key_string(dg.storage.key_arity);
-							st.store(dg.storage.target_ctx, dg.storage.target_name, key, cur_sv);
+							st.store_value(
+							    dg.storage.target_ctx, dg.storage.target_name, key, cur_sv);
 							break;
 						}
 						}
@@ -668,23 +720,23 @@ export class Schema {
 		}
 	}
 
-	// to be called after corresponding file has been fully processed
-	void finalise() {
-		// if an instruction used multimaps, finalise them now
-		bool stored_multimaps = false;
-		for (auto &instr : instructions_) {
-			for (const auto &dg : instr.getDatagaps()) {
-				if (dg.storage.kind == StorageKind::MultiMap) {
-					stored_multimaps = true;
-					break;
-				}
-			}
-		}
-		if (stored_multimaps) {
-			rt_.getStorage().finalise_multimaps(name_);
-			std::cout << "🗄️  Finalised multimaps for schema context '" << name_ << "'.\n";
-		}
-	}
+	// // to be called after corresponding file has been fully processed
+	// void finalise() {
+	// 	// if an instruction used multimaps, finalise them now
+	// 	bool stored_multimaps = false;
+	// 	for (auto &instr : instructions_) {
+	// 		for (const auto &dg : instr.getDatagaps()) {
+	// 			if (dg.storage.kind == StorageKind::MultiMap) {
+	// 				stored_multimaps = true;
+	// 				break;
+	// 			}
+	// 		}
+	// 	}
+	// 	if (stored_multimaps) {
+	// 		rt_.getStorage().finalise_multimaps(name_);
+	// 		std::cout << "🗄️  Finalised multimaps for schema context '" << name_ << "'.\n";
+	// 	}
+	// }
 
 	// Getters
 	const std::string &getName() const { return name_; }

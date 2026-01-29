@@ -1,7 +1,7 @@
 # Prerequisites
 *.d
 
-build/*
+build*/*
 gcm.cache/*
 
 # Compiled Object files
@@ -56,3 +56,4 @@ gcm.cache/*
 *.png
 
 RAM_monitor/
+.tmp*/*

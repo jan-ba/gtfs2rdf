@@ -1,8 +1,8 @@
 module;
 
 #include "third_party/cxxopts/cxxopts.hpp"
-#include "third_party/sqlite3/sqlite3.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -13,300 +13,26 @@ module;
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 export module runtime;
 
 import util;
 import field_transforms;
+import storage;
+
+using namespace util::strings;
+using namespace util::misc;
 
 namespace runtime {
-
-export class SqliteBackingStore {
-  public:
-	explicit SqliteBackingStore() {
-		// create temporary directory and file
-		// ensure directory didn't exist before to avoid accidental user data overwrite
-		if (std::filesystem::exists("./.tmp/"))
-			throw std::runtime_error(
-			    "Temporary directory './.tmp/' already exists. Aborting to avoid data loss.");
-		std::filesystem::create_directories("./.tmp/");
-		std::filesystem::path path = "./.tmp/.runtime_storage.db";
-
-		if (sqlite3_open(path.c_str(), &db_) != SQLITE_OK)
-			throw std::runtime_error(sqlite3_errmsg(db_));
-
-		exec("PRAGMA journal_mode=WAL;");
-		exec("PRAGMA synchronous=NORMAL;");
-		exec("CREATE TABLE IF NOT EXISTS multimap (ctx TEXT NOT NULL, name TEXT NOT NULL, k TEXT "
-		     "NOT NULL, v TEXT NOT NULL, PRIMARY KEY(ctx,name,k,v)) WITHOUT ROWID;");
-		exec("CREATE TABLE IF NOT EXISTS tuplemap (ctx TEXT NOT NULL, name TEXT NOT NULL, k TEXT "
-		     "NOT NULL, v BLOB NOT NULL, PRIMARY KEY(ctx,name,k,v)) WITHOUT ROWID;");
-
-		prep(insert_mm_, "INSERT OR IGNORE INTO multimap(ctx,name,k,v) VALUES (?,?,?,?);");
-		prep(get_mm_, "SELECT v FROM multimap WHERE ctx=? AND name=? AND k=? ORDER BY v;");
-		prep(has_mm_, "SELECT 1 FROM multimap WHERE ctx=? AND name=? AND k=? AND v=? LIMIT 1;");
-
-		prep(insert_tm_, "INSERT OR IGNORE INTO tuplemap(ctx,name,k,v) VALUES (?,?,?,?);");
-		prep(get_tm_, "SELECT v FROM tuplemap WHERE ctx=? AND name=? AND k=?;");
-		prep(del_ctx_, "DELETE FROM multimap WHERE ctx=?; DELETE FROM tuplemap WHERE ctx=?;");
-	}
-
-	~SqliteBackingStore() {
-		flush();
-		finalize_all();
-		if (db_)
-			sqlite3_close(db_);
-		// delete temporary directory and file
-		std::filesystem::remove_all("./.tmp/");
-	}
-
-	void store_multimap(const std::string &ctx,
-	                    const std::string &name,
-	                    const std::string &key,
-	                    std::string_view val) {
-		begin_if_needed();
-		bind4(insert_mm_, ctx, name, key, val);
-		step_reset(insert_mm_);
-		bump_flush();
-	}
-
-	bool contains_multimap(const std::string &ctx,
-	                       const std::string &name,
-	                       const std::string &key,
-	                       const std::string &val) {
-		bind4(has_mm_, ctx, name, key, val);
-		int rc = sqlite3_step(has_mm_);
-		sqlite3_reset(has_mm_);
-		return rc == SQLITE_ROW;
-	}
-
-	std::vector<std::string>
-	get_multimap(const std::string &ctx, const std::string &name, const std::string &key) {
-		std::vector<std::string> out;
-		bind3(get_mm_, ctx, name, key);
-		while (sqlite3_step(get_mm_) == SQLITE_ROW) {
-			const unsigned char *txt = sqlite3_column_text(get_mm_, 0);
-			out.emplace_back(reinterpret_cast<const char *>(txt ? txt : (const unsigned char *)""));
-		}
-		sqlite3_reset(get_mm_);
-		return out; // already sorted by v
-	}
-
-	void clear_context(const std::string &ctx) {
-		begin_if_needed();
-		// del_ctx_ has two statements; easiest is exec with parameterized two statements split,
-		// or prepare two delete statements instead.
-	}
-
-	void flush() {
-		if (in_tx_) {
-			exec("COMMIT;");
-			in_tx_ = false;
-			pending_ = 0;
-		}
-	}
-
-  private:
-	sqlite3 *db_ = nullptr;
-	sqlite3_stmt *insert_mm_ = nullptr, *get_mm_ = nullptr, *has_mm_ = nullptr;
-	sqlite3_stmt *insert_tm_ = nullptr, *get_tm_ = nullptr, *del_ctx_ = nullptr;
-
-	bool in_tx_ = false;
-	int pending_ = 0;
-	static constexpr int kFlushOps = 1000;
-
-	void exec(const char *sql) {
-		char *err = nullptr;
-		if (sqlite3_exec(db_, sql, nullptr, nullptr, &err) != SQLITE_OK) {
-			std::string msg = err ? err : "sqlite error";
-			sqlite3_free(err);
-			throw std::runtime_error(msg);
-		}
-	}
-	void prep(sqlite3_stmt *&st, const char *sql) {
-		if (sqlite3_prepare_v2(db_, sql, -1, &st, nullptr) != SQLITE_OK)
-			throw std::runtime_error(sqlite3_errmsg(db_));
-	}
-	void begin_if_needed() {
-		if (!in_tx_) {
-			exec("BEGIN IMMEDIATE;");
-			in_tx_ = true;
-		}
-	}
-	void bump_flush() {
-		if (++pending_ >= kFlushOps)
-			flush();
-	}
-
-	// helpers to bind and step
-	static void step_reset(sqlite3_stmt *st) {
-		int rc = sqlite3_step(st);
-		sqlite3_reset(st);
-		if (rc != SQLITE_DONE)
-			throw std::runtime_error("sqlite step failed");
-	}
-	static void
-	bind3(sqlite3_stmt *st, const std::string &a, const std::string &b, const std::string &c) {
-		sqlite3_bind_text(st, 1, a.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(st, 2, b.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(st, 3, c.c_str(), -1, SQLITE_TRANSIENT);
-	}
-	static void bind4(sqlite3_stmt *st,
-	                  const std::string &a,
-	                  const std::string &b,
-	                  const std::string &c,
-	                  std::string_view d) {
-		sqlite3_bind_text(st, 1, a.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(st, 2, b.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(st, 3, c.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(st, 4, d.data(), (int)d.size(), SQLITE_TRANSIENT);
-	}
-
-	void finalize_all() {
-		auto fin = [&](sqlite3_stmt *&s) {
-			if (s)
-				sqlite3_finalize(s), s = nullptr;
-		};
-		fin(insert_mm_);
-		fin(get_mm_);
-		fin(has_mm_);
-		fin(insert_tm_);
-		fin(get_tm_);
-		fin(del_ctx_);
-	}
-};
-
-// Persistent storage for variables, multimaps, and tuplemaps across schema executions / gtfs file
-// reads. Data is namespaced by context (usually file name).
-class PersistentStorage {
-  public:
-	// --- VARIABLES API ---
-
-	void store(const std::string &ctx, const std::string &variable, std::string_view value) {
-		variables_[ctx][variable] = value;
-	}
-
-	const std::string &get(const std::string &ctx, const std::string &variable) const {
-		auto it = variables_.find(ctx);
-		if (it == variables_.end())
-			return empty_;
-		auto it2 = it->second.find(variable);
-		if (it2 == it->second.end())
-			return empty_;
-		return it2->second;
-	}
-
-	// --- MULTIMAPS API ---
-
-	void store(const std::string &ctx,
-	           const std::string &multimap,
-	           const std::string &key,
-	           std::string_view value) {
-		multimaps_[ctx][multimap][key].push_back(std::string(value));
-	}
-
-	const std::vector<std::string> &
-	get(const std::string &ctx, const std::string &multimap, const std::string &key) const {
-		auto it = multimaps_.find(ctx);
-		if (it == multimaps_.end())
-			return empty_vector_;
-		auto it2 = it->second.find(multimap);
-		if (it2 == it->second.end())
-			return empty_vector_;
-		auto it3 = it2->second.find(key);
-		if (it3 == it2->second.end())
-			return empty_vector_;
-		return it3->second;
-	}
-
-	// sorts all value lists in a given multimap for a given context for quick lookups
-	void finalise_multimaps(const std::string &ctx) {
-		auto it = multimaps_.find(ctx);
-		if (it == multimaps_.end())
-			return;
-		for (auto &[multimap_name, map] : it->second) {
-			for (auto &[key, values] : map) {
-				std::sort(values.begin(), values.end());
-			}
-		}
-	}
-
-	// Check if a value exists in a multimap
-	// invariant: multimaps are finalised before this is called, else binary search won't work
-	bool contains(const std::string &ctx,
-	              const std::string &multimap,
-	              const std::string &key,
-	              const std::string &value) const {
-		const auto &vec = get(ctx, multimap, key);
-		if (vec.empty())
-			return false;
-		return std::binary_search(vec.begin(), vec.end(), value);
-	}
-
-	// --- TUPLEMAPS API ---
-
-	void store(const std::string &ctx,
-	           const std::string &tuplemap,
-	           const std::vector<std::string> &key,
-	           const std::vector<std::string> &value_tuple) {
-		tuplemaps_[ctx][tuplemap][util::concat(key)].push_back(value_tuple);
-	}
-
-	const std::vector<std::vector<std::string>> &get(const std::string &ctx,
-	                                                 const std::string &tuplemap,
-	                                                 const std::vector<std::string> &key) const {
-		std::string key_combined = util::concat(key);
-		auto it = tuplemaps_.find(ctx);
-		if (it == tuplemaps_.end())
-			return empty_vector_of_vectors_;
-		auto it2 = it->second.find(tuplemap);
-		if (it2 == it->second.end())
-			return empty_vector_of_vectors_;
-		auto it3 = it2->second.find(key_combined);
-		if (it3 == it2->second.end())
-			return empty_vector_of_vectors_;
-		return it3->second;
-	}
-
-	// clear all stored data for a given context once it goes out of scope
-	void clear_context(const std::string &ctx) {
-		variables_.erase(ctx);
-		multimaps_.erase(ctx);
-		tuplemaps_.erase(ctx);
-	}
-
-	// getters for testing
-	const auto &getAllVariables() const { return variables_; }
-	const auto &getAllMultimaps() const { return multimaps_; }
-	const auto &getAllTuplemaps() const { return tuplemaps_; }
-
-  private:
-	// context (this is data for one file/schema) -> (variable name -> value)
-	std::unordered_map<std::string, std::unordered_map<std::string, std::string>> variables_;
-
-	// context -> (multimap name -> (key -> list(values)))
-	std::unordered_map<
-	    std::string,
-	    std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>>>
-	    multimaps_;
-
-	// context -> (tuplemap name -> (key -> list(value_tuples)))
-	std::unordered_map<
-	    std::string,
-	    std::unordered_map<std::string,
-	                       std::unordered_map<std::string, std::vector<std::vector<std::string>>>>>
-	    tuplemaps_;
-
-	static inline const std::string empty_ = "";
-
-	static inline const std::vector<std::string> empty_vector_ = {};
-
-	static inline const std::vector<std::vector<std::string>> empty_vector_of_vectors_ = {};
-};
 
 export class Settings {
   public:
 	// checks validity of command line arguments and sets settings accordingly
+
+	// TODO: add pre run: adds headers and compiles schemas (to see whether anything might throw)
+	// and also outputs a rough estimate of required RAM with settings used
 	Settings(int argc, char *argv[]) {
 		cxxopts::Options opts("gtfs2rdf",
 		                      "GTFS->RDF converter\n"
@@ -421,6 +147,7 @@ export class Settings {
 	const std::filesystem::path &OutputPath() const { return outputPath_; }
 
   private:
+	// TODO: move this to top
 	// default parameters
 	const double READ_CHUNK_SIZE_DEFAULT = 10.0;
 	const double WRITE_CHUNK_SIZE_DEFAULT = 20.0;
@@ -448,13 +175,12 @@ export class RuntimeContainer {
 	const field_transforms::TransformRegistry &getConstTransformRegistry() const {
 		return registry_;
 	}
-	PersistentStorage &getStorage() { return storage_; }
+	storage::PersistentStorageSqlite &getStorage() { return storage_; }
 
   private:
 	const Settings &settings_;
 	field_transforms::TransformRegistry &registry_;
-	PersistentStorage storage_;
-	// SqliteBackingStore sqlite_store_;
+	storage::PersistentStorageSqlite storage_;
 };
 
 // container for runtime statistics collected during GTFS processing

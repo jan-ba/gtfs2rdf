@@ -11,6 +11,7 @@ module;
 #include "transform_macros.h"
 
 #include <chrono>
+#include <iostream> // TODO: remove later
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -27,6 +28,7 @@ import runtime;
 import util;
 
 using namespace rdf;
+using namespace util;
 
 namespace schema {
 
@@ -40,7 +42,6 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer &rt) {
 	TRANSFORM2MANY(generate_dates, ARGS, OUT_VAL, STORAGE)
 	auto start_date = util::parseYYYYMMDD(ARGS[7]);
 	auto end_date = util::parseYYYYMMDD(ARGS[8]);
-
 	// loop through each day in the date range
 	for (auto current = start_date; current <= end_date; current += std::chrono::days{1}) {
 		std::chrono::weekday wd{current};
@@ -52,7 +53,7 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer &rt) {
 			oss << std::chrono::year_month_day{current};
 			auto date = oss.str();
 			// this is a quick lookup (log n) whether the date is disabled in calendar_dates.txt
-			if (!STORAGE.contains("calendar_dates.txt", "disabled_dates", ARGS[9], date)) {
+			if (!STORAGE.contains_value("calendar_dates.txt", "disabled_dates", ARGS[9], date)) {
 				OUT_VAL.push_back(date);
 			}
 		}

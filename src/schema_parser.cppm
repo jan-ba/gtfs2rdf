@@ -20,6 +20,8 @@ export module schema_parser;
 import field_transforms;
 import util;
 
+using namespace util;
+
 namespace schema {
 
 // type of argument in a placeholder {arg1, arg2, ... | transform1 | transform2 > STORAGE}
@@ -97,10 +99,6 @@ export struct BoundPlaceholder {
 	std::vector<TransformCallSpec> transforms;
 	StorageWriteSpec storage;
 };
-
-export bool valid_ctx_name(std::string_view ctx) {
-	return ctx.size() >= 4 && ctx.ends_with(".txt");
-}
 
 ArgSpec parse_arg(std::string_view tok) {
 	if (tok.empty())

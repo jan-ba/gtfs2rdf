@@ -14,7 +14,7 @@ module;
 
 export module util:topological_sort;
 
-export namespace util {
+export namespace util::topological_sort {
 
 // Topological Sort using Kahn's Algorithm (https://en.wikipedia.org/wiki/Topological_sorting)
 // Upon researching briefly, I couldn't find a plug-and-play TopoSort implementation without adding
@@ -144,4 +144,4 @@ class TopologicalSort {
 	}
 };
 
-} // namespace util
+} // namespace util::topological_sort

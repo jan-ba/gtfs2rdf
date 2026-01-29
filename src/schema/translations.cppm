@@ -42,18 +42,19 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer &rt) {
 	TRANSFORM2MANY(get_translation, ARGS, OUT_VALS, STORAGE)
 	if (ARGS[0].empty() || ARGS[1].empty() || ARGS[2].empty())
 		return;
-	for (const auto &tup :
-	     STORAGE.get("translations.txt", "translations_by_value", {ARGS[0], ARGS[1], ARGS[2]})) {
+	for (const auto &tup : STORAGE.get_tuples(
+	         "translations.txt", "translations_by_value", {ARGS[0], ARGS[1], ARGS[2]})) {
 		OUT_VALS.emplace_back(tup[0]);
 		// this is a fairly hacky way to store the latest language used for translation
 		// so that the language tag can be set correctly in the triple later
 		// by adding {latest_translation_lookup@translations.txt} in the language field
-		STORAGE.store("translations.txt", "latest_translation_lookup", tup[1]);
+		STORAGE.store_variable("translations.txt", "latest_translation_lookup", tup[1]);
 	}
 	TRANSFORM_END
 
 	// turn snake_case into camelCase (e.g. for stop_name -> stopName)
 	// with this translations by record_id can be easily created in this schema file
+	// TODO: move to lib?
 	TRANSFORM2ONE(capitalise_underscored, ARGS, OUT_VAL, STORAGE)
 	if (ARGS[0].empty())
 		return;
@@ -83,7 +84,7 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer &rt) {
 
 	TRANSFORM2ONE(filter_if_record_id_defined, ARGS, OUT_VAL, STORAGE)
 	(void)ARGS; // unused on purpose
-	if (STORAGE.get("translations.txt", "is_record_id_defined").empty())
+	if (STORAGE.get_variable("translations.txt", "is_record_id_defined").empty())
 		OUT_VAL = "1";
 	TRANSFORM_END
 

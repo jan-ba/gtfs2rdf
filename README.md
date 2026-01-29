@@ -6,9 +6,29 @@ Make sure to have a C++ compiler installed that supports C++-20. You might need 
 
 **Warning:** g++-14 throws internal compiler errors on my system (likely due to things related to modules). clang++-18 works fine, but g++-15 might also do the trick.
 
+### Release build
+
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-18
-cmake --build build -j
+cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++-18
+cmake --build build-release -j
+```
+
+### Debub build
+
+```bash
+cmake -S . -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++-18
+cmake --build build-debug -j
+
+```
+
+### Release but with timing enabled
+
+```bash
+cmake -S . -B build-release-timing -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_COMPILER=clang++-18 \
+  -DGTFS2RDF_FORCE_TIMING=ON
+cmake --build build-release-timing -j
 ```
 
 *Note:* Add build option ```-DCMAKE_EXPORT_COMPILE_COMMANDS=ON``` in order to use clang-tidy afterwards.

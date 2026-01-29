@@ -10,6 +10,8 @@ module;
 
 #include "transform_macros.h"
 
+#include <algorithm>
+#include <charconv>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -29,6 +31,48 @@ namespace schema {
 
 // GTFS -> RDF schema for trips.txt (covers common/optional fields)
 export Schema buildTripsSchema(runtime::RuntimeContainer &rt) {
+
+	// args: shape_id
+	// output: WKT linestring of all shape points for this shape_id
+	TRANSFORM2ONE(get_linestring, ARGS, OUT_VAL, STORAGE)
+	struct Row {
+		size_t seq;
+		std::string_view lon;
+		std::string_view lat;
+	};
+
+	// early exit if linestring for this shape_id was already created
+	if (STORAGE.contains_value("trips.txt", "created_linestrings", ARGS[0], "1"))
+		return;
+
+	// else create linestring and store that we created it
+	STORAGE.store_value("trips.txt", "created_linestrings", ARGS[0], "1");
+	const auto &seq_lon_lat_vec = STORAGE.get_tuples("shapes.txt", "shapes", ARGS[0]);
+	if (seq_lon_lat_vec.empty())
+		return;
+
+	// sort by sequence number to build correct linestrings
+	std::vector<Row> rows(seq_lon_lat_vec.size());
+	for (size_t i = 0; i < seq_lon_lat_vec.size(); ++i) {
+		const auto &seq_lon_lat = seq_lon_lat_vec[i];
+		std::from_chars(
+		    seq_lon_lat[0].data(), seq_lon_lat[0].data() + seq_lon_lat[0].size(), rows[i].seq);
+		rows[i].lon = seq_lon_lat[1];
+		rows[i].lat = seq_lon_lat[2];
+	}
+	std::sort(rows.begin(), rows.end(), [](const Row &a, const Row &b) { return a.seq < b.seq; });
+
+	// build WKT linestring
+	OUT_VAL = "LINESTRING(";
+	for (const auto &row : rows) {
+		if (OUT_VAL.back() != '(') {
+			OUT_VAL.append(", ");
+		}
+		OUT_VAL.append(row.lon).append(" ").append(row.lat);
+	}
+	OUT_VAL.append(")");
+	TRANSFORM_END
+
 	const std::vector<std::string> possible_columns = {"route_id",
 	                                                   "service_id",
 	                                                   "trip_id",
@@ -49,7 +93,7 @@ export Schema buildTripsSchema(runtime::RuntimeContainer &rt) {
 	    {"services", "https://gtfs.org/services/"},
 	    {"blocks", "https://gtfs.org/blocks/"},
 	    {"shapes", "https://gtfs.org/shapes/"},
-
+	    {"geo", "http://www.opengis.net/ont/geosparql#"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
 	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
@@ -72,7 +116,11 @@ export Schema buildTripsSchema(runtime::RuntimeContainer &rt) {
 
 	    // Block and shape
 	    {subj, {"gtfs", "block"}, {IRI("blocks", "{block_id}")}},
-	    {subj, {"gtfs", "shape"}, {IRI("shapes", "{shape_id}")}},
+	    // {subj, {"gtfs", "shape"}, {IRI("shapes", "{shape_id}")}},
+	    {subj, {"geo", "hasGeometry"}, {IRI("gtfs2rdfgeom", "shapes_{shape_id}")}},
+	    {IRI("gtfs2rdfgeom", "shapes_{shape_id}"),
+	     {"geo", "asWKT"},
+	     {{"{shape_id | get_linestring@shapes.txt}"}, IRI("geo", "wktLiteral")}},
 
 	    // Accessibility / allowances (enums: 0/1/2)
 	    {subj, {"gtfs", "wheelchairAccessible"}, {"{wheelchair_accessible}", IRI("xs", "integer")}},

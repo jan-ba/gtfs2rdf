@@ -100,13 +100,13 @@ int main(int argc, char *argv[]) {
 	}
 
 	// deactivate all storage writes from schemas that are not needed later on
-	for (size_t i = 0; i < files_in_dir.size(); i++) {
-		if (num_depending_schemas[i] == 0) {
-			used_schemas[i].forbidStorageWrites();
-			std::cout << "🛑  Deactivated storage writes for schema '" << used_schemas[i].getName()
-			          << "'\n";
-		}
-	}
+	// for (size_t i = 0; i < files_in_dir.size(); i++) {
+	// 	if (num_depending_schemas[i] == 0) {
+	// 		used_schemas[i].forbidStorageWrites();
+	// 		std::cout << "🛑  Deactivated storage writes for schema '" << used_schemas[i].getName()
+	// 		          << "'\n";
+	// 	}
+	// }
 
 	// allow loops (schema may read from its own previously written storage)
 	auto order = toposort.sort();
@@ -130,11 +130,11 @@ int main(int argc, char *argv[]) {
 			writer.writePrefixes(merged_prefixes);
 		gtfs::GTFSParser parser(zf, used_schemas[order[i]], ws, rt);
 		parser.parse();
-		used_schemas[order[i]].finalise();
+		// used_schemas[order[i]].finalise();
 		for (auto &dep : used_schemas[order[i]].getDependencies()) {
 			num_depending_schemas[schema_name_to_index[dep]]--;
 			if (num_depending_schemas[schema_name_to_index[dep]] == 0) {
-				rt.getStorage().clear_context(dep);
+				// rt.getStorage().clear_context(dep);
 				std::cout << "🧹  Cleared storage context for schema '" << dep << "' after "
 				          << " last dependent schema '" << used_schemas[order[i]].getName()
 				          << "' was processed.\n";
@@ -149,10 +149,9 @@ int main(int argc, char *argv[]) {
 
 	// print hole storage contents for debugging
 	// TODO: remove debug output later
-	// std::cout << "\n🗄️  Persistent Storage Contents:\n";
-	std::cout << "VARIABLES: " << rt.getStorage().getAllVariables() << "\n";
-	std::cout << "MULTIMAPS: " << rt.getStorage().getAllMultimaps() << "\n";
-	std::cout << "TUPLEMAPS: " << rt.getStorage().getAllTuplemaps() << "\n";
+	std::cout << "\n🗄️  Persistent Storage Contents:\n";
+	rt.getStorage().stats(std::cout);
+	std::cout << std::endl;
 
 	// dump ontology spec if requested
 	if (settings.isSpecDump() && !used_schemas.empty()) {

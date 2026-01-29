@@ -18,6 +18,10 @@ if(NOT (CMAKE_GENERATOR STREQUAL "Ninja"
   )
 endif()
 
+# Custom options
+option(GTFS2RDF_FORCE_TIMING "Enable storage timing even in Release" OFF)
+
+
 # Default build type for single-config generators (Ninja)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -212,6 +216,30 @@ setup_warnings(gtfs_modules)
 # Executable (main)
 # ------------------------------------------------------------
 add_executable(gtfs2rdf src/gtfs2rdf.cpp)
+
+# set preprocessor definitions based on cl options
+target_compile_definitions(gtfs_modules PUBLIC
+  $<$<BOOL:${GTFS2RDF_FORCE_TIMING}>:GTFS2RDF_STORAGE_TIMING=1>
+)
+
+# ------------------------------------------------------------
+# Performance flags (Release only)
+# ------------------------------------------------------------
+function(enable_release_native target)
+  # GCC/Clang: -march=native nur in Release
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(${target} PRIVATE
+      $<$<CONFIG:Release>:-march=native>
+    )
+  endif()
+
+  # Optional: LTO/IPO in Release (oft spürbar)
+  set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+endfunction()
+
+enable_release_native(gtfs_modules)
+enable_release_native(gtfs2rdf)
+
 
 target_link_libraries(gtfs_modules
   PUBLIC
