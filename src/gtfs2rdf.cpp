@@ -147,12 +147,6 @@ int main(int argc, char *argv[]) {
 
 	std::cout << "🎉  Done.\n" + stats.briefPrint("Total GTFS Set") + "\n";
 
-	// print hole storage contents for debugging
-	// TODO: remove debug output later
-	std::cout << "\n🗄️  Persistent Storage Contents:\n";
-	rt.getStorage().stats(std::cout);
-	std::cout << std::endl;
-
 	// dump ontology spec if requested
 	if (settings.isSpecDump() && !used_schemas.empty()) {
 		std::filesystem::path specPath = settings.OutputPath();
@@ -167,6 +161,5 @@ int main(int argc, char *argv[]) {
 		}
 		std::cout << "📄  Wrote ontology spec to " << specPath << "\n";
 	}
-
 	return 0;
 }

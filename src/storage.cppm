@@ -31,11 +31,13 @@ using namespace util::misc;
 namespace storage {
 
 // timings for storage operations
+// TODO: inline this, since its only used in PersistentStorageSqlite
 struct StorageTimings {
 	uint64_t init_ns = 0;
 	uint64_t store_ns = 0;
 	uint64_t read_ns = 0;
 	uint64_t clear_ns = 0;
+	uint64_t clean_up_ns = 0;
 };
 
 struct MultiMapTable {
@@ -83,7 +85,7 @@ export class PersistentStorageSqlite {
 	const std::string db_dir_ = "./.tmp"; // path to temporary DB file directory
 
   public:
-	explicit PersistentStorageSqlite(double heap_mb = 500)
+	explicit PersistentStorageSqlite(double heap_mb)
 	    : heap_bytes_(static_cast<sqlite3_int64>(heap_mb) * 1024LL * 1024LL) {
 		// process-wide heap cap
 		sqlite3_hard_heap_limit64(heap_bytes_);
@@ -155,15 +157,26 @@ export class PersistentStorageSqlite {
 	}
 
 	~PersistentStorageSqlite() {
-		try {
-			flush();
-		} catch (...) {
-		}
-		finalise_all();
-		if (db_)
-			sqlite3_close(db_);
-		// delete temporary directory and file
-		std::filesystem::remove_all(db_path_.parent_path());
+#if GTFS2RDF_STORAGE_TIMING
+		stats();
+		{ // inner scope for timing
+			SCOPED_TIMER_NS(timings_.clean_up_ns);
+#endif
+			try {
+				flush();
+			} catch (...) {
+			}
+			finalise_all();
+
+			if (db_)
+				sqlite3_close(db_);
+			// delete temporary directory and file
+			std::filesystem::remove_all(db_path_.parent_path());
+#if GTFS2RDF_STORAGE_TIMING
+		} // closes inner scope for timing
+		std::cout << "  Cleanup time (deleting tmp db file etc.) [s]: "
+		          << timings_.clean_up_ns / 1e9 << "\n";
+#endif
 	}
 
 	// --- VARIABLES ---
@@ -480,12 +493,12 @@ export class PersistentStorageSqlite {
 		}
 	}
 
-	void stats(std::ostream &os) {
+	void stats() {
 		flush();
-
-		os << "[In-memory] Variables:\n";
-		util::operator<<(os, variables_);
-		os << "\n";
+		std::cout << "\n🗄️  Persistent Storage Contents:\n";
+		std::cout << "[In-memory] Variables:\n";
+		util::operator<<(std::cout, variables_);
+		std::cout << "\n";
 
 		auto count_table = [&](std::string_view tbl) -> sqlite3_int64 {
 			sqlite3_stmt *st = nullptr;
@@ -498,27 +511,27 @@ export class PersistentStorageSqlite {
 			return cnt;
 		};
 
-		os << "\n[SQLite] multimap counts by (ctx,name):\n";
+		std::cout << "\n[SQLite] multimap counts by (ctx,name):\n";
 		for (const auto &[tbl, T] : mm_tables_) {
-			os << "  [" << T.ctx << "] " << T.name << " : " << count_table(tbl) << "\n";
+			std::cout << "  [" << T.ctx << "] " << T.name << " : " << count_table(tbl) << "\n";
 		}
 
-		os << "\n[SQLite] tuplemap counts by (ctx,name):\n";
+		std::cout << "\n[SQLite] tuplemap counts by (ctx,name):\n";
 		for (const auto &[tbl, T] : tm_tables_) {
-			os << "  [" << T.ctx << "] " << T.name << " : " << count_table(tbl) << "\n";
+			std::cout << "  [" << T.ctx << "] " << T.name << " : " << count_table(tbl) << "\n";
 		}
 
 		std::error_code ec;
 		const auto db_size = std::filesystem::file_size(db_path_, ec);
 		if (!ec)
-			os << "\n[SQLite] approx DB size: " << db_size << " bytes\n";
+			std::cout << "\n[SQLite] approx DB size: " << db_size << " bytes\n";
 
 #if GTFS2RDF_STORAGE_TIMING
-		os << "\nTiming statistics:\n";
-		os << "  Initialization time [s]: " << timings_.init_ns / 1e9 << "\n";
-		os << "  Store time [s]: " << timings_.store_ns / 1e9 << "\n";
-		os << "  Read time [s]: " << timings_.read_ns / 1e9 << "\n";
-		os << "  Clear time [s]: " << timings_.clear_ns / 1e9 << "\n";
+		std::cout << "\nTiming statistics:\n";
+		std::cout << "  Initialization time [s]: " << timings_.init_ns / 1e9 << "\n";
+		std::cout << "  Store time [s]: " << timings_.store_ns / 1e9 << "\n";
+		std::cout << "  Read time [s]: " << timings_.read_ns / 1e9 << "\n";
+		std::cout << "  Clear time [s]: " << timings_.clear_ns / 1e9 << "\n";
 #endif
 	}
 

@@ -54,6 +54,28 @@ the resulting zip file
 (cd mock_data && zip romania_mock.zip stops.txt)
 ```
 
+### wkt Linestring ordering correctly retained
+
+To check, that a LINESTRING was computed in correct order
+note that this compares the LINESTRING corresponding to `shape_id = 1`
+
+```bash
+diff -u \
+  <(awk -F',' '
+     NR==1{for(i=1;i<=NF;i++){if($i=="shape_id")sid=i;if($i=="shape_pt_lon")lon=i;if($i=="shape_pt_lat")lat=i;if($i=="shape_pt_sequence")seq=i} next}
+     $sid=="1"{print $seq "\t" $lon "\t" $lat}
+   ' '../data/öv_de_shapes/shapes.txt' \
+   | sort -n -k1,1 \
+   | awk 'BEGIN{printf "LINESTRING("}{if(NR>1)printf ", "; printf "%s %s",$2,$3}END{print ")"}') \
+  <(awk '
+     $1=="gtfs2rdfgeom:shapes_1" && $2=="geo:asWKT" {
+       if (match($0, /"LINESTRING\([^"]*\)"/)) { print substr($0, RSTART+1, RLENGTH-2); exit }
+     }
+   ' 'öv_de_shapes.ttl')
+```
+
+
+
 ## Benchmarking
 
 For benchmarking, make sure to clear cashes to ensure comparability, using

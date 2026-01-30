@@ -516,11 +516,21 @@ export class Instruction {
 		return out_;
 	}
 
-	uint64_t getCount() const { return counter_; }
-	bool isValid() const { return is_valid_; }
-	const std::string &getRawInstruction() const { return raw_instruction_; }
-	const std::vector<Datagap> &getDatagaps() const { return datagaps_; }
-	std::vector<Datagap> &getModifiableDatagaps() { return datagaps_; }
+	uint64_t getCount() const {
+		return counter_;
+	}
+	bool isValid() const {
+		return is_valid_;
+	}
+	const std::string &getRawInstruction() const {
+		return raw_instruction_;
+	}
+	const std::vector<Datagap> &getDatagaps() const {
+		return datagaps_;
+	}
+	std::vector<Datagap> &getModifiableDatagaps() {
+		return datagaps_;
+	}
 };
 
 export class Schema {
@@ -720,34 +730,30 @@ export class Schema {
 		}
 	}
 
-	// // to be called after corresponding file has been fully processed
-	// void finalise() {
-	// 	// if an instruction used multimaps, finalise them now
-	// 	bool stored_multimaps = false;
-	// 	for (auto &instr : instructions_) {
-	// 		for (const auto &dg : instr.getDatagaps()) {
-	// 			if (dg.storage.kind == StorageKind::MultiMap) {
-	// 				stored_multimaps = true;
-	// 				break;
-	// 			}
-	// 		}
-	// 	}
-	// 	if (stored_multimaps) {
-	// 		rt_.getStorage().finalise_multimaps(name_);
-	// 		std::cout << "🗄️  Finalised multimaps for schema context '" << name_ << "'.\n";
-	// 	}
-	// }
-
 	// Getters
-	const std::string &getName() const { return name_; }
-	const std::vector<std::string> &getPossibleColumns() const { return possible_columns_; }
-	const std::unordered_map<std::string, std::string> &getPrefixes() const { return prefixes_; }
-	const std::unordered_map<std::string, int> &getColumnMap() const { return column_map_; }
-	std::vector<Instruction> &getInstructions() { return instructions_; }
-	const std::unordered_set<std::string> &getDependencies() const { return dependencies_; }
+	const std::string &getName() const {
+		return name_;
+	}
+	const std::vector<std::string> &getPossibleColumns() const {
+		return possible_columns_;
+	}
+	const std::unordered_map<std::string, std::string> &getPrefixes() const {
+		return prefixes_;
+	}
+	const std::unordered_map<std::string, int> &getColumnMap() const {
+		return column_map_;
+	}
+	std::vector<Instruction> &getInstructions() {
+		return instructions_;
+	}
+	const std::unordered_set<std::string> &getDependencies() const {
+		return dependencies_;
+	}
 
 	// Setters
-	void forbidStorageWrites() { allow_storage_writes_ = false; }
+	void forbidStorageWrites() {
+		allow_storage_writes_ = false;
+	}
 };
 
 // merge prefixes from multiple schemas into one map, checking for conflicts

@@ -28,6 +28,12 @@ using namespace util::misc;
 namespace runtime {
 
 export class Settings {
+  private:
+	// default parameters
+	const double READ_CHUNK_SIZE_DEFAULT = 10.0;
+	const double WRITE_CHUNK_SIZE_DEFAULT = 20.0;
+	const double STORAGE_BUFFER_SIZE_DEFAULT = 500.0;
+
   public:
 	// checks validity of command line arguments and sets settings accordingly
 
@@ -60,9 +66,10 @@ export class Settings {
 		    "write-buffer-size",
 		    "Write buffer size in MB (bigger = more RAM, fewer flushes)",
 		    cxxopts::value<double>()->default_value(std::to_string(WRITE_CHUNK_SIZE_DEFAULT)))(
-		    "grouping",
-		    "Enable grouping in schemas with buffer size in MB (0 = disabled)",
-		    cxxopts::value<double>()->default_value("0"));
+		    "storage-buffer-size",
+		    "Size in MB of RAM that may be allocated for persistent storage cache between GTFS "
+		    "files (more = faster, but more RAM)",
+		    cxxopts::value<double>()->default_value(std::to_string(STORAGE_BUFFER_SIZE_DEFAULT)));
 
 		opts.add_options("Diagnostics / advanced")(
 		    "spec-dump",
@@ -120,6 +127,15 @@ export class Settings {
 			write_buffer_size_mb_ = WRITE_CHUNK_SIZE_DEFAULT;
 		}
 
+		// storage buffer size
+		storage_buffer_size_mb_ = result["storage-buffer-size"].as<double>();
+		if (storage_buffer_size_mb_ < 0.0) {
+			std::cerr
+			    << "⚠️  Warning: storage buffer size must be non-negative. Using default value of "
+			    << STORAGE_BUFFER_SIZE_DEFAULT << " mb.\n";
+			storage_buffer_size_mb_ = STORAGE_BUFFER_SIZE_DEFAULT;
+		}
+
 		// input path
 		inputPath_ = result["dataset"].as<std::string>();
 		if (!std::filesystem::is_regular_file(inputPath_) || inputPath_.extension() != ".zip") {
@@ -137,26 +153,41 @@ export class Settings {
 	}
 
 	// GETTERs
-	bool isNTriplesOutput() const { return ntriples_output_; }
-	bool isDebugWarnings() const { return debug_warnings_; }
-	bool isSpecDump() const { return spec_dump_; }
-	double ReadBufferSizeMB() const { return read_buffer_size_mb_; }
-	double WriteBufferSizeMB() const { return write_buffer_size_mb_; }
-	bool isOverwriteOutput() const { return overwrite_output_; }
-	const std::filesystem::path &InputPath() const { return inputPath_; }
-	const std::filesystem::path &OutputPath() const { return outputPath_; }
+	bool isNTriplesOutput() const {
+		return ntriples_output_;
+	}
+	bool isDebugWarnings() const {
+		return debug_warnings_;
+	}
+	bool isSpecDump() const {
+		return spec_dump_;
+	}
+	double ReadBufferSizeMB() const {
+		return read_buffer_size_mb_;
+	}
+	double WriteBufferSizeMB() const {
+		return write_buffer_size_mb_;
+	}
+	double StorageBufferSizeMB() const {
+		return storage_buffer_size_mb_;
+	}
+	bool isOverwriteOutput() const {
+		return overwrite_output_;
+	}
+	const std::filesystem::path &InputPath() const {
+		return inputPath_;
+	}
+	const std::filesystem::path &OutputPath() const {
+		return outputPath_;
+	}
 
   private:
-	// TODO: move this to top
-	// default parameters
-	const double READ_CHUNK_SIZE_DEFAULT = 10.0;
-	const double WRITE_CHUNK_SIZE_DEFAULT = 20.0;
-
 	bool ntriples_output_;
 	bool debug_warnings_;
 	bool spec_dump_;
 	double read_buffer_size_mb_;
 	double write_buffer_size_mb_;
+	double storage_buffer_size_mb_;
 	bool overwrite_output_;
 
 	std::filesystem::path inputPath_;
@@ -168,14 +199,22 @@ export class RuntimeContainer {
   public:
 	RuntimeContainer(const Settings &settings, field_transforms::TransformRegistry &registry)
 	    : settings_(settings)
-	    , registry_(registry) {}
+	    , registry_(registry)
+	    , storage_(settings.StorageBufferSizeMB()) {
+	}
 
-	const Settings &getSettings() const { return settings_; }
-	field_transforms::TransformRegistry &getTransformRegistry() { return registry_; }
+	const Settings &getSettings() const {
+		return settings_;
+	}
+	field_transforms::TransformRegistry &getTransformRegistry() {
+		return registry_;
+	}
 	const field_transforms::TransformRegistry &getConstTransformRegistry() const {
 		return registry_;
 	}
-	storage::PersistentStorageSqlite &getStorage() { return storage_; }
+	storage::PersistentStorageSqlite &getStorage() {
+		return storage_;
+	}
 
   private:
 	const Settings &settings_;
