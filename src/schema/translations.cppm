@@ -38,53 +38,56 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer &rt) {
 	// hence ARGS[0]: table_name, ARGS[1]: field_name, ARGS[2]: field_value
 	// TODO: don't use if record_id exists since then translations can just be expressed from
 	// within this schema file directly without storage across schemas
-	TRANSFORM2MANY(get_translation, ARGS, OUT_VALS, STORAGE)
-	if (ARGS[0].empty() || ARGS[1].empty() || ARGS[2].empty())
-		return;
-	for (const auto &tup : STORAGE.get_tuples(
-	         "translations.txt", "translations_by_value", {ARGS[0], ARGS[1], ARGS[2]})) {
-		OUT_VALS.emplace_back(tup[0]);
-		// this is a fairly hacky way to store the latest language used for translation
-		// so that the language tag can be set correctly in the triple later
-		// by adding {latest_translation_lookup@translations.txt} in the language field
-		STORAGE.store_variable("translations.txt", "latest_translation_lookup", tup[1]);
+	TRANSFORM2MANY(get_translation, ARGS, OUT_VALS, STORAGE) {
+		if (ARGS[0].empty() || ARGS[1].empty() || ARGS[2].empty())
+			return;
+		for (const auto &tup : STORAGE.get_tuples(
+		         "translations.txt", "translations_by_value", {ARGS[0], ARGS[1], ARGS[2]})) {
+			OUT_VALS.emplace_back(tup[0]);
+			// this is a fairly hacky way to store the latest language used for translation
+			// so that the language tag can be set correctly in the triple later
+			// by adding {latest_translation_lookup@translations.txt} in the language field
+			STORAGE.store_variable("translations.txt", "latest_translation_lookup", tup[1]);
+		}
 	}
 	TRANSFORM_END
 
 	// turn snake_case into camelCase (e.g. for stop_name -> stopName)
 	// with this translations by record_id can be easily created in this schema file
 	// TODO: move to lib?
-	TRANSFORM2ONE(capitalise_underscored, ARGS, OUT_VAL, STORAGE)
-	if (ARGS[0].empty())
-		return;
-	auto parts = util::split(ARGS[0], '_');
+	TRANSFORM2ONE(capitalise_underscored, ARGS, OUT_VAL, STORAGE) {
+		if (ARGS[0].empty())
+			return;
+		auto parts = util::split(ARGS[0], '_');
 
-	bool first_part = true;
-	for (auto &p : parts) {
-		unsigned char c0 = static_cast<unsigned char>(p[0]);
+		bool first_part = true;
+		for (auto &p : parts) {
+			unsigned char c0 = static_cast<unsigned char>(p[0]);
 
-		// first chunk: lowerCamel (lowercase first letter), later chunks: UpperCamel (uppercase
-		// first letter)
-		if (first_part) {
-			OUT_VAL.push_back(std::isalpha(c0) ? static_cast<char>(std::tolower(c0))
-			                                   : static_cast<char>(c0));
-			first_part = false;
-		} else {
-			OUT_VAL.push_back(std::isalpha(c0) ? static_cast<char>(std::toupper(c0))
-			                                   : static_cast<char>(c0));
-		}
+			// first chunk: lowerCamel (lowercase first letter), later chunks: UpperCamel (uppercase
+			// first letter)
+			if (first_part) {
+				OUT_VAL.push_back(std::isalpha(c0) ? static_cast<char>(std::tolower(c0))
+				                                   : static_cast<char>(c0));
+				first_part = false;
+			} else {
+				OUT_VAL.push_back(std::isalpha(c0) ? static_cast<char>(std::toupper(c0))
+				                                   : static_cast<char>(c0));
+			}
 
-		for (size_t i = 1; i < p.size(); ++i) {
-			unsigned char c = static_cast<unsigned char>(p[i]);
-			OUT_VAL.push_back(static_cast<char>(std::tolower(c)));
+			for (size_t i = 1; i < p.size(); ++i) {
+				unsigned char c = static_cast<unsigned char>(p[i]);
+				OUT_VAL.push_back(static_cast<char>(std::tolower(c)));
+			}
 		}
 	}
 	TRANSFORM_END
 
-	TRANSFORM2ONE(filter_if_record_id_defined, ARGS, OUT_VAL, STORAGE)
-	(void)ARGS; // unused on purpose
-	if (STORAGE.get_variable("translations.txt", "is_record_id_defined").empty())
-		OUT_VAL = "1";
+	TRANSFORM2ONE(filter_if_record_id_defined, ARGS, OUT_VAL, STORAGE) {
+		(void)ARGS; // unused on purpose
+		if (STORAGE.get_variable("translations.txt", "is_record_id_defined").empty())
+			OUT_VAL = "1";
+	}
 	TRANSFORM_END
 
 	const std::vector<std::string> possible_columns = {"table_name",

@@ -30,24 +30,26 @@ namespace schema {
 // GTFS -> RDF schema for calendar_dates.txt
 export Schema buildCalendarDatesSchema(runtime::RuntimeContainer &rt) {
 	// args: date, exception_type
-	TRANSFORM2ONE(ignore_disabled_dates, ARGS, OUT_VAL, STORAGE)
-	if (ARGS[1] == "2") {
-		return; // exception_type 2 = removed -> ignore
-	} else if (ARGS[1] == "1") {
-		// exception_type 1 = added -> output date
-		OUT_VAL = ARGS[0];
-	} else {
-		throw std::runtime_error("❌  Transform error: invalid exception_type '" +
-		                         std::string(ARGS[1]) + "' in ignore_disabled_dates");
+	TRANSFORM2ONE(ignore_disabled_dates, ARGS, OUT_VAL, STORAGE) {
+		if (ARGS[1] == "2") {
+			return; // exception_type 2 = removed -> ignore
+		} else if (ARGS[1] == "1") {
+			// exception_type 1 = added -> output date
+			OUT_VAL = ARGS[0];
+		} else {
+			throw std::runtime_error("❌  Transform error: invalid exception_type '" +
+			                         std::string(ARGS[1]) + "' in ignore_disabled_dates");
+		}
 	}
 	TRANSFORM_END
 
 	// args: service_id, date, exception_type
-	TRANSFORM2ONE(is_disabled_date, ARGS, OUT_VAL, STORAGE)
-	if (ARGS[2] == "2") {
-		OUT_VAL = ARGS[1]; // output date
-	} else {
-		return; // leave empty
+	TRANSFORM2ONE(is_disabled_date, ARGS, OUT_VAL, STORAGE) {
+		if (ARGS[2] == "2") {
+			OUT_VAL = ARGS[1]; // output date
+		} else {
+			return; // leave empty
+		}
 	}
 	TRANSFORM_END
 

@@ -33,43 +33,45 @@ namespace schema {
 export Schema buildTripsSchema(runtime::RuntimeContainer &rt) {
 	// args: shape_id
 	// output: WKT linestring of all shape points for this shape_id
-	TRANSFORM2ONE(get_linestring, ARGS, OUT_VAL, STORAGE)
-	struct Row {
-		size_t seq;
-		std::string_view lon;
-		std::string_view lat;
-	};
+	TRANSFORM2ONE(get_linestring, ARGS, OUT_VAL, STORAGE) {
+		struct Row {
+			size_t seq;
+			std::string_view lon;
+			std::string_view lat;
+		};
 
-	// early exit if linestring for this shape_id was already created
-	if (STORAGE.contains_value("trips.txt", "created_linestrings", ARGS[0], "1"))
-		return;
+		// early exit if linestring for this shape_id was already created
+		if (STORAGE.contains_value("trips.txt", "created_linestrings", ARGS[0], "1"))
+			return;
 
-	// else create linestring and store that we created it
-	STORAGE.store_value("trips.txt", "created_linestrings", ARGS[0], "1");
-	const auto &seq_lon_lat_vec = STORAGE.get_tuples("shapes.txt", "shapes", ARGS[0]);
-	if (seq_lon_lat_vec.empty())
-		return;
+		// else create linestring and store that we created it
+		STORAGE.store_value("trips.txt", "created_linestrings", ARGS[0], "1");
+		const auto &seq_lon_lat_vec = STORAGE.get_tuples("shapes.txt", "shapes", ARGS[0]);
+		if (seq_lon_lat_vec.empty())
+			return;
 
-	// sort by sequence number to build correct linestrings
-	std::vector<Row> rows(seq_lon_lat_vec.size());
-	for (size_t i = 0; i < seq_lon_lat_vec.size(); ++i) {
-		const auto &seq_lon_lat = seq_lon_lat_vec[i];
-		std::from_chars(
-		    seq_lon_lat[0].data(), seq_lon_lat[0].data() + seq_lon_lat[0].size(), rows[i].seq);
-		rows[i].lon = seq_lon_lat[1];
-		rows[i].lat = seq_lon_lat[2];
-	}
-	std::sort(rows.begin(), rows.end(), [](const Row &a, const Row &b) { return a.seq < b.seq; });
-
-	// build WKT linestring
-	OUT_VAL = "LINESTRING(";
-	for (const auto &row : rows) {
-		if (OUT_VAL.back() != '(') {
-			OUT_VAL.append(", ");
+		// sort by sequence number to build correct linestrings
+		std::vector<Row> rows(seq_lon_lat_vec.size());
+		for (size_t i = 0; i < seq_lon_lat_vec.size(); ++i) {
+			const auto &seq_lon_lat = seq_lon_lat_vec[i];
+			std::from_chars(
+			    seq_lon_lat[0].data(), seq_lon_lat[0].data() + seq_lon_lat[0].size(), rows[i].seq);
+			rows[i].lon = seq_lon_lat[1];
+			rows[i].lat = seq_lon_lat[2];
 		}
-		OUT_VAL.append(row.lon).append(" ").append(row.lat);
+		std::sort(
+		    rows.begin(), rows.end(), [](const Row &a, const Row &b) { return a.seq < b.seq; });
+
+		// build WKT linestring
+		OUT_VAL = "LINESTRING(";
+		for (const auto &row : rows) {
+			if (OUT_VAL.back() != '(') {
+				OUT_VAL.append(", ");
+			}
+			OUT_VAL.append(row.lon).append(" ").append(row.lat);
+		}
+		OUT_VAL.append(")");
 	}
-	OUT_VAL.append(")");
 	TRANSFORM_END
 
 	const std::vector<std::string> possible_columns = {"route_id",

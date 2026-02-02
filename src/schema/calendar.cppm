@@ -34,27 +34,28 @@ namespace schema {
 
 // GTFS -> RDF schema for calendar.txt
 export Schema buildCalendarSchema(runtime::RuntimeContainer &rt) {
-
 	// Transform function to generate operating days string from weekday flags
 	// ignores disables dates from calendar_dates.txt
 	// Expects 10 arguments (Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday,
 	//                       start_date, end_date, service_id)
-	TRANSFORM2MANY(generate_dates, ARGS, OUT_VAL, STORAGE)
-	auto start_date = util::parseYYYYMMDD(ARGS[7]);
-	auto end_date = util::parseYYYYMMDD(ARGS[8]);
-	// loop through each day in the date range
-	for (auto current = start_date; current <= end_date; current += std::chrono::days{1}) {
-		std::chrono::weekday wd{current};
-		int wd_index = wd.c_encoding() % 7; // weekday index of current date
+	TRANSFORM2MANY(generate_dates, ARGS, OUT_VAL, STORAGE) {
+		auto start_date = util::parseYYYYMMDD(ARGS[7]);
+		auto end_date = util::parseYYYYMMDD(ARGS[8]);
+		// loop through each day in the date range
+		for (auto current = start_date; current <= end_date; current += std::chrono::days{1}) {
+			std::chrono::weekday wd{current};
+			int wd_index = wd.c_encoding() % 7; // weekday index of current date
 
-		if (ARGS[wd_index] == "1") {
-			// if the service operates on current, store date as "YYYY-MM-DD"
-			std::ostringstream oss;
-			oss << std::chrono::year_month_day{current};
-			auto date = oss.str();
-			// this is a quick lookup (log n) whether the date is disabled in calendar_dates.txt
-			if (!STORAGE.contains_value("calendar_dates.txt", "disabled_dates", ARGS[9], date)) {
-				OUT_VAL.push_back(date);
+			if (ARGS[wd_index] == "1") {
+				// if the service operates on current, store date as "YYYY-MM-DD"
+				std::ostringstream oss;
+				oss << std::chrono::year_month_day{current};
+				auto date = oss.str();
+				// this is a quick lookup (log n) whether the date is disabled in calendar_dates.txt
+				if (!STORAGE.contains_value(
+				        "calendar_dates.txt", "disabled_dates", ARGS[9], date)) {
+					OUT_VAL.push_back(date);
+				}
 			}
 		}
 	}

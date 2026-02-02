@@ -33,62 +33,64 @@ export Schema buildStopsSchema(runtime::RuntimeContainer &rt) {
 	// prints out enum string for location_type codes
 	// ARGS[0]: location_type code
 	// TODO: rework exception handling
-	TRANSFORM2ONE(loc2Enum, ARGS, OUT_VAL, STORAGE)
-	if (ARGS[0].size() != 1)
-		return;
-	char c = ARGS[0][0];
-	if (c < '0' || c > '4') {
-		throw std::runtime_error("❌ Transform error: Unknown location_type code: " +
-		                         std::string(ARGS[0]));
-	}
-	switch (c) {
-	case '0':
-		OUT_VAL = "stop";
-		break;
-	case '1':
-		OUT_VAL = "station";
-		break;
-	case '2':
-		OUT_VAL = "entrance_exit";
-		break;
-	case '3':
-		OUT_VAL = "generic_node";
-		break;
-	case '4':
-		OUT_VAL = "boarding_area";
-		break;
+	TRANSFORM2ONE(loc2Enum, ARGS, OUT_VAL, STORAGE) {
+		if (ARGS[0].size() != 1)
+			return;
+		char c = ARGS[0][0];
+		if (c < '0' || c > '4') {
+			throw std::runtime_error("❌ Transform error: Unknown location_type code: " +
+			                         std::string(ARGS[0]));
+		}
+		switch (c) {
+		case '0':
+			OUT_VAL = "stop";
+			break;
+		case '1':
+			OUT_VAL = "station";
+			break;
+		case '2':
+			OUT_VAL = "entrance_exit";
+			break;
+		case '3':
+			OUT_VAL = "generic_node";
+			break;
+		case '4':
+			OUT_VAL = "boarding_area";
+			break;
+		}
 	}
 	TRANSFORM_END
 
 	// builds WKT POINT(lon lat) from lon and lat strings
 	// ARGS[0]: longitude, ARGS[1]: latitude
 	// TODO: rework exception handling
-	TRANSFORM2ONE(wkt_point_lon_lat, ARGS, OUT_VAL, STORAGE)
-	if (ARGS[0].empty() || ARGS[1].empty())
-		return;
-	// convert to double
-	double lon = 0.0;
-	double lat = 0.0;
-	try {
-		lon = std::stod(std::string(ARGS[0]));
-		lat = std::stod(std::string(ARGS[1]));
-	} catch (...) {
-		throw std::runtime_error("❌ Transform error: invalid numeric lon/lat: '" +
-		                         std::string(ARGS[0]) + "', '" + std::string(ARGS[1]) + "'");
-	}
+	TRANSFORM2ONE(wkt_point_lon_lat, ARGS, OUT_VAL, STORAGE) {
+		if (ARGS[0].empty() || ARGS[1].empty())
+			return;
+		// convert to double
+		double lon = 0.0;
+		double lat = 0.0;
+		try {
+			lon = std::stod(std::string(ARGS[0]));
+			lat = std::stod(std::string(ARGS[1]));
+		} catch (...) {
+			throw std::runtime_error("❌ Transform error: invalid numeric lon/lat: '" +
+			                         std::string(ARGS[0]) + "', '" + std::string(ARGS[1]) + "'");
+		}
 
-	// basic range check
-	if (lon < -180.0 || lon > 180.0 || lat < -90.0 || lat > 90.0) {
-		throw std::runtime_error("❌ Transform error: lon/lat out of range: lon=" +
-		                         std::to_string(lon) + ", lat=" + std::to_string(lat));
-	}
+		// basic range check
+		if (lon < -180.0 || lon > 180.0 || lat < -90.0 || lat > 90.0) {
+			throw std::runtime_error("❌ Transform error: lon/lat out of range: lon=" +
+			                         std::to_string(lon) + ", lat=" + std::to_string(lat));
+		}
 
-	// build WKT POINT(lon lat)
-	OUT_VAL.append("POINT(");
-	OUT_VAL.append(std::to_string(lon));
-	OUT_VAL.push_back(' ');
-	OUT_VAL.append(std::to_string(lat));
-	OUT_VAL.push_back(')');
+		// build WKT POINT(lon lat)
+		OUT_VAL.append("POINT(");
+		OUT_VAL.append(std::to_string(lon));
+		OUT_VAL.push_back(' ');
+		OUT_VAL.append(std::to_string(lat));
+		OUT_VAL.push_back(')');
+	}
 	TRANSFORM_END
 
 	// Possible columns in stops.txt
