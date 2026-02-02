@@ -7,6 +7,9 @@
 // See the LICENSE file in the project root for the full license text.
 
 module;
+
+#include "makros.h"
+
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
@@ -23,7 +26,7 @@ export module gtfs_parser;
 
 import util;
 import schema;
-import rdf_writer;
+import writer;
 import runtime;
 
 using namespace util;
@@ -61,9 +64,15 @@ export class GTFSParser_Workspace {
 		read_buffer_.resize(read_buffer_capacity_);
 	}
 
-	std::vector<char> &getReadBuffer() { return read_buffer_; }
-	zip_uint64_t getReadBufferCapacity() { return read_buffer_capacity_; }
-	writer::Writer &getWriter() { return writer_; }
+	std::vector<char> &getReadBuffer() {
+		return read_buffer_;
+	}
+	zip_uint64_t getReadBufferCapacity() {
+		return read_buffer_capacity_;
+	}
+	writer::Writer &getWriter() {
+		return writer_;
+	}
 
 	GTFSParser_Workspace(const GTFSParser_Workspace &) = delete;
 	GTFSParser_Workspace &operator=(const GTFSParser_Workspace &) = delete;
@@ -74,8 +83,6 @@ export class GTFSParser_Workspace {
 
 export class GTFSParser {
   private:
-	using Clock = std::chrono::steady_clock;
-
 	const std::string filename_;
 	zip_file_t *file_;
 	schema::Schema &schema_;
@@ -95,24 +102,14 @@ export class GTFSParser {
 	size_t col_i_ = 0;    // current column index in row_ (data rows)
 
 	// statistics
-	runtime::Statistics stats_;
+	mutable runtime::Statistics stats_;
 
-	Clock::time_point parse_t0_{};
-	bool parse_running_ = false;
-
-	inline void parseTimerResume_() {
-		if (!parse_running_) {
-			parse_t0_ = Clock::now();
-			parse_running_ = true;
-		}
-	}
-
-	inline void parseTimerPause_() {
-		if (parse_running_) {
-			stats_.parse_s += std::chrono::duration<double>(Clock::now() - parse_t0_).count();
-			parse_running_ = false;
-		}
-	}
+#if GTFS2RDF_FULL_STATS
+	std::chrono::steady_clock::time_point start_time_;
+	std::chrono::steady_clock::time_point end_time_;
+	uint64_t parse_ns_tmp_ = 0; // temporary write time accumulator
+	mutable uint64_t conversion_ns_ = 0;
+#endif
 
 	inline void beginDataRow_IfNeeded_() {
 		// For data rows, ensure row_ has fixed width (already resized after header)
@@ -163,14 +160,21 @@ export class GTFSParser {
 				                         " columns, got " + std::to_string(col_i_) + ")");
 			}
 
-			// write this single row (writer buffers internally)
-			parseTimerPause_();
-			auto t0 = Clock::now();
+			// process first <sample_size> rows to extrapolate whole run stats
+			if (rt_.getSettings().isPreRun()) {
+				const auto sample = rt_.getSettings().getPreRunSampleSize();
 
-			// TODO: let writer take care of timing itself
-			writer_.convertRow(schema_, row_);
-			stats_.write_s += std::chrono::duration<double>(Clock::now() - t0).count();
-			parseTimerResume_();
+				if (stats_.rows < sample) {
+					auto &instrs = schema_.getInstructions();
+					for (auto &instr : instrs) {
+						SCOPED_TIMER_NS(conversion_ns_);
+						stats_.num_chars += instr.render(row_).size();
+					}
+				}
+			}
+
+			else
+				writer_.convertRow(schema_, row_);
 
 			stats_.rows += 1;
 
@@ -249,8 +253,11 @@ export class GTFSParser {
 	    , writer_(ws.getWriter())
 	    , rt_(rt)
 	    , read_buffer_(ws.getReadBuffer()) {
-		buffer_size_ = ws.getReadBufferCapacity();
+#if GTFS2RDF_FULL_STATS
+		writer_.resetTiming();
+#endif
 
+		buffer_size_ = ws.getReadBufferCapacity();
 		row_.clear();
 		cache_.clear();
 		cache_.reserve(256);
@@ -262,7 +269,10 @@ export class GTFSParser {
 	}
 
 	void parse() {
-		parseTimerResume_();
+#if GTFS2RDF_FULL_STATS
+		start_time_ = std::chrono::steady_clock::now();
+#endif
+
 		while (true) {
 			zip_int64_t n = zip_fread(file_, read_buffer_.data(), buffer_size_);
 			if (n < 0) {
@@ -278,15 +288,33 @@ export class GTFSParser {
 		}
 
 		flushRemainder_();
-		parseTimerPause_(); // stop timing parsing before stats post-processing
 
 		for (const auto &instr : schema_.getInstructions()) {
 			stats_.triples += instr.getCount();
 		}
+
+#if GTFS2RDF_FULL_STATS
+		end_time_ = std::chrono::steady_clock::now();
+		parse_ns_tmp_ +=
+		    (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(end_time_ - start_time_)
+		        .count();
+#endif
 	}
 
-	const runtime::Statistics &getStats() const { return stats_; }
-	std::string_view getFilename() const { return filename_; }
+	const runtime::Statistics &getStats() const {
+#if GTFS2RDF_FULL_STATS
+		if (!rt_.getSettings().isPreRun())
+			conversion_ns_ = writer_.getConversionTimeNS();
+		stats_.parse_ns = parse_ns_tmp_ - writer_.getWriteTimeNS() - conversion_ns_;
+		stats_.write_ns = writer_.getWriteTimeNS();
+		stats_.conversion_ns = conversion_ns_;
+#endif
+
+		return stats_;
+	}
+	std::string_view getFilename() const {
+		return filename_;
+	}
 };
 
 } // namespace gtfs

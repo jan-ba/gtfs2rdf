@@ -21,14 +21,14 @@ cmake --build build-debug -j
 
 ```
 
-### Release but with timing enabled
-
+### Release but with all stats enabled
+-DCMAKE_CXX_COMPILER=clang++-18 \
 ```bash
-cmake -S . -B build-release-timing -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
+cmake -S . -B build-release-stats -G Ninja \
   -DCMAKE_CXX_COMPILER=clang++-18 \
-  -DGTFS2RDF_FORCE_TIMING=ON
-cmake --build build-release-timing -j
+  -DCMAKE_BUILD_TYPE=Release \
+  -DGTFS2RDF_FULL_STATS=ON
+cmake --build build-release-stats -j
 ```
 
 *Note:* Add build option ```-DCMAKE_EXPORT_COMPILE_COMMANDS=ON``` in order to use clang-tidy afterwards.

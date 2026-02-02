@@ -35,17 +35,23 @@ typename MapType::mapped_type &get_or_insert(MapType &map, std::string_view key)
 
 // RAII timer that accumulates elapsed nanoseconds into passed acc
 struct ScopedTimerNS {
-	uint64_t &acc;
+	uint64_t *acc;
 	std::chrono::steady_clock::time_point t0;
 
 	explicit ScopedTimerNS(uint64_t &a)
+	    : acc(&a)
+	    , t0(std::chrono::steady_clock::now()) {
+	}
+
+	explicit ScopedTimerNS(uint64_t *a)
 	    : acc(a)
-	    , t0(std::chrono::steady_clock::now()) {}
+	    , t0(std::chrono::steady_clock::now()) {
+	}
 
 	~ScopedTimerNS() {
-		acc += (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
-		           std::chrono::steady_clock::now() - t0)
-		           .count();
+		*acc += (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
+		            std::chrono::steady_clock::now() - t0)
+		            .count();
 	}
 };
 

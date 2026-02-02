@@ -34,7 +34,6 @@ namespace schema {
 // GTFS -> RDF schema for translations.txt
 // -----------------------------------------------------------------------------
 export Schema buildTranslationsSchema(runtime::RuntimeContainer &rt) {
-
 	// to be used when trying to find translations by field value
 	// hence ARGS[0]: table_name, ARGS[1]: field_name, ARGS[2]: field_value
 	// TODO: don't use if record_id exists since then translations can just be expressed from
@@ -107,16 +106,15 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer &rt) {
 	    // store whether record_id is defined in variable
 	    "{ record_id > is_record_id_defined}",
 
+	    // TODO: this is not implemented in other schemas
+	    "{ table_name , field_name, record_id : translation, language "
+	    " > translations_by_record@translations.txt }",
+
 	    "{ table_name, field_name , field_value: (translation, language)"
 	    " | filter_if_record_id_defined@translations.txt > translations_by_value@translations.txt "
 	    "}"};
 
-	const std::vector<Triple> triples = {// produces translation triple when record_id is present
-	                                     {{"{table_name}", "{record_id}"},
-	                                      {"gtfs", "{field_name | capitalise_underscored}"},
-	                                      {"{translation}", "{language}"}}
-
-	};
+	const std::vector<Triple> triples = {};
 
 	Schema sc(
 	    "translations.txt", possible_columns, prefixes, triples, storage_only_instructions, rt);

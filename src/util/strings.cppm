@@ -3,7 +3,9 @@ module;
 #include <algorithm>
 #include <cctype>
 #include <chrono>
-#include <sstream>
+#include <cmath>
+#include <cstdint>
+#include <iomanip>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -22,26 +24,41 @@ struct string_hash {
 	size_t operator()(std::string_view sv) const noexcept {
 		return std::hash<std::string_view>{}(sv);
 	}
-	size_t operator()(const std::string &s) const noexcept { return (*this)(std::string_view{s}); }
+	size_t operator()(const std::string &s) const noexcept {
+		return (*this)(std::string_view{s});
+	}
 	// size_t operator()(const char* s) const noexcept {
 	//   return (*this)(std::string_view{s}); // assumes null-terminated
 	// }
 };
 
-// parse string in format "YYYYMMDD" into chrono::sys_days
-std::chrono::sys_days parseYYYYMMDD(const std::string &s) {
-	std::istringstream ss(s);
-	std::chrono::sys_days dp{};
-	ss >> std::chrono::parse("%Y%m%d", dp);
-	return dp;
+// parses a date string in 'YYYYMMDD' format into a sys_days object
+std::chrono::sys_days parseYYYYMMDD(std::string_view sv) {
+	if (sv.size() != 8) {
+		throw std::runtime_error("❌  Error: invalid date string format, expected 'YYYYMMDD'");
+	}
+	for (char c : sv) {
+		if (c < '0' || c > '9') {
+			throw std::runtime_error("❌  Error: invalid date string format, expected 'YYYYMMDD'");
+		}
+	}
+
+	const char *p = sv.data();
+
+	int y = (p[0] - '0') * 1000 + (p[1] - '0') * 100 + (p[2] - '0') * 10 + (p[3] - '0');
+	unsigned char m = (p[4] - '0') * 10 + (p[5] - '0');
+	unsigned char d = (p[6] - '0') * 10 + (p[7] - '0');
+
+	return std::chrono::sys_days{std::chrono::year{y} / std::chrono::month{m} /
+	                             std::chrono::day{d}};
 }
 
 // splits a string by a given delimiter character
-std::vector<std::string> split(const std::string &str, const char delimiter) {
+std::vector<std::string> split(std::string_view sv, const char delimiter) {
 	std::vector<std::string> tokens;
 	std::string current;
 
-	for (char c : str) {
+	for (char c : sv) {
 		if (c == delimiter) {
 			tokens.push_back(current);
 			current.clear();
@@ -64,13 +81,13 @@ void remove_ws(std::string &str) {
 }
 
 // removes whitespace outside of quoted substrings
-std::string remove_ws_outside_quotes(std::string_view str) {
+std::string remove_ws_outside_quotes(std::string_view sv) {
 	std::string out;
-	out.reserve(str.size());
+	out.reserve(sv.size());
 	bool in_q = false;
-	for (size_t i = 0; i < str.size(); ++i) {
-		char c = str[i];
-		if (c == '"' && (i == 0 || str[i - 1] != '\\'))
+	for (size_t i = 0; i < sv.size(); ++i) {
+		char c = sv[i];
+		if (c == '"' && (i == 0 || sv[i - 1] != '\\'))
 			in_q = !in_q;
 		if (!in_q && std::isspace((unsigned char)c))
 			continue;
@@ -79,65 +96,13 @@ std::string remove_ws_outside_quotes(std::string_view str) {
 	return out;
 }
 
-// returns a concatenation string of a vector of strings
-std::string concat(const std::vector<std::string> &vec, const std::string &delimiter = "") {
-	std::string result;
-	for (size_t i = 0; i < vec.size(); ++i) {
-		result += vec[i];
-		if (i < vec.size() - 1) {
-			result += delimiter;
-		}
-	}
-	return result;
-}
-
-// returns all occurences of substrings that are enclosed between 'start_delim' and 'end_delim'
-// throws an error if delimiters are unbalanced
-// invariant: nested delimiters are not supported
-std::vector<std::string> extract_enclosed_substrings(const std::string &str,
-                                                     const std::string &start_delim,
-                                                     const std::string &end_delim) {
-	std::vector<std::string> results;
-
-	// if there is an end delimiter but no start delimiter at all -> unbalanced
-	if (str.find(end_delim) != std::string::npos && str.find(start_delim) == std::string::npos) {
-		throw std::runtime_error("❌  Error: unbalanced delimiters in string: " + str);
-	}
-
-	size_t start_search = 0;
-	size_t last_consumed = 0;
-
-	while (true) {
-		size_t pos = str.find(start_delim, start_search);
-		if (pos == std::string::npos)
-			break;
-
-		size_t end = str.find(end_delim, pos + start_delim.size());
-		if (end == std::string::npos) {
-			throw std::runtime_error("❌  Error: unbalanced delimiters in string: " + str);
-		}
-
-		results.push_back(str.substr(pos + start_delim.size(), end - (pos + start_delim.size())));
-
-		last_consumed = end + end_delim.size();
-		start_search = last_consumed;
-	}
-
-	// any stray end delimiter after the last consumed block -> unbalanced
-	if (str.find(end_delim, last_consumed) != std::string::npos) {
-		throw std::runtime_error("❌  Error: unbalanced delimiters in string: " + str);
-	}
-
-	return results;
-}
-
 // finds the position of a delimiter character at the top level (not inside quotes or parentheses)
-size_t find_top_level(std::string_view s, char delimiter, size_t from = 0) {
+size_t find_top_level(std::string_view sv, char delimiter, size_t from = 0) {
 	bool in_q = false;
 	int paren = 0;
-	for (size_t i = from; i < s.size(); ++i) {
-		char c = s[i];
-		if (c == '"' && (i == 0 || s[i - 1] != '\\'))
+	for (size_t i = from; i < sv.size(); ++i) {
+		char c = sv[i];
+		if (c == '"' && (i == 0 || sv[i - 1] != '\\'))
 			in_q = !in_q;
 		if (in_q)
 			continue;
@@ -152,18 +117,18 @@ size_t find_top_level(std::string_view s, char delimiter, size_t from = 0) {
 }
 
 // splits a string by a given delimiter character only at the top level
-std::vector<std::string_view> split_top_level(std::string_view s, char delimiter) {
+std::vector<std::string_view> split_top_level(std::string_view sv, char delimiter) {
 	std::vector<std::string_view> out;
 	size_t start = 0;
-	while (start <= s.size()) {
-		size_t pos = find_top_level(s, delimiter, start);
+	while (start <= sv.size()) {
+		size_t pos = find_top_level(sv, delimiter, start);
 		if (pos == std::string_view::npos) {
-			auto tok = s.substr(start);
+			auto tok = sv.substr(start);
 			if (!tok.empty())
 				out.push_back(tok);
 			break;
 		}
-		auto tok = s.substr(start, pos - start);
+		auto tok = sv.substr(start, pos - start);
 		if (!tok.empty())
 			out.push_back(tok);
 		start = pos + 1;
@@ -172,12 +137,12 @@ std::vector<std::string_view> split_top_level(std::string_view s, char delimiter
 }
 
 // splits a string once at the top level by a given delimiter character into a pair
-std::pair<std::string_view, std::string_view> split_once_top_level(std::string_view s,
+std::pair<std::string_view, std::string_view> split_once_top_level(std::string_view sv,
                                                                    char delimiter) {
-	size_t pos = find_top_level(s, delimiter, 0);
+	size_t pos = find_top_level(sv, delimiter, 0);
 	if (pos == std::string_view::npos)
-		return {s, std::string_view{}};
-	return {s.substr(0, pos), s.substr(pos + 1)};
+		return {sv, std::string_view{}};
+	return {sv.substr(0, pos), sv.substr(pos + 1)};
 }
 
 // removes surrounding quotes and unescapes minimal escape sequences, meaning \" and \\ will
@@ -204,15 +169,113 @@ std::string unquote(std::string_view tok) {
 	return std::string(tok);
 }
 
-// splits a string at the first occurrence of a delimiter character
-std::pair<std::string_view, std::string_view> split_at(std::string_view s, char delimiter) {
-	size_t pos = s.find(delimiter);
-	if (pos == std::string_view::npos)
-		return {s, {}};
-	return {s.substr(0, pos), s.substr(pos + 1)};
+// encloses a string in char1 from left and char2 from right
+std::string enclose(std::string_view sv, char char1, char char2) {
+	std::string out;
+	out.reserve(2 + sv.size());
+	out.push_back(char1);
+	out.append(sv);
+	out.push_back(char2);
+	return out;
 }
 
-bool is_gtfs_file_char(char c) { return std::isalpha(static_cast<unsigned char>(c)) || c == '_'; };
+enum class UnitType { Counts, Sizes, Time };
+
+// formats a large integer value into a human-readable string with units
+// - counts: "", k, M, B, T, P, E (base 1000)
+// - sizes : B, kB, MB, GB, TB, PB, EB (base 1000)
+// - time  : ns, µs, ms, s, min, h, d
+std::string fmt_suffix_padded(uint64_t v, UnitType unit_type) {
+	struct Unit {
+		const char *s;
+		long double div;
+	};
+
+	static constexpr Unit counts_units[] = {
+	    {"", 1.0L},
+	    {"k", 1e3L},
+	    {"M", 1e6L},
+	    {"B", 1e9L},
+	    {"T", 1e12L},
+	    {"P", 1e15L},
+	    {"E", 1e18L},
+	};
+
+	static constexpr Unit size_units[] = {
+	    {"B", 1.0L},
+	    {"kB", 1e3L},
+	    {"MB", 1e6L},
+	    {"GB", 1e9L},
+	    {"TB", 1e12L},
+	    {"PB", 1e15L},
+	    {"EB", 1e18L},
+	};
+
+	static constexpr Unit time_units[] = {
+	    {"ns", 1.0L},
+	    {"µs", 1e3L},
+	    {"ms", 1e6L},
+	    {"s", 1e9L},
+	    {"min", 60e9L},
+	    {"h", 3600e9L},
+	    {"d", 86400e9L},
+	};
+
+	constexpr int max_i = 6; // last valid index (E / EB)
+	const Unit *units = nullptr;
+	switch (unit_type) {
+	case UnitType::Counts:
+		units = counts_units;
+		break;
+	case UnitType::Sizes:
+		units = size_units;
+		break;
+	case UnitType::Time:
+		units = time_units;
+		break;
+	}
+
+	// pick largest unit where v >= div
+	int ui = 0;
+	for (int i = max_i; i >= 1; --i) {
+		if ((long double)v >= units[i].div) {
+			ui = i;
+			break;
+		}
+	}
+
+	long double scaled = (long double)v / units[ui].div;
+	long double rounded = std::round(scaled * 10.0L) / 10.0L; // 1 decimal
+
+	// if rounding pushed it to 1000.0, bump unit (e.g. 999.95k -> 1.0M)
+	if (ui < max_i && rounded >= 1000.0L) {
+		ui += 1;
+		scaled = (long double)v / units[ui].div;
+		rounded = std::round(scaled * 10.0L) / 10.0L;
+	}
+
+	std::ostringstream oss;
+	if (ui == 0) {
+		// plain integer for < 1000 (counts) or < 1000 B (sizes)
+		oss << v << units[ui].s; // note: counts adds "", sizes adds "B"
+	} else {
+		oss << std::fixed << std::setprecision(1) << (double)rounded << units[ui].s;
+	}
+
+	return oss.str();
+}
+
+// splits a string at the first occurrence of a delimiter character
+std::pair<std::string_view, std::string_view> split_at(std::string_view sv, char delimiter) {
+	size_t pos = sv.find(delimiter);
+	if (pos == std::string_view::npos)
+		return {sv, {}};
+	return {sv.substr(0, pos), sv.substr(pos + 1)};
+}
+
+bool is_gtfs_file_char(char c) {
+	return std::isalpha(static_cast<unsigned char>(c)) || c == '_';
+};
 
 bool valid_ctx_name(std::string_view ctx) {
 	// splits by '.' and checks that last part is "txt" and all chars are valid

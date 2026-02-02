@@ -52,8 +52,7 @@ struct Datagap {
 
 struct InstructionTemplate {
 	std::string raw;
-	std::vector<std::string>
-	    parts; // static parts between datagaps  TODO: could this be a string_view
+	std::vector<std::string> parts;       // static parts between datagaps
 	std::vector<PlaceholderSpec> phs;     // dynamic parts, one per each placeholder '{...}'
 	std::vector<RenderKind> render_kinds; // per placeholder in order
 	bool suppress_output = false;         // if true, do not write to file (only store internally)
@@ -231,7 +230,7 @@ export class Instruction {
 		out_.reserve(base_len_ + 256);
 	}
 
-	const std::string &render(std::span<const std::string> row) {
+	std::string_view render(std::span<const std::string> row) {
 		out_.clear();
 		out_.append(parts_[0]);
 
@@ -555,6 +554,9 @@ export class Schema {
 	    column_map_;                        // column name -> index in file, -1 if not found
 	std::vector<Instruction> instructions_; // computed instructions
 
+	std::vector<std::string> header_;
+	std::unordered_set<std::string> referenced_columns_;
+
   public:
 	Schema(const Schema &) = delete;
 	Schema &operator=(const Schema &) = delete;
@@ -665,6 +667,8 @@ export class Schema {
 							} else
 								dependencies_.insert(a.ctx);
 						}
+					} else if (a.kind == ArgKind::Column) {
+						referenced_columns_.insert(a.name);
 					}
 				}
 				// dependencies from transform ctx hints
@@ -699,6 +703,7 @@ export class Schema {
 
 	// set column map from header and build instructions_ once header from file has been read
 	void setHeader(const std::vector<std::string> &header) {
+		header_ = header;
 		instructions_.clear();
 		if (!compiled_)
 			compile();
@@ -748,6 +753,18 @@ export class Schema {
 	}
 	const std::unordered_set<std::string> &getDependencies() const {
 		return dependencies_;
+	}
+
+	std::vector<std::string> formatHeaderWithUnused() const {
+		std::vector<std::string> out;
+		for (const auto &col : header_) {
+			if (referenced_columns_.contains(col)) {
+				out.push_back(col);
+			} else {
+				out.push_back(enclose(col, '(', ')'));
+			}
+		}
+		return out;
 	}
 
 	// Setters

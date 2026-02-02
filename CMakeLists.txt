@@ -19,7 +19,7 @@ if(NOT (CMAKE_GENERATOR STREQUAL "Ninja"
 endif()
 
 # Custom options
-option(GTFS2RDF_FORCE_TIMING "Enable storage timing even in Release" OFF)
+option(GTFS2RDF_FULL_STATS "Enable storage timing even in Release" OFF)
 
 
 # Default build type for single-config generators (Ninja)
@@ -219,7 +219,7 @@ add_executable(gtfs2rdf src/gtfs2rdf.cpp)
 
 # set preprocessor definitions based on cl options
 target_compile_definitions(gtfs_modules PUBLIC
-  $<$<BOOL:${GTFS2RDF_FORCE_TIMING}>:GTFS2RDF_STORAGE_TIMING=1>
+  $<$<BOOL:${GTFS2RDF_FULL_STATS}>:GTFS2RDF_FULL_STATS=1>
 )
 
 # ------------------------------------------------------------

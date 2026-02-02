@@ -31,7 +31,6 @@ namespace schema {
 
 // GTFS -> RDF schema for trips.txt (covers common/optional fields)
 export Schema buildTripsSchema(runtime::RuntimeContainer &rt) {
-
 	// args: shape_id
 	// output: WKT linestring of all shape points for this shape_id
 	TRANSFORM2ONE(get_linestring, ARGS, OUT_VAL, STORAGE)
@@ -96,6 +95,7 @@ export Schema buildTripsSchema(runtime::RuntimeContainer &rt) {
 	    {"geo", "http://www.opengis.net/ont/geosparql#"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
 	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"gtfs2rdfgeom", "https://w3id.org/gtfs2rdf/geometry#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
 	const std::vector<Triple> triples = {

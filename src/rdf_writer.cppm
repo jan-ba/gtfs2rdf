@@ -8,6 +8,8 @@
 
 module;
 
+#include "makros.h"
+
 #include <cctype>
 #include <cstdio>
 #include <filesystem>
@@ -23,9 +25,10 @@ module;
 #include <unordered_map>
 #include <vector>
 
-export module rdf_writer;
+export module writer;
 import schema;
 import runtime;
+import util;
 
 using namespace schema;
 
@@ -33,17 +36,114 @@ using Rows = std::vector<std::vector<std::string>>;
 
 namespace writer {
 
-// RDF writer with buffered output
+// writer with buffered output
 // one instance per output file
 export class Writer {
+  public:
+	Writer(const std::filesystem::path &path,
+	       runtime::RuntimeContainer &rt,
+	       double buffer_size_mb,
+	       bool active = true)
+	    : rt_(rt)
+	    , threshold_(buffer_size_mb * 1024 * 1024)
+	    , active_(active) {
+		if (std::filesystem::exists(path)) {
+			if (!rt_.getSettings().isOverwriteOutput()) {
+				std::cerr << "❌  Write error: Output file '" << path.string()
+				          << "' already exists. To overwrite, enable the overwrite option.\n";
+				std::exit(1);
+			}
+		}
+		if (active_) {
+			file_ = std::fopen(path.string().c_str(), "wb");
+		} else {
+			file_ = nullptr; // discard output
+		}
+		if (active_ && !file_)
+			throw std::runtime_error("❌ Write error: Cannot open '" + path.string() +
+			                         "' for writing.");
+		buffer_.reserve(threshold_);
+	}
+
+	Writer(const std::filesystem::path &path, runtime::RuntimeContainer &rt, bool active = true)
+	    : Writer(path, rt, rt.getSettings().WriteBufferSizeMB(), active) {
+	}
+
+	void writePrefixes(const std::unordered_map<std::string, std::string> &map) {
+		SCOPED_TIMER_NS(write_ns_tmp_);
+
+		std::string out;
+		out.reserve(map.size() * 15); // rough estimate
+		for (const auto &[pfx, iri] : map) {
+			out.append("@prefix ").append(pfx).append(": <").append(iri).append("> .\n");
+		}
+		out.append("\n");
+		append_(out);
+	}
+
+	void writeRaw(std::string_view sv) {
+		SCOPED_TIMER_NS(write_ns_tmp_);
+
+		append_(std::string(sv));
+	}
+
+	// converts gtfs row according to given schema and appends to buffer
+	void convertRow(Schema &sc, const std::vector<std::string> &row) {
+		SCOPED_TIMER_NS(write_ns_tmp_);
+
+		auto &instructions = sc.getInstructions();
+
+		for (auto &instr : instructions) {
+			std::string_view rendered;
+			{ // timer scope
+				SCOPED_TIMER_NS(conversion_ns_);
+				rendered = instr.render(row);
+			}
+			append_(rendered);
+		}
+	}
+
+#if GTFS2RDF_FULL_STATS
+	uint64_t getWriteTimeNS() const {
+		return write_ns_tmp_ - conversion_ns_;
+	}
+
+	uint64_t getConversionTimeNS() const {
+		return conversion_ns_;
+	}
+
+	void resetTiming() {
+		write_ns_tmp_ = 0;
+		conversion_ns_ = 0;
+	}
+#endif
+
+	Writer(const Writer &) = delete;
+	Writer &operator=(const Writer &) = delete;
+
+	Writer(Writer &&) = delete;
+	Writer &operator=(Writer &&) = delete;
+
+	~Writer() {
+		flush_();
+		if (active_ && file_)
+			std::fclose(file_);
+	}
+
   private:
 	std::FILE *file_;
 	std::string buffer_;
 	const runtime::RuntimeContainer &rt_;
 	size_t threshold_;
+	const bool active_ = true; // whether this writer should actually write (or discard) data
 
-	void flush() {
-		if (buffer_.empty())
+#if GTFS2RDF_FULL_STATS
+	uint64_t write_ns_tmp_ = 0;
+	uint64_t conversion_ns_ = 0;
+#endif
+
+	void flush_() {
+		if (!active_ || buffer_.empty())
 			return;
 		size_t n = buffer_.size();
 		const char *d = buffer_.data();
@@ -57,61 +157,10 @@ export class Writer {
 		buffer_.clear();
 	}
 
-  public:
-	Writer(const std::filesystem::path &path, runtime::RuntimeContainer &rt, double buffer_size_mb)
-	    : rt_(rt)
-	    , threshold_(buffer_size_mb * 1024 * 1024) {
-		if (std::filesystem::exists(path)) {
-			if (!rt_.getSettings().isOverwriteOutput()) {
-				std::cerr << "❌  Write error: Output file '" << path.string()
-				          << "' already exists. To overwrite, enable the overwrite option.\n";
-				std::exit(1);
-			}
-		}
-		file_ = std::fopen(path.string().c_str(), "wb");
-		if (!file_)
-			throw std::runtime_error("❌ Write error: Cannot open '" + path.string() +
-			                         "' for writing.");
-		buffer_.reserve(threshold_);
-	}
-
-	Writer(const std::filesystem::path &path, runtime::RuntimeContainer &rt)
-	    : Writer(path, rt, rt.getSettings().WriteBufferSizeMB()) {}
-
-	void writePrefixes(const std::unordered_map<std::string, std::string> &map) {
-		std::string out;
-		out.reserve(map.size() * 15); // rough estimate
-		for (const auto &[pfx, iri] : map) {
-			out.append("@prefix ").append(pfx).append(": <").append(iri).append("> .\n");
-		}
-		out.append("\n");
-		append(out);
-	}
-
-	void append(const std::string &s) {
-		buffer_.append(s.data(), s.size());
+	void append_(std::string_view sv) {
+		buffer_.append(sv.data(), sv.size());
 		if (buffer_.size() >= threshold_)
-			flush();
-	}
-
-	// converts gtfs row according to given schema and appends to buffer
-	void convertRow(Schema &sc, const std::vector<std::string> &row) {
-		auto &instructions = sc.getInstructions();
-		for (auto &instr : instructions) {
-			append(instr.render(row));
-		}
-	}
-
-	Writer(const Writer &) = delete;
-	Writer &operator=(const Writer &) = delete;
-
-	Writer(Writer &&) = delete;
-	Writer &operator=(Writer &&) = delete;
-
-	~Writer() {
-		flush();
-		if (file_)
-			std::fclose(file_);
+			flush_();
 	}
 };
 

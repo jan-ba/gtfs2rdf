@@ -176,7 +176,8 @@ export class IRI {
 
 	IRI()
 	    : prefix_("")
-	    , local_name_("") {}
+	    , local_name_("") {
+	}
 
 	// convert to template, which combines raw string with RenderKinds for its placeholders
 	TemplateString toTemplate(const std::unordered_map<std::string, std::string> &prefixes,
@@ -188,6 +189,9 @@ export class IRI {
 		// N-Triples: always use IRIREF <...>
 		if (ntriples) {
 			if (!prefix_.empty()) {
+				if (!prefixes.contains(prefix_)) {
+					throw std::runtime_error("❌  Error: unknown prefix '" + prefix_ + "' in IRI");
+				}
 				t.raw = "<" + prefixes.at(prefix_) + local_name_ + ">";
 				const size_t num_ph = _count_placeholders(local_name_);
 				if (num_ph)
@@ -239,20 +243,23 @@ export class Object {
 	// IRI
 	Object(const IRI &value)
 	    : type_(Type::IRI)
-	    , value_(value) {}
+	    , value_(value) {
+	}
 
 	// literal - only language tag (if any)
 	Object(const std::string &literal, const std::string &lang = "")
 	    : type_(Type::Literal)
 	    , value_(IRI("", literal))
 	    , datatype_(IRI())
-	    , lang_(lang) {}
+	    , lang_(lang) {
+	}
 
 	// literal - with datatype
 	Object(const std::string &literal, const IRI &datatype)
 	    : type_(Type::Literal)
 	    , value_(IRI("", literal))
-	    , datatype_(datatype) {}
+	    , datatype_(datatype) {
+	}
 
 	// convert to template, which combines raw string with RenderKinds for its placeholders
 	TemplateString toTemplate(const std::unordered_map<std::string, std::string> &prefixes,
@@ -321,7 +328,8 @@ export class Triple {
 	Triple(const IRI &subject, const IRI &predicate, const Object &object)
 	    : subject_(subject)
 	    , predicate_(predicate)
-	    , object_(object) {}
+	    , object_(object) {
+	}
 
 	TemplateString toTemplate(const std::unordered_map<std::string, std::string> &prefixes,
 	                          const runtime::RuntimeContainer &rt) const {

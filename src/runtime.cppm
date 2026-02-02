@@ -29,20 +29,22 @@ namespace runtime {
 
 export class Settings {
   private:
-	// default parameters
-	const double READ_CHUNK_SIZE_DEFAULT = 10.0;
-	const double WRITE_CHUNK_SIZE_DEFAULT = 20.0;
+	// default parameters, user-overridable via command line
+	const double READ_CHUNK_SIZE_DEFAULT = 80.0;
+	const double WRITE_CHUNK_SIZE_DEFAULT = 80.0;
 	const double STORAGE_BUFFER_SIZE_DEFAULT = 500.0;
+
+	// settings values
+	const size_t PRE_RUN_SAMPLE_SIZE = 100; // number of rows to sample per file in pre-run mode
 
   public:
 	// checks validity of command line arguments and sets settings accordingly
-
-	// TODO: add pre run: adds headers and compiles schemas (to see whether anything might throw)
-	// and also outputs a rough estimate of required RAM with settings used
 	Settings(int argc, char *argv[]) {
 		cxxopts::Options opts("gtfs2rdf",
 		                      "GTFS->RDF converter\n"
 		                      "Note: garbage in, garbage out. Validate your GTFS feed first.\n"
+		                      "A pre-run is recommended to validate schemas and estimate "
+		                      "requirements before conversion.\n"
 		                      "\n"
 		                      "Examples:\n"
 		                      "  gtfs2rdf feed.zip --format nt\n"
@@ -53,6 +55,11 @@ export class Settings {
 		opts.add_options("Standard")(
 		    "d,dataset", "Path to GTFS .zip archive", cxxopts::value<std::string>())(
 		    "o,output", "Output directory", cxxopts::value<std::string>()->default_value("."))(
+		    "pre-run",
+		    "Validate schemas, print file headers, and roughly estimate output size and estimated "
+		    "peak RAM usage without writing output. It is recommended to run this in combination "
+		    "with --spec-dump to get conversion details before actual conversion.",
+		    cxxopts::value<bool>()->default_value("false")->implicit_value("true"))(
 		    "format", "Output format: ttl|nt", cxxopts::value<std::string>()->default_value("ttl"))(
 		    "overwrite",
 		    "Overwrite existing output files.",
@@ -99,6 +106,9 @@ export class Settings {
 			std::cerr << "Input GTFS dataset required. Type --help for more information!\n";
 			std::exit(1);
 		}
+
+		// pre-run
+		pre_run_ = result["pre-run"].as<bool>();
 
 		// output format
 		std::string format = result["format"].as<std::string>();
@@ -153,6 +163,10 @@ export class Settings {
 	}
 
 	// GETTERs
+	bool isPreRun() const {
+		return pre_run_;
+	}
+
 	bool isNTriplesOutput() const {
 		return ntriples_output_;
 	}
@@ -171,6 +185,9 @@ export class Settings {
 	double StorageBufferSizeMB() const {
 		return storage_buffer_size_mb_;
 	}
+	double estimatedPeakRAMMB() const {
+		return 2 * (read_buffer_size_mb_ + write_buffer_size_mb_) + storage_buffer_size_mb_;
+	}
 	bool isOverwriteOutput() const {
 		return overwrite_output_;
 	}
@@ -179,6 +196,9 @@ export class Settings {
 	}
 	const std::filesystem::path &OutputPath() const {
 		return outputPath_;
+	}
+	size_t getPreRunSampleSize() const {
+		return PRE_RUN_SAMPLE_SIZE;
 	}
 
   private:
@@ -189,6 +209,7 @@ export class Settings {
 	double write_buffer_size_mb_;
 	double storage_buffer_size_mb_;
 	bool overwrite_output_;
+	bool pre_run_;
 
 	std::filesystem::path inputPath_;
 	std::filesystem::path outputPath_;
@@ -225,39 +246,67 @@ export class RuntimeContainer {
 // container for runtime statistics collected during GTFS processing
 export class Statistics {
   public:
+	std::string name;
 	uint32_t chunks = 0;
 	uint64_t rows = 0;
 	uint64_t triples = 0;
-	double parse_s = 0.;
-	double write_s = 0.;
 
-	std::string fancyPrint(const std::string &name) {
+#if GTFS2RDF_FULL_STATS
+	uint64_t parse_ns = 0;
+	uint64_t write_ns = 0;
+	uint64_t conversion_ns = 0;
+#endif
+
+	// pre-run only
+	std::vector<std::string> header;
+	uint64_t num_chars = 0;
+
+	Statistics() = default;
+
+	std::string fancyPrint() const {
 		std::ostringstream oss;
-		oss << "\n📊 Statistics for " << name << ":\n"
-		    << "  Chunks processed:  " << chunks << "\n"
-		    << "  Rows parsed:       " << rows << "\n"
-		    << "  Triples generated: " << triples << "\n"
-		    << "  Parse time:        " << std::fixed << std::setprecision(2) << parse_s << "s\n"
-		    << "  Write time:        " << std::fixed << std::setprecision(2) << write_s << "s\n"
-		    << "  Total time:        " << std::fixed << std::setprecision(2) << (parse_s + write_s)
-		    << "s\n";
+
+		oss << "\n--------------------------------------------------------------------\n";
+		oss << "📊 Statistics for " << name << "\n\n";
+
+		oss << "  Chunks processed:  " << chunks << "\n";
+		oss << "  Rows parsed:       " << rows << "\n";
+		oss << "  Triples generated: " << triples << "\n";
+
+#if GTFS2RDF_FULL_STATS
+		oss << "  Parse time:        " << fmt_suffix_padded(parse_ns, UnitType::Time) << "s\n";
+		oss << "  Write time:        " << fmt_suffix_padded(write_ns, UnitType::Time) << "s\n";
+		oss << "  Conversion time:   " << fmt_suffix_padded(conversion_ns, UnitType::Time) << "s\n";
+		oss << "  Total time:        "
+		    << fmt_suffix_padded(parse_ns + write_ns + conversion_ns, UnitType::Time) << "s\n";
+#endif
+
+		oss << "--------------------------------------------------------------------\n";
 		return oss.str();
 	}
 
-	std::string briefPrint(const std::string &name) {
+	std::string briefPrint() const {
 		std::ostringstream oss;
-		oss << "📈 " << name << ": " << rows << " rows, " << triples << " triples, " << std::fixed
-		    << std::setprecision(2) << parse_s << "s parse + " << write_s << "s write";
+		oss << "📈 " << name << ": " << rows << " rows, " << triples << " triples";
+#if GTFS2RDF_FULL_STATS
+		oss << ", " << fmt_suffix_padded(parse_ns, UnitType::Time) << " parse + "
+		    << fmt_suffix_padded(write_ns, UnitType::Time) << " write + "
+		    << fmt_suffix_padded(conversion_ns, UnitType::Time) << " convert";
+#endif
 		return oss.str();
 	}
 
 	Statistics operator+(const Statistics &other) const {
-		Statistics result;
-		result.chunks = chunks + other.chunks;
-		result.rows = rows + other.rows;
-		result.triples = triples + other.triples;
-		result.parse_s = parse_s + other.parse_s;
-		result.write_s = write_s + other.write_s;
+		Statistics result = *this;
+		result.chunks += other.chunks;
+		result.rows += other.rows;
+		result.triples += other.triples;
+#if GTFS2RDF_FULL_STATS
+		result.parse_ns += other.parse_ns;
+		result.write_ns += other.write_ns;
+		result.conversion_ns += other.conversion_ns;
+#endif
+		result.num_chars += other.num_chars;
 		return result;
 	}
 };

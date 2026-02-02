@@ -149,7 +149,7 @@ export class PersistentStorageSqlite {
 
 		exec_("PRAGMA foreign_keys = OFF;");
 
-#if GTFS2RDF_STORAGE_TIMING
+#if GTFS2RDF_FULL_STATS
 		const auto init_end = std::chrono::steady_clock::now();
 		timings_.init_ns +=
 		    std::chrono::duration_cast<std::chrono::nanoseconds>(init_end - init_start_).count();
@@ -157,7 +157,7 @@ export class PersistentStorageSqlite {
 	}
 
 	~PersistentStorageSqlite() {
-#if GTFS2RDF_STORAGE_TIMING
+#if GTFS2RDF_FULL_STATS
 		stats();
 		{ // inner scope for timing
 			SCOPED_TIMER_NS(timings_.clean_up_ns);
@@ -172,7 +172,7 @@ export class PersistentStorageSqlite {
 				sqlite3_close(db_);
 			// delete temporary directory and file
 			std::filesystem::remove_all(db_path_.parent_path());
-#if GTFS2RDF_STORAGE_TIMING
+#if GTFS2RDF_FULL_STATS
 		} // closes inner scope for timing
 		std::cout << "  Cleanup time (deleting tmp db file etc.) [s]: "
 		          << timings_.clean_up_ns / 1e9 << "\n";
@@ -493,12 +493,20 @@ export class PersistentStorageSqlite {
 		}
 	}
 
+	double get_heap_limit_mb() const {
+		return static_cast<double>(heap_bytes_) / (1024.0 * 1024.0);
+	}
+
 	void stats() {
 		flush();
-		std::cout << "\n🗄️  Persistent Storage Contents:\n";
-		std::cout << "[In-memory] Variables:\n";
+
+		std::cout << "\n--------------------------------------------------------------------\n";
+		std::cout << "🗄️  PERSISTENT STORAGE SUMMARY\n\n";
+
+		// In-memory
+		std::cout << "[In-memory] Variables\n";
 		util::operator<<(std::cout, variables_);
-		std::cout << "\n";
+		std::cout << "\n\n";
 
 		auto count_table = [&](std::string_view tbl) -> sqlite3_int64 {
 			sqlite3_stmt *st = nullptr;
@@ -511,28 +519,42 @@ export class PersistentStorageSqlite {
 			return cnt;
 		};
 
-		std::cout << "\n[SQLite] multimap counts by (ctx,name):\n";
+		// SQLite multimaps
+		std::cout << "[SQLite] Multimap counts (ctx, name)\n\n";
 		for (const auto &[tbl, T] : mm_tables_) {
-			std::cout << "  [" << T.ctx << "] " << T.name << " : " << count_table(tbl) << "\n";
+			std::cout << "• [" << T.ctx << "] " << T.name << "  rows=" << count_table(tbl) << "\n";
 		}
+		std::cout << "\n";
 
-		std::cout << "\n[SQLite] tuplemap counts by (ctx,name):\n";
+		// SQLite tuplemaps
+		std::cout << "[SQLite] Tuplemap counts (ctx, name)\n\n";
 		for (const auto &[tbl, T] : tm_tables_) {
-			std::cout << "  [" << T.ctx << "] " << T.name << " : " << count_table(tbl) << "\n";
+			std::cout << "• [" << T.ctx << "] " << T.name << "  rows=" << count_table(tbl) << "\n";
 		}
+		std::cout << "\n";
 
+		// DB size
 		std::error_code ec;
 		const auto db_size = std::filesystem::file_size(db_path_, ec);
-		if (!ec)
-			std::cout << "\n[SQLite] approx DB size: " << db_size << " bytes\n";
+		if (!ec) {
+			std::cout << "Summary\n"
+			          << "  approx DB size: " << db_size << " bytes\n\n";
+		}
 
-#if GTFS2RDF_STORAGE_TIMING
-		std::cout << "\nTiming statistics:\n";
-		std::cout << "  Initialization time [s]: " << timings_.init_ns / 1e9 << "\n";
-		std::cout << "  Store time [s]: " << timings_.store_ns / 1e9 << "\n";
-		std::cout << "  Read time [s]: " << timings_.read_ns / 1e9 << "\n";
-		std::cout << "  Clear time [s]: " << timings_.clear_ns / 1e9 << "\n";
+#if GTFS2RDF_FULL_STATS
+		// Timing block
+		std::cout << "Timing statistics\n"
+		          << "  initialization: " << std::fixed << std::setprecision(2)
+		          << timings_.init_ns / 1e9 << " s\n"
+		          << "  store:          " << std::fixed << std::setprecision(2)
+		          << timings_.store_ns / 1e9 << " s\n"
+		          << "  read:           " << std::fixed << std::setprecision(2)
+		          << timings_.read_ns / 1e9 << " s\n"
+		          << "  clear:          " << std::fixed << std::setprecision(2)
+		          << timings_.clear_ns / 1e9 << " s\n\n";
 #endif
+
+		std::cout << "--------------------------------------------------------------------\n";
 	}
 
   private:
@@ -540,7 +562,7 @@ export class PersistentStorageSqlite {
 
 	std::filesystem::path db_path_;
 
-#if GTFS2RDF_STORAGE_TIMING
+#if GTFS2RDF_FULL_STATS
 	const std::chrono::steady_clock::time_point init_start_ = std::chrono::steady_clock::now();
 	mutable StorageTimings timings_;
 #endif
