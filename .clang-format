@@ -37,3 +37,7 @@ MaxEmptyLinesToKeep: 1
 KeepEmptyLinesAtTheStartOfBlocks: false
 AllowShortFunctionsOnASingleLine: None
 AllowShortBlocksOnASingleLine: Never
+
+# Treat these macros like they open/close a scope for indentation.
+MacroBlockBegin: '(TRANSFORM2ONE|TRANSFORM2MANY)'
+MacroBlockEnd:   'TRANSFORM_END'
