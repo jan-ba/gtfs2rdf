@@ -23,60 +23,14 @@ export const int MaxArgs = 10; // expected maximum number of arguments for field
 // chaining transforms inside a single transform function for performance
 export const int MaxTransforms = 3;
 
-export class ArgSpan {
-  private:
-	const std::string *const *const data_;
-	const size_t size_ = 0;
-
-	struct Iterator {
-		const std::string *const *ptr_;
-		const std::string &operator*() const { return **ptr_; }
-		Iterator &operator++() {
-			++ptr_;
-			return *this;
-		}
-		bool operator!=(const Iterator &other) const { return ptr_ != other.ptr_; }
-	};
-
-  public:
-	ArgSpan(const std::string *const *data, size_t size)
-	    : data_(data)
-	    , size_(size) {}
-
-	size_t size() const { return size_; }
-
-	const std::string &operator[](size_t index) const {
-		if (index >= size_) {
-			throw std::out_of_range("❌ Transform error: Invalid index access to ArgSpan");
-		}
-		return *data_[index];
-	}
-
-	const std::string *const *data() const { return data_; }
-
-	// iterators
-	Iterator begin() const { return Iterator{data_}; }
-	Iterator end() const { return Iterator{data_ + size_}; }
-
-	// convenience print function for debugging
-	friend std::ostream &operator<<(std::ostream &os, const ArgSpan &span) {
-		os << "ArgSpan[";
-		for (size_t i = 0; i < span.size_; ++i) {
-			if (i > 0)
-				os << ", ";
-			os << *span.data_[i];
-		}
-		os << "]";
-		return os;
-	}
-};
+export using ArgSpan = std::span<const std::string_view>;
 
 export using Args = field_transforms::ArgSpan;
 export using Out1 = std::string;
 export using OutN = std::vector<std::string>;
 
-export using Transform2One = std::function<void(const Args &, Out1 &)>;
-export using Transform2Many = std::function<void(const Args &, OutN &)>;
+export using Transform2One = std::function<void(Args, Out1 &)>;
+export using Transform2Many = std::function<void(Args, OutN &)>;
 
 export enum class TransformKind { Single, Multi };
 

@@ -43,8 +43,8 @@ struct Datagap {
 
 	// transforms as functors
 	std::array<field_transforms::Transform, field_transforms::MaxTransforms> transforms;
-	bool contains_transf2n = false;
-	int transf2n_index = -1;
+	bool contains_transf2many = false;
+	size_t transf2many_index = 0;
 	StorageWriteSpec storage; // full storage spec
 
 	RenderKind render_kind = RenderKind::Raw; // how to render this placeholder
@@ -63,16 +63,12 @@ export class Instruction {
 	std::vector<std::string> parts_; // static parts between placeholders
 	std::vector<Datagap> datagaps_;  // bound placeholders
 
-	std::array<const std::string *, field_transforms::MaxArgs> arg_buf_;
-
-	std::vector<std::string_view>
-	    key_buf_sv_; // for storing views to keys of format (col1, col2, ...)
-	std::vector<std::string_view>
-	    tup_buf_sv_; // for storing views to tuple values of format (val1, val2, ...)
+	std::array<std::string_view, field_transforms::MaxArgs> arg_buf_;
 
 	size_t base_len_ = 0;
 	std::string out_;
 	static inline const std::string empty_ = "";
+	static inline constexpr std::string_view empty_sv_ = "";
 
 	uint64_t counter_ = 0;
 	bool is_valid_ = true;
@@ -80,42 +76,37 @@ export class Instruction {
 	runtime::RuntimeContainer &rt_;
 	const std::string raw_instruction_;
 
-	std::string tmp_a_; // temporary storage for transform outputs
-	std::string tmp_b_; // temporary swap storage
-	bool contains_transf2n_ = false;
-	RenderKind transf2n_render_kind_ = RenderKind::Raw;
-	std::vector<std::string> transf_buf_;
-	size_t transf2n_placeholder_index_ = 0;
+	std::string cur_;         // temporary storage for transform outputs
+	std::string_view cur_sv_; // view into 'cur_'
+	std::string next_;        // temporary swap storage
+
+	bool contains_transf2many_ = false;
+	RenderKind transf2many_render_kind_ = RenderKind::Raw;
+	std::vector<std::string> transf_buf_; // buffer for Transform2Many outputs
+	std::vector<std::string_view> transf_buf_sv_;
+	size_t transf2many_placeholder_index_ = 0;
 
 	bool suppress_output_ = false;
 
-	// helper: resolve an ArgSource to a string pointer for this row
-	const std::string *resolve_arg(const ArgSource &a, std::span<const std::string> row) {
+	// helper: resolve an ArgSource to a string_view for this row
+	std::string_view resolve_arg(const ArgSource &a, std::span<const std::string> row) {
 		switch (a.kind) {
 		case ArgSourceKind::ColumnIndex: {
-			if (a.column_index < 0)
-				return &empty_;
-			return &row[static_cast<size_t>(a.column_index)];
+			if (a.column_index < 0) {
+				return empty_sv_;
+			} else {
+				return row[a.column_index];
+			}
 		}
 		case ArgSourceKind::Literal: {
-			return &a.literal;
+			return a.literal;
 		}
 		case ArgSourceKind::StorageVar: {
 			const auto &v = rt_.getStorage().get_variable(a.ctx, a.name);
-			return &v;
+			return v;
 		}
 		}
-		return &empty_;
-	}
-
-	// helper: join key fields into a single string for MULTIMAP
-	// TODO: can this be outsourced to util?
-	std::string make_key_string(size_t key_arity) const {
-		std::string k;
-		for (size_t i = 0; i < key_arity; ++i) {
-			k.append(*arg_buf_[i]);
-		}
-		return k;
+		return empty_sv_;
 	}
 
   public:
@@ -186,14 +177,14 @@ export class Instruction {
 			for (size_t j = 0; j < ph.transforms.size(); ++j) {
 				dg.transforms[j] = ph.transforms[j].transform;
 				if (dg.transforms[j].kind == field_transforms::TransformKind::Multi) {
-					if (contains_transf2n_) {
+					if (contains_transf2many_) {
 						throw std::runtime_error(
 						    "❌  Error: only 1 Transform2Many allowed in total in instruction: " +
 						    tmpl.raw);
 					}
-					contains_transf2n_ = true;
-					dg.contains_transf2n = true;
-					dg.transf2n_index = static_cast<int>(j);
+					contains_transf2many_ = true;
+					dg.contains_transf2many = true;
+					dg.transf2many_index = j;
 				}
 			}
 
@@ -211,7 +202,7 @@ export class Instruction {
 			}
 
 			// some sanity checks
-			if (dg.storage.kind == StorageKind::Variable && dg.contains_transf2n) {
+			if (dg.storage.kind == StorageKind::Variable && dg.contains_transf2many) {
 				throw std::runtime_error(
 				    "❌  Error: cannot store Transform2Many output into a variable in: " +
 				    tmpl.raw);
@@ -233,95 +224,90 @@ export class Instruction {
 	std::string_view render(std::span<const std::string> row) {
 		out_.clear();
 		out_.append(parts_[0]);
-
-		std::string &cur = tmp_a_;
-		std::string &next = tmp_b_;
-		const std::string *cur_ptr = &cur;
-		field_transforms::ArgSpan span1{&cur_ptr, 1};
-		std::string_view cur_sv{};
+		cur_.clear();
+		next_.clear();
+		cur_sv_ = cur_;
+		field_transforms::ArgSpan span1{&cur_sv_, 1};
 
 		for (size_t k = 0; k < datagaps_.size(); ++k) {
 			Datagap &dg = datagaps_[k];
 
-			cur.clear();
-			next.clear();
+			cur_.clear();
+			next_.clear();
 
 			// resolve args to pointers
 			for (size_t j = 0; j < dg.num_args; ++j) {
-				const std::string *ptr = resolve_arg(dg.arg_sources[j], row);
-				arg_buf_[j] = ptr;
+				arg_buf_[j] = resolve_arg(dg.arg_sources[j], row);
 			}
 
 			// compute placeholder output (and possibly Transform2Many buffer)
 			if (dg.num_transforms > 0) {
 				field_transforms::ArgSpan spanN{arg_buf_.data(), dg.num_args};
-				if (dg.contains_transf2n) {
-					transf2n_render_kind_ = dg.render_kind;
+				if (dg.contains_transf2many) {
+					transf2many_render_kind_ = dg.render_kind;
 					transf_buf_.clear();
-					transf2n_placeholder_index_ = out_.size();
+					transf2many_placeholder_index_ = out_.size();
 
 					// apply transforms before the 2N
-					for (int i = 0; i < dg.transf2n_index; i++) {
-						cur_ptr = &cur;
+					for (size_t i = 0; i < dg.transf2many_index; i++) {
+						cur_sv_ = cur_;
 						if (i == 0) {
-							dg.transforms[i].single(spanN, next);
+							dg.transforms[i].single(spanN, next_);
 						} else {
-							dg.transforms[i].single(span1, next);
+							dg.transforms[i].single(span1, next_);
 						}
-						cur.swap(next);
-						next.clear();
+						cur_.swap(next_);
+						next_.clear();
 					}
 
-					cur_ptr = &cur;
+					cur_sv_ = cur_;
 
-					// run the 2N
-					if (dg.transf2n_index == 0) {
-						dg.transforms[dg.transf2n_index].multi(spanN, transf_buf_);
+					// run the Transform2Many
+					if (dg.transf2many_index == 0) {
+						dg.transforms[dg.transf2many_index].multi(spanN, transf_buf_);
 					} else {
-						dg.transforms[dg.transf2n_index].multi(span1, transf_buf_);
+						dg.transforms[dg.transf2many_index].multi(span1, transf_buf_);
 					}
 
 					// run remaining transforms elementwise on the produced vector
-					for (size_t i = static_cast<size_t>(dg.transf2n_index + 1);
-					     i < dg.num_transforms;
-					     i++) {
+					for (size_t i = dg.transf2many_index + 1; i < dg.num_transforms; i++) {
 						for (size_t buf_i = 0; buf_i < transf_buf_.size(); buf_i++) {
-							cur_ptr = &transf_buf_[buf_i];
-							dg.transforms[i].single(span1, next);
-							transf_buf_[buf_i].swap(next);
-							next.clear();
+							cur_sv_ = transf_buf_[buf_i];
+							dg.transforms[i].single(span1, next_);
+							transf_buf_[buf_i].swap(next_);
+							next_.clear();
 						}
 					}
 				} else { // no Transform2Many
-					dg.transforms[0].single(spanN, cur);
+					dg.transforms[0].single(spanN, cur_);
 
 					if (dg.num_transforms > 1) {
-						cur_ptr = &cur;
+						cur_sv_ = cur_;
 
 						for (size_t i = 1; i < dg.num_transforms; ++i) {
-							cur_ptr = &cur;
-							dg.transforms[i].single(span1, next);
-							cur.swap(next);
-							next.clear();
+							cur_sv_ = cur_;
+							dg.transforms[i].single(span1, next_);
+							cur_.swap(next_);
+							next_.clear();
 						}
 					}
 				}
-				cur_sv = cur;
+				cur_sv_ = cur_;
 
 			} else {
 				// no transforms:
 				// - non-keyed: placeholder output is arg0
 				// - keyed: placeholder output is the first VALUE field (right side), not key0
 				if (dg.storage.is_keyed()) {
-					cur_sv = *arg_buf_[dg.storage.key_arity];
+					cur_sv_ = arg_buf_[dg.storage.key_arity];
 				} else {
-					cur_sv = *arg_buf_[0];
+					cur_sv_ = arg_buf_[0];
 				}
 			}
 
 			// early exit: either transforms filter (empty output) or empty column or empty
 			// computed Transform2Many result which need not be rendered
-			if (!dg.contains_transf2n && cur_sv.empty())
+			if (!dg.contains_transf2many && cur_sv_.empty())
 				return empty_;
 
 			// --- side effects: storage write ---
@@ -331,114 +317,62 @@ export class Instruction {
 				if (dg.storage.mode == StoreMode::FilterStoreRaw) {
 					// filter predicate: non-empty transform output
 
-					if (!cur_sv.empty()) {
+					if (!cur_sv_.empty()) {
 						if (dg.storage.kind == StorageKind::MultiMap) {
-							std::string key = make_key_string(dg.storage.key_arity);
-							// value fields start after key_arity
-							const auto &v = *arg_buf_[dg.storage.key_arity + 0];
-							st.store_value(dg.storage.target_ctx, dg.storage.target_name, key, v);
+							st.store_value(dg.storage.target_ctx,
+							               dg.storage.target_name,
+							               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+							               arg_buf_[dg.storage.key_arity]);
 						} else if (dg.storage.kind == StorageKind::TupleMap) {
-							// std::vector<std::string> key;
-							// key.reserve(dg.storage.key_arity);
-							// for (size_t i = 0; i < dg.storage.key_arity; ++i)
-							// 	key.push_back(*arg_buf_[i]);
-
-							// std::vector<std::string> tup;
-							// tup.reserve(dg.storage.value_arity);
-							// for (size_t i = 0; i < dg.storage.value_arity; ++i) {
-							// 	tup.push_back(*arg_buf_[dg.storage.key_arity + i]);
-							// }
-							// st.store_tuple(dg.storage.target_ctx, dg.storage.target_name, key,
-							// tup);
-
-							// TODO: this block might be moved into a helper function
-							key_buf_sv_.clear();
-							key_buf_sv_.reserve(dg.storage.key_arity);
-							for (size_t i = 0; i < dg.storage.key_arity; ++i)
-								key_buf_sv_.push_back(*arg_buf_[i]);
-							tup_buf_sv_.clear();
-							tup_buf_sv_.reserve(dg.storage.value_arity);
-							for (size_t i = 0; i < dg.storage.value_arity; ++i) {
-								tup_buf_sv_.push_back(*arg_buf_[dg.storage.key_arity + i]);
-							}
 							st.store_tuple(dg.storage.target_ctx,
 							               dg.storage.target_name,
-							               key_buf_sv_,
-							               tup_buf_sv_);
+							               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+							               ArgSpan{arg_buf_.data() + dg.storage.key_arity,
+							                       dg.storage.value_arity});
 						} else if (dg.storage.kind == StorageKind::Variable) {
 							st.store_variable(
-							    dg.storage.target_ctx, dg.storage.target_name, *arg_buf_[0]);
+							    dg.storage.target_ctx, dg.storage.target_name, arg_buf_[0]);
 						}
 					}
 				} else if (dg.storage.mode == StoreMode::StoreRaw) {
 					// store RHS tuple directly, unconditionally
 
 					if (dg.storage.kind == StorageKind::MultiMap) {
-						std::string key = make_key_string(dg.storage.key_arity);
-						const auto &v = *arg_buf_[dg.storage.key_arity + 0];
-						st.store_value(dg.storage.target_ctx, dg.storage.target_name, key, v);
+						st.store_value(dg.storage.target_ctx,
+						               dg.storage.target_name,
+						               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+						               arg_buf_[dg.storage.key_arity]);
 					} else if (dg.storage.kind == StorageKind::TupleMap) {
-						// std::vector<std::string> key;
-						// key.reserve(dg.storage.key_arity);
-						// for (size_t i = 0; i < dg.storage.key_arity; ++i)
-						// 	key.push_back(*arg_buf_[i]);
-
-						// std::vector<std::string> tup;
-						// tup.reserve(dg.storage.value_arity);
-						// for (size_t i = 0; i < dg.storage.value_arity; ++i) {
-						// 	tup.push_back(*arg_buf_[dg.storage.key_arity + i]);
-						// }
-						// st.store_tuple(dg.storage.target_ctx, dg.storage.target_name, key, tup);
-
-						key_buf_sv_.clear();
-						key_buf_sv_.reserve(dg.storage.key_arity);
-						for (size_t i = 0; i < dg.storage.key_arity; ++i)
-							key_buf_sv_.push_back(*arg_buf_[i]);
-						tup_buf_sv_.clear();
-						tup_buf_sv_.reserve(dg.storage.value_arity);
-						for (size_t i = 0; i < dg.storage.value_arity; ++i) {
-							tup_buf_sv_.push_back(*arg_buf_[dg.storage.key_arity + i]);
-						}
 						st.store_tuple(dg.storage.target_ctx,
 						               dg.storage.target_name,
-						               key_buf_sv_,
-						               tup_buf_sv_);
+						               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+						               ArgSpan{arg_buf_.data() + dg.storage.key_arity,
+						                       dg.storage.value_arity});
 					}
 				} else {
 					// StoreComputed
-					if (dg.contains_transf2n) {
+					if (dg.contains_transf2many) {
 						if (!transf_buf_.empty()) {
-							// std::vector<std::string> key;
-							// key.reserve(dg.storage.key_arity);
-							// for (size_t i = 0; i < dg.storage.key_arity; ++i)
-							// 	key.push_back(*arg_buf_[i]);
-							// st.store_tuple(
-							//     dg.storage.target_ctx, dg.storage.target_name, key, transf_buf_);
-
-							key_buf_sv_.clear();
-							key_buf_sv_.reserve(dg.storage.key_arity);
-							for (size_t i = 0; i < dg.storage.key_arity; ++i)
-								key_buf_sv_.push_back(*arg_buf_[i]);
-							tup_buf_sv_.clear();
-							tup_buf_sv_.reserve(transf_buf_.size());
-							for (const auto &val : transf_buf_) {
-								tup_buf_sv_.push_back(val);
+							transf_buf_sv_.resize(transf_buf_.size());
+							for (size_t i = 0; i < transf_buf_.size(); i++) {
+								transf_buf_sv_[i] = transf_buf_[i];
 							}
 							st.store_tuple(dg.storage.target_ctx,
 							               dg.storage.target_name,
-							               key_buf_sv_,
-							               tup_buf_sv_);
+							               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+							               ArgSpan{transf_buf_sv_.data(), transf_buf_sv_.size()});
 						}
 					} else {
 						switch (dg.storage.kind) {
 						case StorageKind::Variable:
 							st.store_variable(
-							    dg.storage.target_ctx, dg.storage.target_name, cur_sv);
+							    dg.storage.target_ctx, dg.storage.target_name, cur_sv_);
 							break;
 						case StorageKind::MultiMap: {
-							std::string key = make_key_string(dg.storage.key_arity);
-							st.store_value(
-							    dg.storage.target_ctx, dg.storage.target_name, key, cur_sv);
+							st.store_value(dg.storage.target_ctx,
+							               dg.storage.target_name,
+							               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+							               cur_sv_);
 							break;
 						}
 						}
@@ -449,23 +383,23 @@ export class Instruction {
 			// --- output rendering ---
 			// suppress output for the whole instruction
 			if (!suppress_output_) {
-				if (!dg.contains_transf2n) {
+				if (!dg.contains_transf2many) {
 					switch (dg.render_kind) { // how to escape the placeholder
 					case RenderKind::IriRef:
-						percent_encode_iriref(out_, cur_sv);
+						percent_encode_iriref(out_, cur_sv_);
 						break;
 					case RenderKind::PrefixedLocal:
-						percent_encode_prefixed_local(out_, cur_sv);
+						percent_encode_prefixed_local(out_, cur_sv_);
 						break;
 					case RenderKind::Literal:
-						percent_encode_literal(out_, cur_sv);
+						percent_encode_literal(out_, cur_sv_);
 						break;
 					case RenderKind::LangTag:
-						out_.append(cur_sv); // language tags do not need escaping
+						out_.append(cur_sv_); // language tags do not need escaping
 						break;
 					case RenderKind::Raw:
 					default:
-						out_.append(cur_sv);
+						out_.append(cur_sv_);
 						break;
 					}
 				}
@@ -480,15 +414,15 @@ export class Instruction {
 		}
 
 		// replicate for Transform2Many
-		if (contains_transf2n_) {
-			std::string prefix = out_.substr(0, transf2n_placeholder_index_);
-			std::string suffix = out_.substr(transf2n_placeholder_index_);
+		if (contains_transf2many_) {
+			std::string prefix = out_.substr(0, transf2many_placeholder_index_);
+			std::string suffix = out_.substr(transf2many_placeholder_index_);
 			out_.clear();
 			for (const auto &val : transf_buf_) {
 				if (val.empty())
 					continue;
 				out_.append(prefix);
-				switch (transf2n_render_kind_) { // how to escape the placeholder
+				switch (transf2many_render_kind_) { // how to escape the placeholder
 				case RenderKind::IriRef:
 					percent_encode_iriref(out_, val);
 					break;

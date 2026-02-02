@@ -70,7 +70,9 @@ export struct StorageWriteSpec {
 	uint8_t extra_arity = 0;
 
 	// convenience
-	bool is_keyed() const { return kind == StorageKind::MultiMap || kind == StorageKind::TupleMap; }
+	bool is_keyed() const {
+		return kind == StorageKind::MultiMap || kind == StorageKind::TupleMap;
+	}
 };
 
 export struct TransformCallSpec {
@@ -88,7 +90,7 @@ export enum class ArgSourceKind { ColumnIndex, StorageVar, Literal };
 
 export struct ArgSource {
 	ArgSourceKind kind;
-	int column_index = -1; // ColumnIndex: if valid, index in CSV row
+	size_t column_index = -1; // ColumnIndex: if valid, index in CSV row
 	std::string literal;
 	std::string name; // StorageVar: variable name
 	std::string ctx;  // StorageVar: context name

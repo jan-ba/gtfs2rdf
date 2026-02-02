@@ -29,61 +29,63 @@ namespace t_lib {
 // if no value is given no output will be generated (empty string)
 // if the value is invalid, a runtime_error exception will be thrown  TODO: better exception type?
 
-export void is_int(const Args &args, Out1 &out) {
-	const std::string &s = args[0];
-	if (s.empty())
+export void is_int(Args args, Out1 &out) {
+	std::string_view sv = args[0];
+	if (sv.empty())
 		return;
 
 	int value = 0;
-	const char *first = s.data();
-	const char *last = first + s.size();
+	const char *first = sv.data();
+	const char *last = first + sv.size();
 
 	auto [ptr, ec] = std::from_chars(first, last, value);
 
 	if (ec == std::errc{} && ptr == last) {
-		out = s;
+		out = sv;
 		return;
 	} else {
-		throw std::runtime_error("❌ Faulty data: expected integer value, got '" + s + "'");
+		throw std::runtime_error("❌ Faulty data: expected integer value, got '" + std::string(sv) +
+		                         "'");
 	}
 }
 
 // TODO: rework
-export void is_decimal(const Args &args, Out1 &out) {
-	const std::string &s = args[0];
+export void is_decimal(Args args, Out1 &out) {
+	std::string_view sv = args[0];
 	auto fail = [&]() {
-		throw std::runtime_error("❌ Faulty data: expected decimal value, got '" + s + "'");
+		throw std::runtime_error("❌ Faulty data: expected decimal value, got '" + std::string(sv) +
+		                         "'");
 	};
 
-	if (s.empty()) {
+	if (sv.empty()) {
 		fail();
 	}
 
 	std::size_t i = 0;
 
 	// Optional sign
-	if (s[i] == '+' || s[i] == '-') {
+	if (sv[i] == '+' || sv[i] == '-') {
 		++i;
-		if (i == s.size()) {
+		if (i == sv.size()) {
 			// string was just "+" or "-" -> invalid
 			fail();
 		}
 	}
 
-	// Zero or more digits before the decimal point
-	while (i < s.size() && std::isdigit(static_cast<unsigned char>(s[i]))) {
+	// zero or more digits before the decimal point
+	while (i < sv.size() && (sv[i] >= '0' && sv[i] <= '9')) {
 		++i;
 	}
 
 	// Must have a '.'
-	if (i >= s.size() || s[i] != '.') {
+	if (i >= sv.size() || sv[i] != '.') {
 		fail();
 	}
 	++i; // skip '.'
 
 	// one or more digits after the decimal point
 	std::size_t digits_after_dot = 0;
-	while (i < s.size() && std::isdigit(static_cast<unsigned char>(s[i]))) {
+	while (i < sv.size() && (sv[i] >= '0' && sv[i] <= '9')) {
 		++digits_after_dot;
 		++i;
 	}
@@ -94,45 +96,45 @@ export void is_decimal(const Args &args, Out1 &out) {
 	}
 
 	// no trailing junk allowed
-	if (i != s.size()) {
+	if (i != sv.size()) {
 		fail();
 	}
 
-	out = s;
+	out = sv;
 }
 
 // _____________________________________________________________________________________________
 // convert GTFS date "YYYYMMDD" to xs:date "YYYY-MM-DD"
-export void convert_date(const Args &args, Out1 &out) {
-	const std::string &s = args[0];
-	if (s.empty()) {
+export void convert_date(Args args, Out1 &out) {
+	std::string_view sv = args[0];
+	if (sv.empty()) {
 		return; // leave empty
-	} else if (s.size() != 8) {
-		throw std::runtime_error("❌ Transform error: expected date in format YYYYMMDD, got '" + s +
-		                         "'");
+	} else if (sv.size() != 8) {
+		throw std::runtime_error("❌ Transform error: expected date in format YYYYMMDD, got '" +
+		                         std::string(sv) + "'");
 	}
-	out.append(s.substr(0, 4));
+	out.append(sv.substr(0, 4));
 	out.append("-");
-	out.append(s.substr(4, 2));
+	out.append(sv.substr(4, 2));
 	out.append("-");
-	out.append(s.substr(6, 2));
+	out.append(sv.substr(6, 2));
 }
 
 // convert GTFS time "H+:MM:SS" to xs:time "HH:MM:SS" by wrapping hours mod 24
 // GIGO: no validation of minutes/seconds
-export void convert_time(const Args &args, Out1 &out) {
-	const std::string &s = args[0];
-	if (s.empty())
+export void convert_time(Args args, Out1 &out) {
+	std::string_view sv = args[0];
+	if (sv.empty())
 		return; // no input, no output
 
 	// find first ':'
-	size_t p = s.find(':');
+	size_t p = sv.find(':');
 	if (p == std::string::npos)
 		return; // invalid format, return empty
 
 	int h = 0;
 	for (size_t i = 0; i < p; ++i) {
-		h = h * 10 + (s[i] - '0');
+		h = h * 10 + (sv[i] - '0');
 	}
 
 	int hh = h % 24;
@@ -140,7 +142,7 @@ export void convert_time(const Args &args, Out1 &out) {
 	// keep ":MM:SS" (or whatever follows) exactly as provided
 	out.append(hh < 10 ? "0" : "");
 	out.append(std::to_string(hh));
-	out.append(s.substr(p));
+	out.append(sv.substr(p));
 }
 
 export void register_lib_transforms(TransformRegistry &registry) {

@@ -16,16 +16,14 @@
   rt.getTransformRegistry().registerTransform(                                       \
     #NAME,                                                                           \
     field_transforms::Transform2One{                                                 \
-      [&](const field_transforms::Args& ARGS, field_transforms::Out1& OUT_VAL) -> void {     \
+      [&](field_transforms::Args ARGS, field_transforms::Out1& OUT_VAL) -> void {     \
         [[maybe_unused]] auto& STORAGE = rt.getStorage();
-
 #define TRANSFORM2MANY(NAME, ARGS, OUT_VALS, STORAGE)                                              \
   rt.getTransformRegistry().registerTransform(                                       \
     #NAME,                                                                           \
     field_transforms::Transform2Many{                                                   \
-      [&](const field_transforms::Args& ARGS, field_transforms::OutN& OUT_VALS) -> void { \
+      [&](field_transforms::Args ARGS, field_transforms::OutN& OUT_VALS) -> void {     \
         [[maybe_unused]] auto& STORAGE = rt.getStorage();
-
 #define TRANSFORM_END                                                                              \
 	}                                                                                              \
 	}                                                                                              \

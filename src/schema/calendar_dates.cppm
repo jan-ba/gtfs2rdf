@@ -27,34 +27,29 @@ using namespace rdf;
 
 namespace schema {
 
-void ignore_disabled_dates(const field_transforms::ArgSpan &args, std::string &out) {
+// GTFS -> RDF schema for calendar_dates.txt
+export Schema buildCalendarDatesSchema(runtime::RuntimeContainer &rt) {
 	// args: date, exception_type
-	if (args[1] == "2") {
-		// exception_type 2 = removed -> ignore
-		return;
-	} else if (args[1] == "1") {
+	TRANSFORM2ONE(ignore_disabled_dates, ARGS, OUT_VAL, STORAGE)
+	if (ARGS[1] == "2") {
+		return; // exception_type 2 = removed -> ignore
+	} else if (ARGS[1] == "1") {
 		// exception_type 1 = added -> output date
-		out = args[0];
+		OUT_VAL = ARGS[0];
 	} else {
-		throw std::runtime_error("❌  Transform error: invalid exception_type '" + args[1] +
-		                         "' in ignore_disabled_dates");
+		throw std::runtime_error("❌  Transform error: invalid exception_type '" +
+		                         std::string(ARGS[1]) + "' in ignore_disabled_dates");
 	}
-}
+	TRANSFORM_END
 
-// filter function: write to string if true else leave empty
-void is_disabled_date(const field_transforms::ArgSpan &args, std::string &out) {
 	// args: service_id, date, exception_type
-	if (args[2] == "2") {
-		out = args[1]; // output date
+	TRANSFORM2ONE(is_disabled_date, ARGS, OUT_VAL, STORAGE)
+	if (ARGS[2] == "2") {
+		OUT_VAL = ARGS[1]; // output date
 	} else {
 		return; // leave empty
 	}
-}
-
-// GTFS -> RDF schema for calendar_dates.txt
-export Schema buildCalendarDatesSchema(runtime::RuntimeContainer &rt) {
-	rt.getTransformRegistry().registerTransform("ignore_disabled_dates", ignore_disabled_dates);
-	rt.getTransformRegistry().registerTransform("is_disabled_date", is_disabled_date);
+	TRANSFORM_END
 
 	const std::vector<std::string> possible_columns = {"service_id", "date", "exception_type"};
 

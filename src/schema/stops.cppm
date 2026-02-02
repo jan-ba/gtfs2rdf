@@ -38,7 +38,8 @@ export Schema buildStopsSchema(runtime::RuntimeContainer &rt) {
 		return;
 	char c = ARGS[0][0];
 	if (c < '0' || c > '4') {
-		throw std::runtime_error("❌ Transform error: Unknown location_type code: " + ARGS[0]);
+		throw std::runtime_error("❌ Transform error: Unknown location_type code: " +
+		                         std::string(ARGS[0]));
 	}
 	switch (c) {
 	case '0':
