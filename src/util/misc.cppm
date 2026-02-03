@@ -56,7 +56,7 @@ struct ScopedTimerNS {
 };
 
 // _________________________________________________________________________________________________
-// overloaded stream operators for STL containers (for convenient pretty printing)
+// overloaded stream and string operators for STL containers (for convenient pretty printing)
 
 template <typename T> std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
 	os << "[";
@@ -68,6 +68,12 @@ template <typename T> std::ostream &operator<<(std::ostream &os, const std::vect
 	}
 	os << "]";
 	return os;
+}
+
+template <typename T> std::string operator+(const std::string &s, const std::vector<T> &vec) {
+	std::ostringstream oss;
+	oss << vec;
+	return s + oss.str();
 }
 
 template <typename K, typename V>

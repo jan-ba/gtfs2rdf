@@ -8,6 +8,8 @@
 
 module;
 
+#include "util/diagnostics.h"
+
 #include <cctype>
 #include <cstdint>
 #include <iostream>
@@ -61,8 +63,6 @@ export struct StorageWriteSpec {
 	std::string
 	    target_ctx; // optional explicit ctx from > TARGET@ctx; else filled later with schema ctx
 
-	// bool suppress_output = false;  // if true, do not write to file (only store internally)
-
 	// partitioning of args for keyed storage:
 	// args = [keys..., values..., extra...]
 	uint8_t key_arity = 0;
@@ -103,8 +103,9 @@ export struct BoundPlaceholder {
 };
 
 ArgSpec parse_arg(std::string_view tok) {
-	if (tok.empty())
-		throw std::runtime_error("❌ Empty argument token");
+	if (tok.empty()) {
+		throw diagnostics::Error("Syntax error: Empty argument field");
+	}
 
 	// literal
 	if (tok.front() == '"') {
@@ -115,7 +116,8 @@ ArgSpec parse_arg(std::string_view tok) {
 	auto [lhs, rhs] = util::split_at(tok, '@');
 	if (!rhs.empty()) {
 		if (!valid_ctx_name(rhs)) {
-			throw std::runtime_error("❌ Invalid context after '@' in arg: " + std::string(tok));
+			throw diagnostics::Error("Syntax error: Invalid context name after '@' in arg: " +
+			                         std::string(tok));
 		}
 		return ArgSpec{ArgKind::StorageVar, std::string(lhs), std::string(rhs)};
 	}
@@ -127,14 +129,14 @@ ArgSpec parse_arg(std::string_view tok) {
 TransformCallSpec parse_transform(std::string_view tok,
                                   const field_transforms::TransformRegistry &reg) {
 	if (tok.empty())
-		throw std::runtime_error("❌ Empty transform token");
+		throw diagnostics::Error("Syntax error: Empty transform field");
 
 	auto [name, ctx] = util::split_at(tok, '@');
 	TransformCallSpec out;
 	out.transform = reg.getTransform(std::string(name));
 	if (!ctx.empty()) {
 		if (!valid_ctx_name(ctx)) {
-			throw std::runtime_error("❌ Invalid context after '@' in transform: " +
+			throw diagnostics::Error("Syntax error: Invalid context name after '@' in transform: " +
 			                         std::string(tok));
 		}
 		out.ctx_hint = std::string(ctx);
@@ -145,12 +147,13 @@ TransformCallSpec parse_transform(std::string_view tok,
 static void parse_target(std::string_view tok, StorageWriteSpec &stg) {
 	auto [name, ctx] = util::split_at(tok, '@');
 	if (name.empty())
-		throw std::runtime_error("❌ Empty storage target after '>'");
+		throw diagnostics::Error("Syntax error: Empty storage target after '>'");
 	stg.target_name = std::string(name);
 	if (!ctx.empty()) {
 		if (!valid_ctx_name(ctx)) {
-			throw std::runtime_error("❌ Invalid context after '@' in storage target: " +
-			                         std::string(tok));
+			throw diagnostics::Error(
+			    "Syntax error: Invalid context name after '@' in storage target: " +
+			    std::string(tok));
 		}
 		stg.target_ctx = std::string(ctx);
 	}
@@ -191,15 +194,14 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
 
 	if (keyed) {
 		if (spec.storage.target_name.empty()) {
-			throw std::runtime_error(
-			    "❌ Found ':' (keyed placeholder) but no storage target '>' in: " +
-			    std::string(raw));
+			throw diagnostics::Error(
+			    "Syntax error: Keyed placeholder with ':' requires storage target after '>')");
 		}
 
 		// keys
 		auto key_toks = util::split_top_level(left_of_colon, ',');
 		if (key_toks.empty())
-			throw std::runtime_error("❌ Missing key fields before ':'");
+			throw diagnostics::Error("Syntax error: Missing key fields before ':'");
 		for (auto tk : key_toks)
 			spec.args.push_back(parse_arg(tk));
 		spec.storage.key_arity = static_cast<uint8_t>(key_toks.size());
@@ -230,8 +232,7 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
 				}
 			}
 			if (close == std::string_view::npos) {
-				throw std::runtime_error("❌ Unbalanced parentheses in placeholder: " +
-				                         std::string(raw));
+				throw diagnostics::Error("Syntax error: Unbalanced parentheses in placeholder");
 			}
 
 			auto inside = right_of_colon.substr(1, close - 1);
@@ -239,7 +240,7 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
 
 			auto val_toks = util::split_top_level(inside, ',');
 			if (val_toks.empty())
-				throw std::runtime_error("❌ Empty value tuple '(...)' after ':'");
+				throw diagnostics::Error("Syntax error: Empty value tuple '(...)' after ':'");
 			for (auto tk : val_toks)
 				spec.args.push_back(parse_arg(tk));
 			spec.storage.value_arity = static_cast<uint8_t>(val_toks.size());
@@ -247,8 +248,8 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
 			// extras
 			if (!after.empty()) {
 				if (after.front() != ',') {
-					throw std::runtime_error("❌ Expected ',' after ')' for extras in: " +
-					                         std::string(raw));
+					throw diagnostics::Error(
+					    "Syntax error: Expected ',' after ')' for extras in placeholder");
 				}
 				auto extras = after.substr(1);
 				if (!extras.empty()) {
@@ -266,9 +267,8 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
 			// disallow Transform2Many in filter-mode
 			for (auto &tc : spec.transforms) {
 				if (tc.transform.kind == field_transforms::TransformKind::Multi) {
-					throw std::runtime_error(
-					    "❌ Transform2Many not allowed with filter-mode '(...)' in: " +
-					    std::string(raw));
+					throw diagnostics::Error("Syntax error: Transform2Many not allowed with "
+					                         "filter-mode '(...)' in placeholder");
 				}
 			}
 
@@ -281,7 +281,7 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
 
 			auto rhs_toks = util::split_top_level(right_of_colon, ',');
 			if (rhs_toks.empty())
-				throw std::runtime_error("❌ Missing value inputs after ':'");
+				throw diagnostics::Error("Syntax error: Missing value inputs after ':'");
 			for (auto tk : rhs_toks)
 				spec.args.push_back(parse_arg(tk));
 
@@ -328,8 +328,7 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
 	// --- ensure correctness of the parsed spec ---
 
 	if (spec.args.empty()) {
-		throw std::runtime_error("❌ Placeholder must have at least 1 argument in: " +
-		                         std::string(raw));
+		throw diagnostics::Error("Syntax error: Placeholder must have at least 1 argument");
 	}
 
 	// count Transform2Many occurrences
@@ -339,8 +338,7 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
 			++num_multi;
 	}
 	if (num_multi > 1) {
-		throw std::runtime_error("❌ Only one Transform2Many allowed per placeholder in: " +
-		                         std::string(raw));
+		throw diagnostics::Error("Syntax error: Only one Transform2Many allowed per placeholder");
 	}
 
 	const bool has_transforms = !spec.transforms.empty();
@@ -349,29 +347,25 @@ export PlaceholderSpec parse_placeholder(std::string_view raw,
 	// non-keyed placeholders: multi-arg is only allowed if transforms exist
 	if (!is_keyed) {
 		if (!has_transforms && spec.args.size() != 1) {
-			throw std::runtime_error(
-			    "❌ Non-keyed placeholder with multiple args requires transforms in: " +
-			    std::string(raw));
+			throw diagnostics::Error(
+			    "Syntax error: Non-keyed placeholder with multiple args requires transforms");
 		}
 	}
 
 	// FilterStoreRaw should actually have transforms (otherwise there's not a filter)
 	if (spec.storage.mode == StoreMode::FilterStoreRaw && !has_transforms) {
-		throw std::runtime_error(
-		    "❌ FilterStoreRaw '(...)' requires at least one filter transform in: " +
-		    std::string(raw));
+		throw diagnostics::Error(
+		    "Syntax error: FilterStoreRaw '(...)' requires at least one filter transform");
 	}
 
 	// Transform2Many must never target Variable or MultiMap
 	if (num_multi == 1) {
 		if (spec.storage.kind == StorageKind::Variable) {
-			throw std::runtime_error("❌ Transform2Many cannot store into Variable in: " +
-			                         std::string(raw));
+			throw diagnostics::Error("Syntax error: Transform2Many cannot store into Variable");
 		}
 		if (spec.storage.kind == StorageKind::MultiMap) {
-			throw std::runtime_error(
-			    "❌ Transform2Many cannot store into MultiMap (use TupleMap) in: " +
-			    std::string(raw));
+			throw diagnostics::Error(
+			    "Syntax error: Transform2Many cannot store into MultiMap (use TupleMap)");
 		}
 	}
 

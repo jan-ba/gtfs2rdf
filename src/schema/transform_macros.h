@@ -1,7 +1,10 @@
 #pragma once
 
+#include "../util/diagnostics.h"
+
 #include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // For user convenience when registering their own transforms inside build<Schema>(rt):
@@ -12,17 +15,24 @@
 // For information regarding the type definitions of Transform2One and Transform2Many, see
 // field_transforms.cppm
 
+// to be used inside transform bodies (after TRANSFORM2ONE/2MANY opened the lambda)
+#define TRANSFORM_ERROR(MSG)                                                                       \
+	throw diagnostics::Error(std::string("Transform error in '") +                                 \
+	                         std::string(__gtfs2rdf_transform_name) + "': " + std::string(MSG));
+
 #define TRANSFORM2ONE(NAME, ARGS, OUT_VAL, STORAGE)                                                \
   rt.getTransformRegistry().registerTransform(                                       \
     #NAME,                                                                           \
     field_transforms::Transform2One{                                                 \
       [&](field_transforms::Args ARGS, field_transforms::Out1& OUT_VAL) -> void {     \
+        [[maybe_unused]] constexpr std::string_view __gtfs2rdf_transform_name = #NAME;         \
         [[maybe_unused]] auto& STORAGE = rt.getStorage();
 #define TRANSFORM2MANY(NAME, ARGS, OUT_VALS, STORAGE)                                              \
   rt.getTransformRegistry().registerTransform(                                       \
     #NAME,                                                                           \
     field_transforms::Transform2Many{                                                   \
       [&](field_transforms::Args ARGS, field_transforms::OutN& OUT_VALS) -> void {     \
+        [[maybe_unused]] constexpr std::string_view __gtfs2rdf_transform_name = #NAME;         \
         [[maybe_unused]] auto& STORAGE = rt.getStorage();
 #define TRANSFORM_END                                                                              \
 	}                                                                                              \

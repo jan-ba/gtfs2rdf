@@ -32,14 +32,14 @@ namespace schema {
 export Schema buildStopsSchema(runtime::RuntimeContainer &rt) {
 	// prints out enum string for location_type codes
 	// ARGS[0]: location_type code
-	// TODO: rework exception handling
 	TRANSFORM2ONE(loc2Enum, ARGS, OUT_VAL, STORAGE) {
+		if (ARGS[0].empty())
+			return; // leave empty, triple will not be printed
 		if (ARGS[0].size() != 1)
-			return;
+			TRANSFORM_ERROR("Unknown location_type code: " + std::string(ARGS[0]));
 		char c = ARGS[0][0];
 		if (c < '0' || c > '4') {
-			throw std::runtime_error("❌ Transform error: Unknown location_type code: " +
-			                         std::string(ARGS[0]));
+			TRANSFORM_ERROR("Unknown location_type code: " + std::string(ARGS[0]));
 		}
 		switch (c) {
 		case '0':
@@ -74,14 +74,14 @@ export Schema buildStopsSchema(runtime::RuntimeContainer &rt) {
 			lon = std::stod(std::string(ARGS[0]));
 			lat = std::stod(std::string(ARGS[1]));
 		} catch (...) {
-			throw std::runtime_error("❌ Transform error: invalid numeric lon/lat: '" +
-			                         std::string(ARGS[0]) + "', '" + std::string(ARGS[1]) + "'");
+			TRANSFORM_ERROR("invalid numeric lon/lat: '" + std::string(ARGS[0]) + "', '" +
+			                std::string(ARGS[1]) + "'");
 		}
 
 		// basic range check
 		if (lon < -180.0 || lon > 180.0 || lat < -90.0 || lat > 90.0) {
-			throw std::runtime_error("❌ Transform error: lon/lat out of range: lon=" +
-			                         std::to_string(lon) + ", lat=" + std::to_string(lat));
+			TRANSFORM_ERROR("lon/lat out of range: lon=" + std::to_string(lon) +
+			                ", lat=" + std::to_string(lat));
 		}
 
 		// build WKT POINT(lon lat)
@@ -151,15 +151,16 @@ export Schema buildStopsSchema(runtime::RuntimeContainer &rt) {
 
 	    // Hierarchy / location type
 	    {subj, {"gtfs", "locationType"}, {"{location_type}", IRI("xs", "integer")}},
-	    {subj, {"gtfs", "locationTypeEnum"}, {"{location_type|loc2Enum}"}},
-	    {subj, {"gtfs", "parentStation"}, {IRI("stops", "{parent_station}")}},
+	    {subj, {"gtfs", "locationTypeEnum"}, {"{location_type | loc2Enum}"}},
+	    {subj, {"gtfs", "parent_station"}, {IRI("stops", "{parent_station}")}},
 
 	    // Misc
 	    {subj, {"gtfs", "zoneId"}, {"{zone_id}"}},
 	    {subj, {"gtfs", "stopTimezone"}, {"{stop_timezone}"}},
 	    {subj, {"gtfs", "wheelchairBoarding"}, {"{wheelchair_boarding}", IRI("xs", "integer")}},
 	    {subj, {"gtfs", "levelId"}, {"{level_id}"}},
-	    {subj, {"gtfs", "platformCode"}, {"{platform_code}"}}};
+	    {subj, {"gtfs", "platformCode"}, {"{platform_code}"}},
+	};
 
 	Schema sc("stops.txt", possible_columns, prefixes, triples, rt);
 

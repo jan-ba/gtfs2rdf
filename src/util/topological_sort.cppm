@@ -7,6 +7,9 @@
 // See the LICENSE file in the project root for the full license text.
 
 module;
+
+#include "diagnostics.h"
+
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -22,35 +25,6 @@ export namespace util::topological_sort {
 // matrix for simplicity, performance will likely cause issues for large graphs, but for the use
 // cases in GTFS2RDF (dozens of nodes at most), this should be fine.
 class TopologicalSort {
-  private:
-	// adjacency matrix
-	std::vector<std::vector<bool>> A_;
-
-	std::vector<std::pair<size_t, size_t>> edges_;
-
-	// map from node name to index in adjacency matrix
-	std::unordered_map<size_t, size_t> node_index_;
-	std::vector<size_t> index_to_name_;
-
-	std::vector<size_t> L_;
-	std::vector<size_t> S_;
-
-	bool isRowFalse(size_t row) {
-		for (bool val : A_[row]) {
-			if (val)
-				return false;
-		}
-		return true;
-	}
-
-	bool isColFalse(size_t col) {
-		for (const auto &row : A_) {
-			if (row[col])
-				return false;
-		}
-		return true;
-	}
-
   public:
 	// enter estimated number of nodes to avoid reallocations for efficiency
 	TopologicalSort(size_t num_nodes = 10) {
@@ -73,8 +47,9 @@ class TopologicalSort {
 
 		if (from == to) {
 			if (!allow_self_loops) {
-				throw std::runtime_error("❌ TopologicalSort error: self-loop detected for node " +
-				                         std::to_string(from));
+				error_node_ = from;
+				throw diagnostics::Error("TopologicalSort error: self-loop detected for node " +
+				                         std::to_string(error_node_));
 			}
 		} else {
 			// don't add self-loops as edges, that would be pointless
@@ -104,7 +79,7 @@ class TopologicalSort {
 
 		// initialise set of nodes with no incoming edges
 		for (size_t i = 0; i < A_.size(); ++i) {
-			if (isColFalse(i)) {
+			if (isColFalse_(i)) {
 				S_.push_back(i);
 			}
 		}
@@ -120,7 +95,7 @@ class TopologicalSort {
 					// remove edge e from the graph
 					A_[n][m] = false;
 					// if m has no other incoming edges then insert m into S
-					if (isColFalse(m)) {
+					if (isColFalse_(m)) {
 						S_.push_back(m);
 					}
 				}
@@ -129,8 +104,11 @@ class TopologicalSort {
 
 		// check for cycles
 		for (size_t i = 0; i < A_.size(); ++i) {
-			if (!isRowFalse(i)) {
-				throw std::runtime_error("❌ TopologicalSort error: graph has at least one cycle");
+			if (!isRowFalse_(i)) {
+				error_node_ = index_to_name_[i];
+				throw diagnostics::Error(
+				    "TopologicalSort error: graph has at least one cycle at node " +
+				    std::to_string(error_node_));
 			}
 		}
 
@@ -141,6 +119,41 @@ class TopologicalSort {
 			result.push_back(index_to_name_[index]);
 		}
 		return result;
+	}
+
+	size_t getErrorNode() const {
+		return error_node_;
+	}
+
+  private:
+	// adjacency matrix
+	std::vector<std::vector<bool>> A_;
+
+	std::vector<std::pair<size_t, size_t>> edges_;
+
+	// map from node name to index in adjacency matrix
+	std::unordered_map<size_t, size_t> node_index_;
+	std::vector<size_t> index_to_name_;
+
+	std::vector<size_t> L_;
+	std::vector<size_t> S_;
+
+	size_t error_node_ = -1; // set to MAXSIZE_T on no error
+
+	bool isRowFalse_(size_t row) {
+		for (bool val : A_[row]) {
+			if (val)
+				return false;
+		}
+		return true;
+	}
+
+	bool isColFalse_(size_t col) {
+		for (const auto &row : A_) {
+			if (row[col])
+				return false;
+		}
+		return true;
 	}
 };
 

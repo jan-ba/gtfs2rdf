@@ -1,5 +1,7 @@
 module;
 
+#include "util/diagnostics.h"
+
 #include <algorithm>
 #include <functional>
 #include <iostream>
@@ -35,6 +37,7 @@ export using Transform2Many = std::function<void(Args, OutN &)>;
 export enum class TransformKind { Single, Multi };
 
 export struct Transform {
+	std::string name;
 	TransformKind kind;
 	Transform2One single; // valid if kind == Single
 	Transform2Many multi; // valid if kind == Multi
@@ -44,32 +47,31 @@ export class TransformRegistry {
   public:
 	void registerTransform(const std::string &name, Transform2One fn) {
 		if (registry_.contains(name)) {
-			throw std::runtime_error("❌  Transform error: field transform already registered: " +
-			                         name);
+			throw diagnostics::Error("Transform error: field transform '" + name +
+			                         "' already registered");
 		}
 		if (!is_permitted_name_(name)) {
-			throw std::runtime_error("❌  Transform error: invalid characters in transform name: " +
-			                         name);
+			throw diagnostics::Error("Transform error: invalid characters in transform name '" +
+			                         name + "'");
 		}
-		registry_[name] = Transform{TransformKind::Single, fn, {}};
+		registry_[name] = Transform{name, TransformKind::Single, fn, {}};
 	}
 
 	void registerTransform(const std::string &name, Transform2Many fn) {
 		if (registry_.contains(name)) {
-			throw std::runtime_error("❌  Transform error: field transform already registered: " +
-			                         name);
+			throw diagnostics::Error("Transform error: field transform '" + name +
+			                         "' already registered");
 		}
 		if (!is_permitted_name_(name)) {
-			throw std::runtime_error("❌  Transform error: invalid characters in transform name: " +
-			                         name);
+			throw diagnostics::Error("Transform error: invalid characters in transform name '" +
+			                         name + "'");
 		}
-		registry_[name] = Transform{TransformKind::Multi, {}, fn};
+		registry_[name] = Transform{name, TransformKind::Multi, {}, fn};
 	}
 
 	const Transform &getTransform(const std::string &name) const {
 		if (!registry_.contains(name)) {
-			// TODO: add context information perhaps
-			throw std::runtime_error("❌  Error: unknown field transform: " + name);
+			throw diagnostics::Error("Transform error: unknown transform '" + name + "'");
 		}
 		return registry_.at(name);
 	}

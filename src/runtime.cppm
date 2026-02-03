@@ -1,6 +1,7 @@
 module;
 
 #include "third_party/cxxopts/cxxopts.hpp"
+#include "util/diagnostics.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -113,7 +114,7 @@ export class Settings {
 		// output format
 		std::string format = result["format"].as<std::string>();
 		if (format != "ttl" && format != "nt") {
-			throw std::runtime_error("❌  Error: Unsupported output format '" + format +
+			throw diagnostics::Error("Settings error: unsupported output format '" + format +
 			                         "'. "
 			                         "Supported formats are 'ttl' and 'nt'.\n");
 		}
@@ -149,7 +150,7 @@ export class Settings {
 		// input path
 		inputPath_ = result["dataset"].as<std::string>();
 		if (!std::filesystem::is_regular_file(inputPath_) || inputPath_.extension() != ".zip") {
-			throw std::runtime_error("❌  Error: Input '" + inputPath_.string() +
+			throw diagnostics::Error("Settings error: input '" + inputPath_.string() +
 			                         "' doesn't exist or "
 			                         "is not a zip file.\n");
 		}

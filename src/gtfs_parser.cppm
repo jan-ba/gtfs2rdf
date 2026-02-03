@@ -9,6 +9,7 @@
 module;
 
 #include "macros.h"
+#include "util/diagnostics.h"
 
 #include <algorithm>
 #include <chrono>
@@ -123,9 +124,9 @@ export class GTFSParser {
 			row_.push_back(cache_);
 		} else {
 			if (col_i_ >= num_cols_) {
-				throw std::runtime_error("❌  Parsing error: too many columns in file '" +
-				                         filename_ + "' (expected " + std::to_string(num_cols_) +
-				                         " columns)");
+				throw diagnostics::Error("Parsing error: too many columns in row number " +
+				                         std::to_string(stats_.rows + 1) + " (expected " +
+				                         std::to_string(num_cols_) + ")");
 			}
 			// overwrite in-place (reuses row_[col_i_] capacity when possible)
 			row_[col_i_].assign(cache_);
@@ -139,12 +140,14 @@ export class GTFSParser {
 
 		if (!header_seen_) {
 			if (row_.empty()) {
-				throw std::runtime_error("❌  Parsing error: empty header in file '" + filename_ +
-				                         "'");
+				throw diagnostics::Error("Parsing error: empty header row");
 			}
 			strip_utf8_bom(row_[0]);
-
-			schema_.setHeader(row_);
+			try {
+				schema_.setHeader(row_);
+			} catch (const diagnostics::Error &e) {
+				diagnostics::wrap_and_rethrow(e, "while setting header '" + row_ + "'");
+			}
 			num_cols_ = row_.size();
 
 			row_.clear();
@@ -155,9 +158,10 @@ export class GTFSParser {
 		} else {
 			// GTFS validity: enforce fixed width
 			if (col_i_ != num_cols_) {
-				throw std::runtime_error("❌  Parsing error: inconsistent row width in file '" +
-				                         filename_ + "' (expected " + std::to_string(num_cols_) +
-				                         " columns, got " + std::to_string(col_i_) + ")");
+				throw diagnostics::Error("Parsing error: inconsistent row width in row number " +
+				                         std::to_string(stats_.rows + 1) + " (expected " +
+				                         std::to_string(num_cols_) + " columns, got " +
+				                         std::to_string(col_i_) + ")");
 			}
 
 			// process first <sample_size> rows to extrapolate whole run stats
@@ -274,17 +278,21 @@ export class GTFSParser {
 #endif
 
 		while (true) {
-			zip_int64_t n = zip_fread(file_, read_buffer_.data(), buffer_size_);
-			if (n < 0) {
-				throw std::runtime_error("❌  Parsing error: can't read buffer number " +
-				                         std::to_string(stats_.chunks) + " from file '" +
-				                         filename_ + "'");
-			}
-			if (n == 0)
-				break;
+			try {
+				zip_int64_t n = zip_fread(file_, read_buffer_.data(), buffer_size_);
+				if (n < 0) {
+					throw diagnostics::Error("Parsing error: can't read chunk number " +
+					                         std::to_string(stats_.chunks + 1));
+				}
+				if (n == 0)
+					break;
 
-			stats_.chunks++;
-			consumeChunk_(n);
+				stats_.chunks++;
+				consumeChunk_(n);
+			} catch (const diagnostics::Error &e) {
+				diagnostics::wrap_and_rethrow(
+				    e, "while parsing chunk number " + std::to_string(stats_.chunks + 1));
+			}
 		}
 
 		flushRemainder_();

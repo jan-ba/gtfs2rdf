@@ -46,10 +46,8 @@ export Schema buildFeedInfoSchema(runtime::RuntimeContainer &rt) {
 	const std::vector<std::string> storage_only_instructions = {
 	    "{ feed_lang > FEED_LANG }",
 	    "{ feed_start_date | convert_date > FEED_START_DATE }",
-	    "{ feed_end_date | convert_date > FEED_END_DATE }",
-	};
+	    "{ feed_end_date | convert_date > FEED_END_DATE }"};
 
-	// TODO: overload Schema constructor so that triples are not required as argument
 	const std::vector<Triple> triples = {};
 
 	Schema sc("feed_info.txt", possible_columns, prefixes, triples, storage_only_instructions, rt);

@@ -2,6 +2,7 @@ module;
 
 #include "macros.h"
 #include "third_party/sqlite3/sqlite3.h"
+#include "util/diagnostics.h"
 
 #include <algorithm>
 #include <chrono>
@@ -58,13 +59,14 @@ struct TupleMapTable {
 // creates descriptive table name for every (ctx, name) pair used in multimap/tuplemap
 std::string make_table_name(std::string_view prefix, std::string_view ctx, std::string_view name) {
 	if (!valid_ctx_name(ctx)) {
-		throw std::runtime_error("Invalid context name for sqlite table: " + std::string(ctx));
+		throw diagnostics::Error("Storage error: invalid context name '" + std::string(ctx) +
+		                         "' for sqlite table");
 	}
 	auto [file_name, file_ext] = split_at(ctx, '.');
 	for (char c : name) {
 		if (!is_gtfs_file_char(c)) {
-			throw std::runtime_error("Invalid multimap/tuplemap name for sqlite table: " +
-			                         std::string(name));
+			throw diagnostics::Error("Storage error: invalid multimap/tuplemap name '" +
+			                         std::string(name) + "' for sqlite table");
 		}
 	}
 	return std::string(prefix) + "_" + std::string(file_name) + "_" + std::string(name);
@@ -108,8 +110,8 @@ export class PersistentStorageSqlite {
 				}
 			}
 			if (!dir_created) {
-				throw std::runtime_error(
-				    "❌  Error: could not create temporary directory for sqlite database at " +
+				throw diagnostics::Error(
+				    "Storage error: could not create temporary directory for sqlite database at " +
 				    db_dir_ +
 				    "1-10/.runtime_storage.db. There might be artifacts from previous faulty "
 				    "runs.");
@@ -121,7 +123,8 @@ export class PersistentStorageSqlite {
 		// NOMUTEX is fine if you guarantee single-thread access to this connection
 		const int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX;
 		if (sqlite3_open_v2(db_path_.string().c_str(), &db_, flags, nullptr) != SQLITE_OK) {
-			throw std::runtime_error(std::string("sqlite open failed: ") + sqlite3_errmsg(db_));
+			throw diagnostics::Error("Storage error: sqlite open failed: " +
+			                         std::string(sqlite3_errmsg(db_)));
 		}
 		sqlite3_extended_result_codes(db_, 1);
 
@@ -405,9 +408,9 @@ export class PersistentStorageSqlite {
 			return false; // table doesn't exist yet
 		auto &T = it->second;
 		if (T.arity != tuple.size()) {
-			throw std::runtime_error(
-			    "❌  SqliteBackingStore::contains_tuple: arity mismatch for table " + tbl +
-			    ": expected " + std::to_string(T.arity) + ", got " + std::to_string(tuple.size()));
+			throw diagnostics::Error("Storage error: arity mismatch for table " + tbl +
+			                         ": expected " + std::to_string(T.arity) + ", got " +
+			                         std::to_string(tuple.size()));
 		}
 		bind_text(T.contains, 1, key);
 		for (size_t i = 0; i < T.arity; ++i) {
@@ -604,7 +607,8 @@ export class PersistentStorageSqlite {
 		for (auto p : parts)
 			total += p.size();
 		if (total == 0) {
-			throw std::runtime_error("❌  SqliteBackingStore::concat_key_parts: empty key parts");
+			throw diagnostics::Error(
+			    "Storage error: empty key parts in SqliteBackingStore::concat_key_parts");
 		}
 		key_buf_.reserve(total + parts.size() - 1); // size + null separators
 		bool first = true;
@@ -627,13 +631,14 @@ export class PersistentStorageSqlite {
 		if (sqlite3_exec(db_, sql, nullptr, nullptr, &err) != SQLITE_OK) {
 			std::string msg = err ? err : sqlite3_errmsg(db_);
 			sqlite3_free(err);
-			throw std::runtime_error("sqlite exec_ failed: " + msg);
+			throw diagnostics::Error("Storage error: sqlite exec_ failed: " + msg);
 		}
 	}
 
 	void prep_(sqlite3_stmt *&st, const char *sql) {
 		if (sqlite3_prepare_v2(db_, sql, -1, &st, nullptr) != SQLITE_OK) {
-			throw std::runtime_error(std::string("sqlite prepare failed: ") + sqlite3_errmsg(db_));
+			throw diagnostics::Error(std::string("Storage error: sqlite prepare failed: ") +
+			                         sqlite3_errmsg(db_));
 		}
 	}
 
@@ -662,7 +667,7 @@ export class PersistentStorageSqlite {
 			sqlite3 *db = sqlite3_db_handle(st);
 			std::string msg = db ? sqlite3_errmsg(db) : "sqlite step failed";
 			reset_stmt(st);
-			throw std::runtime_error("sqlite step failed: " + msg);
+			throw diagnostics::Error("Storage error: sqlite step failed: " + msg);
 		}
 		reset_stmt(st);
 	}
@@ -750,7 +755,8 @@ export class PersistentStorageSqlite {
 	TupleMapTable &
 	ensure_tm_table_(std::string_view ctx, std::string_view name, size_t tuple_arity) {
 		if (tuple_arity == 0) {
-			throw std::runtime_error("❌  SqliteBackingStore::ensure_tm_table: zero arity");
+			throw diagnostics::Error(
+			    "Storage error: SqliteBackingStore::ensure_tm_table: zero arity");
 		}
 		const std::string tbl = make_table_name("tm", ctx, name);
 		auto &T = tm_tables_[tbl];
@@ -816,10 +822,10 @@ export class PersistentStorageSqlite {
 		} else {
 			// ensure arity matches on subsequent accesses
 			if (T.arity != tuple_arity) {
-				throw std::runtime_error(
-				    "❌  SqliteBackingStore::ensure_tm_table: arity mismatch for table " + tbl +
-				    ": expected " + std::to_string(T.arity) + ", got " +
-				    std::to_string(tuple_arity));
+				throw diagnostics::Error("Storage error: SqliteBackingStore::ensure_tm_table: "
+				                         "arity mismatch for table " +
+				                         tbl + ": expected " + std::to_string(T.arity) + ", got " +
+				                         std::to_string(tuple_arity));
 			}
 		}
 		return T;

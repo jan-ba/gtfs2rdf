@@ -1,5 +1,7 @@
 module;
 
+#include "diagnostics.h"
+
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -35,11 +37,15 @@ struct string_hash {
 // parses a date string in 'YYYYMMDD' format into a sys_days object
 std::chrono::sys_days parseYYYYMMDD(std::string_view sv) {
 	if (sv.size() != 8) {
-		throw std::runtime_error("❌  Error: invalid date string format, expected 'YYYYMMDD'");
+		throw diagnostics::Error("Transform error in 'parseYYYYMMDD': invalid date string format, "
+		                         "expected 'YYYYMMDD', got '" +
+		                         std::string(sv) + "'");
 	}
 	for (char c : sv) {
 		if (c < '0' || c > '9') {
-			throw std::runtime_error("❌  Error: invalid date string format, expected 'YYYYMMDD'");
+			throw diagnostics::Error("Transform error in 'parseYYYYMMDD': invalid date string "
+			                         "format, expected 'YYYYMMDD', got '" +
+			                         std::string(sv) + "'");
 		}
 	}
 

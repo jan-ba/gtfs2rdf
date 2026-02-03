@@ -9,6 +9,7 @@
 module;
 
 #include "macros.h"
+#include "util/diagnostics.h"
 
 #include <cctype>
 #include <cstdio>
@@ -49,19 +50,19 @@ export class Writer {
 	    , active_(active) {
 		if (std::filesystem::exists(path)) {
 			if (!rt_.getSettings().isOverwriteOutput()) {
-				std::cerr << "❌  Write error: Output file '" << path.string()
-				          << "' already exists. To overwrite, enable the overwrite option.\n";
-				std::exit(1);
+				throw diagnostics::Error(
+				    "IO error: output file '" + path.string() +
+				    "' already exists. To overwrite, enable the overwrite option.");
 			}
 		}
 		if (active_) {
 			file_ = std::fopen(path.string().c_str(), "wb");
+			file_path_ = path;
 		} else {
 			file_ = nullptr; // discard output
 		}
 		if (active_ && !file_)
-			throw std::runtime_error("❌ Write error: Cannot open '" + path.string() +
-			                         "' for writing.");
+			throw diagnostics::Error("IO error: Cannot open '" + path.string() + "' for writing.");
 		buffer_.reserve(threshold_);
 	}
 
@@ -94,12 +95,25 @@ export class Writer {
 		auto &instructions = sc.getInstructions();
 
 		for (auto &instr : instructions) {
-			std::string_view rendered;
-			{ // timer scope
-				SCOPED_TIMER_NS(conversion_ns_);
-				rendered = instr.render(row);
+			try {
+				std::string_view rendered;
+				{ // timer scope
+					SCOPED_TIMER_NS(conversion_ns_);
+					rendered = instr.render(row);
+				}
+				append_(rendered);
+			} catch (const diagnostics::Error &e) {
+				diagnostics::wrap_and_rethrow(e,
+				                              "while rendering instruction '" +
+				                                  instr.getRawInstruction() + "' in schema '" +
+				                                  sc.getName() + "'");
 			}
-			append_(rendered);
+		}
+	}
+
+	void deleteFile() {
+		if (active_) {
+			std::filesystem::remove(file_path_);
 		}
 	}
 
@@ -131,6 +145,7 @@ export class Writer {
 	}
 
   private:
+	std::filesystem::path file_path_;
 	std::FILE *file_;
 	std::string buffer_;
 	const runtime::RuntimeContainer &rt_;
@@ -150,7 +165,7 @@ export class Writer {
 		while (n) {
 			size_t w = std::fwrite(d, 1, n, file_);
 			if (w == 0)
-				throw std::runtime_error("❌ Write error: Could not flush to disk.");
+				throw diagnostics::Error("IO error: Could not flush to disk.");
 			d += w;
 			n -= w;
 		}

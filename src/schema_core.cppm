@@ -8,6 +8,8 @@
 
 module;
 
+#include "util/diagnostics.h"
+
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -130,8 +132,8 @@ export class Instruction {
 
 			// args
 			if (ph.args.size() > static_cast<size_t>(field_transforms::MaxArgs)) {
-				throw std::runtime_error("❌  Error: too many placeholder args in instruction: " +
-				                         tmpl.raw);
+				throw diagnostics::Error("Schema error: too many placeholder args (Max value is " +
+				                         std::to_string(field_transforms::MaxArgs) + ")");
 			}
 			dg.num_args = ph.args.size();
 
@@ -141,8 +143,7 @@ export class Instruction {
 
 				if (a.kind == ArgKind::Column) {
 					if (!column_map.contains(a.name)) {
-						throw std::runtime_error("❌  Error: unknown column '" + a.name +
-						                         "' in instruction: " + tmpl.raw);
+						throw diagnostics::Error("Schema error: unknown column '" + a.name + "'");
 					}
 					int idx = column_map.at(a.name);
 					if (idx == -1) {
@@ -169,8 +170,9 @@ export class Instruction {
 
 			// transforms
 			if (ph.transforms.size() > static_cast<size_t>(field_transforms::MaxTransforms)) {
-				throw std::runtime_error("❌  Error: too many chained transforms in instruction: " +
-				                         tmpl.raw);
+				throw diagnostics::Error(
+				    "Schema error: too many chained transforms (Max value is " +
+				    std::to_string(field_transforms::MaxTransforms) + ")");
 			}
 			dg.num_transforms = ph.transforms.size();
 
@@ -178,9 +180,8 @@ export class Instruction {
 				dg.transforms[j] = ph.transforms[j].transform;
 				if (dg.transforms[j].kind == field_transforms::TransformKind::Multi) {
 					if (contains_transf2many_) {
-						throw std::runtime_error(
-						    "❌  Error: only 1 Transform2Many allowed in total in instruction: " +
-						    tmpl.raw);
+						throw diagnostics::Error(
+						    "Schema error: only 1 Transform2Many allowed in total per instruction");
 					}
 					contains_transf2many_ = true;
 					dg.contains_transf2many = true;
@@ -194,18 +195,16 @@ export class Instruction {
 				if (dg.storage.target_ctx.empty()) {
 					dg.storage.target_ctx = ctx_name; // default: current schema context
 				} else if (dg.storage.target_ctx != ctx_name) {
-					throw std::runtime_error("❌  Error: storage context '" +
-					                         dg.storage.target_ctx +
-					                         "' does not match current schema context '" +
-					                         ctx_name + "' in instruction: " + tmpl.raw);
+					throw diagnostics::Error(
+					    "Schema error: storage context '" + dg.storage.target_ctx +
+					    "' does not match current schema context '" + ctx_name + "'");
 				}
 			}
 
 			// some sanity checks
 			if (dg.storage.kind == StorageKind::Variable && dg.contains_transf2many) {
-				throw std::runtime_error(
-				    "❌  Error: cannot store Transform2Many output into a variable in: " +
-				    tmpl.raw);
+				throw diagnostics::Error(
+				    "Schema error: cannot store Transform2Many output into a variable");
 			}
 
 			dg.render_kind =
@@ -508,8 +507,8 @@ export class Schema {
 	    , rt_(rt)
 	    , registry_(rt.getTransformRegistry()) {
 		if (!valid_ctx_name(name_)) {
-			throw std::runtime_error("❌  Error: invalid schema name (must end with .txt): " +
-			                         name_);
+			throw diagnostics::Error("Schema error: invalid schema name '" + name_ +
+			                         "' (must end with .txt)");
 		}
 
 		for (const auto &col : this->possible_columns_) {
@@ -517,10 +516,15 @@ export class Schema {
 		}
 
 		// build raw_instructions_ from triples
-		for (const auto &triple : triples) {
-			auto t = triple.toTemplate(prefixes_, rt_);
-			raw_instructions_.push_back(t.raw);
-			raw_render_kinds_.push_back(t.render_kinds);
+		for (size_t i = 0; i < triples.size(); ++i) {
+			try {
+				auto t = triples[i].toTemplate(prefixes_, rt_);
+				raw_instructions_.push_back(t.raw);
+				raw_render_kinds_.push_back(t.render_kinds);
+			} catch (const diagnostics::Error &e) {
+				diagnostics::wrap_and_rethrow(
+				    e, "while building instruction from triple number " + std::to_string(i + 1));
+			}
 		}
 	}
 
@@ -537,8 +541,7 @@ export class Schema {
 		raw_instructions_.insert(raw_instructions_.begin(),
 		                         storage_only_instructions.begin(),
 		                         storage_only_instructions.end());
-		raw_render_kinds_.insert(
-		    raw_render_kinds_.begin(), num_storage_only_instructions_, {}); // TODO: verify
+		raw_render_kinds_.insert(raw_render_kinds_.begin(), num_storage_only_instructions_, {});
 	}
 
 	// compile raw_instructions_ into templates_ and compute dependencies_ from other schemas
@@ -552,80 +555,93 @@ export class Schema {
 		templates_.reserve(raw_instructions_.size());
 
 		for (size_t inst_i = 0; inst_i < raw_instructions_.size(); ++inst_i) {
-			const auto &raw_inst = raw_instructions_[inst_i];
-			const auto &kinds = raw_render_kinds_[inst_i];
-			size_t kind_i = 0;
+			try {
+				const auto &raw_inst = raw_instructions_[inst_i];
+				const auto &kinds = raw_render_kinds_[inst_i];
+				size_t kind_i = 0;
 
-			InstructionTemplate t;
-			t.raw = raw_inst;
+				InstructionTemplate t;
+				t.raw = raw_inst;
 
-			size_t start = 0;
-			size_t pos = 0;
+				size_t start = 0;
+				size_t pos = 0;
 
-			while ((pos = raw_inst.find('{', start)) != std::string::npos) {
-				size_t end = raw_inst.find('}', pos);
-				if (end == std::string::npos) {
-					throw std::runtime_error("❌  Error: malformed instruction (missing '}'): " +
-					                         raw_inst);
-				}
+				while ((pos = raw_inst.find('{', start)) != std::string::npos) {
+					size_t end = raw_inst.find('}', pos);
+					if (end == std::string::npos) {
+						throw diagnostics::Error(
+						    "Syntax error: malformed instruction (missing '}')");
+					}
 
-				t.parts.push_back(raw_inst.substr(start, pos - start));
+					t.parts.push_back(raw_inst.substr(start, pos - start));
 
-				std::string placeholder = raw_inst.substr(pos + 1, end - pos - 1);
-				auto spec = parse_placeholder(placeholder, registry_);
+					std::string placeholder = raw_inst.substr(pos + 1, end - pos - 1);
 
-				// dependencies from args
-				for (const auto &a : spec.args) {
-					if (a.kind == ArgKind::StorageVar) {
-						if (!a.ctx.empty()) {
-							// if self-reference, check that the variable was already written
-							// in a previous instruction
-							if (a.ctx == name_) {
-								bool found = false;
-								for (const auto &instr : templates_) {
-									for (const auto &ph : instr.phs) {
-										if (ph.storage.target_name == a.name) {
-											found = true;
-											break;
+					try {
+						PlaceholderSpec spec = parse_placeholder(placeholder, registry_);
+
+						// dependencies from args
+						for (const auto &a : spec.args) {
+							if (a.kind == ArgKind::StorageVar) {
+								if (!a.ctx.empty()) {
+									// if self-reference, check that the variable was already
+									// written in a previous instruction
+									if (a.ctx == name_) {
+										bool found = false;
+										for (const auto &instr : templates_) {
+											for (const auto &ph : instr.phs) {
+												if (ph.storage.target_name == a.name) {
+													found = true;
+													break;
+												}
+											}
+											if (found)
+												break;
 										}
-									}
-									if (found)
-										break;
+										if (!found) {
+											throw diagnostics::Error("Schema error: self-reference "
+											                         "to storage variable '" +
+											                         a.name + "' in context '" +
+											                         a.ctx +
+											                         "' before it was written");
+										}
+									} else
+										dependencies_.insert(a.ctx);
 								}
-								if (!found) {
-									throw std::runtime_error(
-									    "❌  Error: self-reference to storage variable '" + a.name +
-									    "' in context '" + a.ctx +
-									    "' before it was written in instruction: " + raw_inst);
-								}
-							} else
-								dependencies_.insert(a.ctx);
+							} else if (a.kind == ArgKind::Column) {
+								referenced_columns_.insert(a.name);
+							}
 						}
-					} else if (a.kind == ArgKind::Column) {
-						referenced_columns_.insert(a.name);
+						// dependencies from transform ctx hints
+						for (const auto &tc : spec.transforms) {
+							if (!tc.ctx_hint.empty())
+								dependencies_.insert(tc.ctx_hint);
+						}
+
+						t.phs.push_back(std::move(spec));
+
+						// preserve render kind per placeholder coming from Triple::toTemplate
+						if (kind_i < kinds.size()) {
+							t.render_kinds.push_back(kinds[kind_i]);
+							kind_i++;
+						} else {
+							t.render_kinds.push_back(RenderKind::Raw); // default
+						}
+
+						start = end + 1;
+					} catch (const diagnostics::Error &e) {
+						diagnostics::wrap_and_rethrow(
+						    e, "while parsing placeholder '" + placeholder + "'");
 					}
 				}
-				// dependencies from transform ctx hints
-				for (const auto &tc : spec.transforms) {
-					if (!tc.ctx_hint.empty())
-						dependencies_.insert(tc.ctx_hint);
-				}
 
-				t.phs.push_back(std::move(spec));
+				t.parts.push_back(raw_inst.substr(start));
+				templates_.push_back(std::move(t));
 
-				// preserve render kind per placeholder coming from Triple::toTemplate
-				if (kind_i < kinds.size()) {
-					t.render_kinds.push_back(kinds[kind_i]);
-					kind_i++;
-				} else {
-					t.render_kinds.push_back(RenderKind::Raw); // default
-				}
-
-				start = end + 1;
+			} catch (const diagnostics::Error &e) {
+				diagnostics::wrap_and_rethrow(
+				    e, "while parsing instruction '" + raw_instructions_[inst_i] + "'");
 			}
-
-			t.parts.push_back(raw_inst.substr(start));
-			templates_.push_back(std::move(t));
 		}
 
 		for (size_t i = 0; i < num_storage_only_instructions_; ++i) {
@@ -640,7 +656,8 @@ export class Schema {
 		header_ = header;
 		instructions_.clear();
 		if (!compiled_)
-			compile();
+			throw diagnostics::Error(
+			    "Internal error: schema must be compiled before setting header");
 		// compute column_map_ from header
 		for (size_t file_idx = 0; file_idx < header.size(); ++file_idx) {
 			if (column_map_.contains(header[file_idx])) {
@@ -656,16 +673,21 @@ export class Schema {
 		size_t start_idx = allow_storage_writes_ ? 0 : num_storage_only_instructions_;
 		for (size_t i = start_idx; i < templates_.size(); ++i) {
 			const auto &tmp = templates_[i];
-			Instruction instr(tmp, column_map_, rt_, name_);
-			if (!instr.isValid()) {
-				continue;
-			} // skip invalid instructions
-			if (!allow_storage_writes_) {
-				for (auto &dg : instr.getModifiableDatagaps()) {
-					dg.storage.kind = StorageKind::None;
+			try {
+				Instruction instr(tmp, column_map_, rt_, name_);
+				if (!instr.isValid()) {
+					continue;
+				} // skip invalid instructions
+				if (!allow_storage_writes_) {
+					for (auto &dg : instr.getModifiableDatagaps()) {
+						dg.storage.kind = StorageKind::None;
+					}
 				}
+				instructions_.push_back(std::move(instr));
+			} catch (const diagnostics::Error &e) {
+				diagnostics::wrap_and_rethrow(
+				    e, "while building instruction from template '" + tmp.raw + "'");
 			}
-			instructions_.push_back(std::move(instr));
 		}
 	}
 
@@ -719,9 +741,11 @@ merge_prefixes(const std::vector<Schema> &schemas, bool strict_conflicts = true)
 				out.emplace(k, v);
 			} else if (it->second != v) {
 				if (strict_conflicts) {
-					throw std::runtime_error("Prefix conflict for '" + k + "': '" + it->second +
-					                         "' vs '" + v + "'");
+					throw diagnostics::Error("Schema error: prefix conflict for '" + k + "': '" +
+					                         it->second + "' vs '" + v + "'");
 				} else {
+					std::cerr << "⚠️  Warning: prefix conflict for '" << k << "': '" << it->second
+					          << "' vs '" << v << "'. Using first.\n";
 				}
 			}
 		}

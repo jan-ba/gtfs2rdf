@@ -37,8 +37,7 @@ export Schema buildCalendarDatesSchema(runtime::RuntimeContainer &rt) {
 			// exception_type 1 = added -> output date
 			OUT_VAL = ARGS[0];
 		} else {
-			throw std::runtime_error("❌  Transform error: invalid exception_type '" +
-			                         std::string(ARGS[1]) + "' in ignore_disabled_dates");
+			TRANSFORM_ERROR("invalid exception type '" + std::string(ARGS[1]) + "'");
 		}
 	}
 	TRANSFORM_END

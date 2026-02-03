@@ -8,6 +8,8 @@
 
 module;
 
+#include "diagnostics.h"
+
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -170,7 +172,7 @@ export class IRI {
 	    , local_name_(local_name) {
 		// empty IRIs not allowed
 		if (local_name_.empty()) {
-			throw std::runtime_error("❌  Error: empty IRI is not allowed");
+			throw diagnostics::Error("Schema error: IRI must always have a non-empty local name");
 		}
 	}
 
@@ -190,7 +192,8 @@ export class IRI {
 		if (ntriples) {
 			if (!prefix_.empty()) {
 				if (!prefixes.contains(prefix_)) {
-					throw std::runtime_error("❌  Error: unknown prefix '" + prefix_ + "' in IRI");
+					throw diagnostics::Error("Schema error: unknown prefix '" + prefix_ +
+					                         "' in IRI");
 				}
 				t.raw = "<" + prefixes.at(prefix_) + local_name_ + ">";
 				const size_t num_ph = _count_placeholders(local_name_);

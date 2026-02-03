@@ -1,5 +1,7 @@
 module;
 
+#include "util/diagnostics.h"
+
 #include <cctype>
 #include <charconv>
 #include <iostream> // remove later
@@ -27,7 +29,7 @@ namespace t_lib {
 // _____________________________________________________________________________________________
 // Functions for type correctness checks
 // if no value is given no output will be generated (empty string)
-// if the value is invalid, a runtime_error exception will be thrown  TODO: better exception type?
+// if the value is invalid, a custom error 'Error' will be thrown
 
 export void is_int(Args args, Out1 &out) {
 	std::string_view sv = args[0];
@@ -44,8 +46,8 @@ export void is_int(Args args, Out1 &out) {
 		out = sv;
 		return;
 	} else {
-		throw std::runtime_error("❌ Faulty data: expected integer value, got '" + std::string(sv) +
-		                         "'");
+		throw diagnostics::Error("Transform error in 'is_int': expected integer value, got '" +
+		                         std::string(sv) + "'");
 	}
 }
 
@@ -53,8 +55,8 @@ export void is_int(Args args, Out1 &out) {
 export void is_decimal(Args args, Out1 &out) {
 	std::string_view sv = args[0];
 	auto fail = [&]() {
-		throw std::runtime_error("❌ Faulty data: expected decimal value, got '" + std::string(sv) +
-		                         "'");
+		throw diagnostics::Error("Transform error in 'is_decimal': expected decimal value, got '" +
+		                         std::string(sv) + "'");
 	};
 
 	if (sv.empty()) {
@@ -110,8 +112,9 @@ export void convert_date(Args args, Out1 &out) {
 	if (sv.empty()) {
 		return; // leave empty
 	} else if (sv.size() != 8) {
-		throw std::runtime_error("❌ Transform error: expected date in format YYYYMMDD, got '" +
-		                         std::string(sv) + "'");
+		throw diagnostics::Error(
+		    "Transform error in 'convert_date': expected date in format YYYYMMDD, got '" +
+		    std::string(sv) + "'");
 	}
 	out.append(sv.substr(0, 4));
 	out.append("-");
