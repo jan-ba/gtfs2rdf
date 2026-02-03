@@ -23,7 +23,7 @@ export module util:misc;
 export namespace util::misc {
 
 template <class MapType>
-typename MapType::mapped_type &get_or_insert(MapType &map, std::string_view key) {
+typename MapType::mapped_type& get_or_insert(MapType& map, std::string_view key) {
 	auto it = map.find(key);
 	if (it != map.end()) {
 		return it->second;
@@ -35,15 +35,15 @@ typename MapType::mapped_type &get_or_insert(MapType &map, std::string_view key)
 
 // RAII timer that accumulates elapsed nanoseconds into passed acc
 struct ScopedTimerNS {
-	uint64_t *acc;
+	uint64_t* acc;
 	std::chrono::steady_clock::time_point t0;
 
-	explicit ScopedTimerNS(uint64_t &a)
+	explicit ScopedTimerNS(uint64_t& a)
 	    : acc(&a)
 	    , t0(std::chrono::steady_clock::now()) {
 	}
 
-	explicit ScopedTimerNS(uint64_t *a)
+	explicit ScopedTimerNS(uint64_t* a)
 	    : acc(a)
 	    , t0(std::chrono::steady_clock::now()) {
 	}
@@ -58,7 +58,7 @@ struct ScopedTimerNS {
 // _________________________________________________________________________________________________
 // overloaded stream and string operators for STL containers (for convenient pretty printing)
 
-template <typename T> std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
+template <typename T> std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec) {
 	os << "[";
 	for (size_t i = 0; i < vec.size(); ++i) {
 		os << vec[i];
@@ -70,14 +70,14 @@ template <typename T> std::ostream &operator<<(std::ostream &os, const std::vect
 	return os;
 }
 
-template <typename T> std::string operator+(const std::string &s, const std::vector<T> &vec) {
+template <typename T> std::string operator+(const std::string& s, const std::vector<T>& vec) {
 	std::ostringstream oss;
 	oss << vec;
 	return s + oss.str();
 }
 
 template <typename K, typename V>
-std::ostream &operator<<(std::ostream &os, const std::map<K, V> &map) {
+std::ostream& operator<<(std::ostream& os, const std::map<K, V>& map) {
 	os << "{";
 	for (auto it = map.begin(); it != map.end(); ++it) {
 		os << it->first << ": " << it->second;
@@ -90,7 +90,7 @@ std::ostream &operator<<(std::ostream &os, const std::map<K, V> &map) {
 }
 
 template <typename K, typename V, typename Hash, typename Equal>
-std::ostream &operator<<(std::ostream &os, const std::unordered_map<K, V, Hash, Equal> &map) {
+std::ostream& operator<<(std::ostream& os, const std::unordered_map<K, V, Hash, Equal>& map) {
 	os << "{";
 	for (auto it = map.begin(); it != map.end(); ++it) {
 		os << it->first << ": " << it->second;
@@ -103,7 +103,7 @@ std::ostream &operator<<(std::ostream &os, const std::unordered_map<K, V, Hash, 
 }
 
 template <typename K, typename V>
-std::ostream &operator<<(std::ostream &os, const std::unordered_map<K, V> &map) {
+std::ostream& operator<<(std::ostream& os, const std::unordered_map<K, V>& map) {
 	os << "{";
 	for (auto it = map.begin(); it != map.end(); ++it) {
 		os << it->first << ": " << it->second;
@@ -115,7 +115,7 @@ std::ostream &operator<<(std::ostream &os, const std::unordered_map<K, V> &map) 
 	return os;
 }
 
-template <typename T> std::ostream &operator<<(std::ostream &os, const std::unordered_set<T> &set) {
+template <typename T> std::ostream& operator<<(std::ostream& os, const std::unordered_set<T>& set) {
 	os << "{";
 	for (auto it = set.begin(); it != set.end(); ++it) {
 		os << *it;
