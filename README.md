@@ -22,7 +22,7 @@ cmake --build build-debug -j
 ```
 
 ### Release but with all stats enabled
--DCMAKE_CXX_COMPILER=clang++-18 \
+
 ```bash
 cmake -S . -B build-release-stats -G Ninja \
   -DCMAKE_CXX_COMPILER=clang++-18 \

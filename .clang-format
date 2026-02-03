@@ -26,6 +26,8 @@ IncludeBlocks: Regroup
 SortIncludes: true
 
 # Spaces and wrapping
+PointerAlignment: Left
+ReferenceAlignment: Left
 SpaceBeforeParens: ControlStatements
 SpaceInEmptyParentheses: false
 SpacesInAngles: false

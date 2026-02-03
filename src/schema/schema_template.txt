@@ -257,3 +257,19 @@ export Schema buildYourSchemaNameSchema(runtime::RuntimeContainer& rt) {
 }
 
 } // namespace schema
+
+
+For updated version of template:
+- It should be rather concise such that it can be read easily
+- stress that indexed access via operator [] to ARGS is not bound-checked, if a user wants that
+  then they should check size of span first and in case of anything wrong (not enough args etc.)
+  throw a custom exception via makro (explain the usage of that as well as the TRANSFORM2X makro usage)
+- TRANSFORM2X {} TRANSFORMEND, here the curly braces are not required they help however with formatting
+  from clang-format, hence they are to be desired (this shouldnt be explained technically, rather
+  the user should just use these)
+- there are a few library transforms available, for these, the user should check out transform_lib.cppm
+- all usages of the placeholder syntax should be nicely explained as well as a few hints regarding
+  usage of the storage 
+- stress that storage-only instructions are always executed before all non-storage-only instructions 
+  (i.e. triple generation instructions)
+- 

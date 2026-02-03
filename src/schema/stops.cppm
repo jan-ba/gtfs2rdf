@@ -29,7 +29,7 @@ using namespace rdf;
 namespace schema {
 
 // this gtfs->rdf schema is preliminary and only covers a subset of all possible fields
-export Schema buildStopsSchema(runtime::RuntimeContainer &rt) {
+export Schema buildStopsSchema(runtime::RuntimeContainer& rt) {
 	// prints out enum string for location_type codes
 	// ARGS[0]: location_type code
 	TRANSFORM2ONE(loc2Enum, ARGS, OUT_VAL, STORAGE) {
@@ -63,7 +63,7 @@ export Schema buildStopsSchema(runtime::RuntimeContainer &rt) {
 
 	// builds WKT POINT(lon lat) from lon and lat strings
 	// ARGS[0]: longitude, ARGS[1]: latitude
-	// TODO: rework exception handling
+	// TODO: move to lib
 	TRANSFORM2ONE(wkt_point_lon_lat, ARGS, OUT_VAL, STORAGE) {
 		if (ARGS[0].empty() || ARGS[1].empty())
 			return;

@@ -1,7 +1,5 @@
 module;
 
-#include "diagnostics.h"
-
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -26,7 +24,7 @@ struct string_hash {
 	size_t operator()(std::string_view sv) const noexcept {
 		return std::hash<std::string_view>{}(sv);
 	}
-	size_t operator()(const std::string &s) const noexcept {
+	size_t operator()(const std::string& s) const noexcept {
 		return (*this)(std::string_view{s});
 	}
 	// size_t operator()(const char* s) const noexcept {
@@ -35,21 +33,9 @@ struct string_hash {
 };
 
 // parses a date string in 'YYYYMMDD' format into a sys_days object
+// GIGO: no validation is performed
 std::chrono::sys_days parseYYYYMMDD(std::string_view sv) {
-	if (sv.size() != 8) {
-		throw diagnostics::Error("Transform error in 'parseYYYYMMDD': invalid date string format, "
-		                         "expected 'YYYYMMDD', got '" +
-		                         std::string(sv) + "'");
-	}
-	for (char c : sv) {
-		if (c < '0' || c > '9') {
-			throw diagnostics::Error("Transform error in 'parseYYYYMMDD': invalid date string "
-			                         "format, expected 'YYYYMMDD', got '" +
-			                         std::string(sv) + "'");
-		}
-	}
-
-	const char *p = sv.data();
+	const char* p = sv.data();
 
 	int y = (p[0] - '0') * 1000 + (p[1] - '0') * 100 + (p[2] - '0') * 10 + (p[3] - '0');
 	unsigned char m = (p[4] - '0') * 10 + (p[5] - '0');
@@ -80,7 +66,7 @@ std::vector<std::string> split(std::string_view sv, const char delimiter) {
 }
 
 // removes whitespace inplace from a string
-void remove_ws(std::string &str) {
+void remove_ws(std::string& str) {
 	str.erase(
 	    std::remove_if(str.begin(), str.end(), [](unsigned char c) { return std::isspace(c); }),
 	    str.end());
@@ -193,7 +179,7 @@ enum class UnitType { Counts, Sizes, Time };
 // - time  : ns, µs, ms, s, min, h, d
 std::string fmt_suffix_padded(uint64_t v, UnitType unit_type) {
 	struct Unit {
-		const char *s;
+		const char* s;
 		long double div;
 	};
 
@@ -228,7 +214,7 @@ std::string fmt_suffix_padded(uint64_t v, UnitType unit_type) {
 	};
 
 	constexpr int max_i = 6; // last valid index (E / EB)
-	const Unit *units = nullptr;
+	const Unit* units = nullptr;
 	switch (unit_type) {
 	case UnitType::Counts:
 		units = counts_units;

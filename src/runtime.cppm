@@ -4,7 +4,6 @@ module;
 #include "util/diagnostics.h"
 
 #include <algorithm>
-#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <iomanip>
@@ -40,7 +39,7 @@ export class Settings {
 
   public:
 	// checks validity of command line arguments and sets settings accordingly
-	Settings(int argc, char *argv[]) {
+	Settings(int argc, char* argv[]) {
 		cxxopts::Options opts("gtfs2rdf",
 		                      "GTFS->RDF converter\n"
 		                      "Note: garbage in, garbage out. Validate your GTFS feed first.\n"
@@ -49,16 +48,17 @@ export class Settings {
 		                      "\n"
 		                      "Examples:\n"
 		                      "  gtfs2rdf feed.zip --format nt\n"
-		                      "  gtfs2rdf --dataset feed.zip --output out/\n");
+		                      "  gtfs2rdf --feed feed.zip --output out/\n");
 
 		opts.custom_help("[options]");
 
 		opts.add_options("Standard")(
-		    "d,dataset", "Path to GTFS .zip archive", cxxopts::value<std::string>())(
+		    "f,feed", "Path to GTFS .zip archive", cxxopts::value<std::string>())(
 		    "o,output", "Output directory", cxxopts::value<std::string>()->default_value("."))(
-		    "pre-run",
+		    "p,pre-run",
 		    "Validate schemas, print file headers, and roughly estimate output size and estimated "
-		    "peak RAM usage without writing output. It is recommended to run this in combination "
+		    "peak RAM usage without writing output. The level of statistics output determines how "
+		    "much information is provided. It is recommended to run this in combination "
 		    "with --spec-dump to get conversion details before actual conversion.",
 		    cxxopts::value<bool>()->default_value("false")->implicit_value("true"))(
 		    "format", "Output format: ttl|nt", cxxopts::value<std::string>()->default_value("ttl"))(
@@ -69,14 +69,14 @@ export class Settings {
 
 		opts.add_options("RAM / runtime")(
 		    "read-buffer-size",
-		    "Read buffer size in MB (bigger = more RAM, often faster)",
+		    "Read buffer size in MB (bigger = more RAM, fewer reads)",
 		    cxxopts::value<double>()->default_value(std::to_string(READ_CHUNK_SIZE_DEFAULT)))(
 		    "write-buffer-size",
 		    "Write buffer size in MB (bigger = more RAM, fewer flushes)",
 		    cxxopts::value<double>()->default_value(std::to_string(WRITE_CHUNK_SIZE_DEFAULT)))(
 		    "storage-buffer-size",
 		    "Size in MB of RAM that may be allocated for persistent storage cache between GTFS "
-		    "files (more = faster, but more RAM)",
+		    "files (bigger = more RAM, might be faster)",
 		    cxxopts::value<double>()->default_value(std::to_string(STORAGE_BUFFER_SIZE_DEFAULT)));
 
 		opts.add_options("Diagnostics / advanced")(
@@ -84,27 +84,24 @@ export class Settings {
 		    "Dump ontology spec to disk",
 		    cxxopts::value<bool>()->default_value("false")->implicit_value("true"))(
 		    "warning-level",
-		    "Warning verbosity: quiet|default|verbose",
+		    "Warning verbosity: quiet|warning|info",
 		    cxxopts::value<std::string>()->default_value("quiet"))(
-		    "strict",
-		    "Fail fast: treat warnings/issues as errors.",
-		    cxxopts::value<bool>()->default_value("false")->implicit_value("true"))(
 		    "stats",
-		    "Statistics mode: none|verbose|dry-verbose",
-		    cxxopts::value<std::string>()->default_value("none")->implicit_value("verbose"));
+		    "Statistics output: quiet (none), brief (overview), verbose (overview per-file)",
+		    cxxopts::value<std::string>()->default_value("quiet"));
 
-		opts.parse_positional({"dataset"});
+		opts.parse_positional({"feed"});
 		opts.positional_help("GTFS_ZIP");
 
 		auto result = opts.parse(argc, argv);
 
 		if (result.count("help")) {
-			std::cout << opts.help({"Standard", "RAM / runtime", "Diagnostics / advanced"}) << "\n";
+			std::cerr << opts.help({"Standard", "RAM / runtime", "Diagnostics / advanced"}) << "\n";
 			std::exit(0);
 		}
 
-		if (!result.count("dataset")) {
-			std::cerr << "Input GTFS dataset required. Type --help for more information!\n";
+		if (!result.count("feed")) {
+			std::cerr << "Input GTFS feed required. Type --help for more information!\n";
 			std::exit(1);
 		}
 
@@ -125,7 +122,7 @@ export class Settings {
 		// read buffer size
 		read_buffer_size_mb_ = result["read-buffer-size"].as<double>();
 		if (read_buffer_size_mb_ <= 0.0) {
-			std::cerr << "⚠️  Warning: read buffer size must be positive. Using default value of "
+			std::cerr << "⚠️  Read buffer size must be positive. Using default value of "
 			          << READ_CHUNK_SIZE_DEFAULT << " mb.\n";
 			read_buffer_size_mb_ = READ_CHUNK_SIZE_DEFAULT;
 		}
@@ -133,7 +130,7 @@ export class Settings {
 		// write buffer size
 		write_buffer_size_mb_ = result["write-buffer-size"].as<double>();
 		if (write_buffer_size_mb_ <= 0.0) {
-			std::cerr << "⚠️  Warning: write buffer size must be positive. Using default value of "
+			std::cerr << "⚠️  Write buffer size must be positive. Using default value of "
 			          << WRITE_CHUNK_SIZE_DEFAULT << " mb.\n";
 			write_buffer_size_mb_ = WRITE_CHUNK_SIZE_DEFAULT;
 		}
@@ -141,14 +138,13 @@ export class Settings {
 		// storage buffer size
 		storage_buffer_size_mb_ = result["storage-buffer-size"].as<double>();
 		if (storage_buffer_size_mb_ < 0.0) {
-			std::cerr
-			    << "⚠️  Warning: storage buffer size must be non-negative. Using default value of "
-			    << STORAGE_BUFFER_SIZE_DEFAULT << " mb.\n";
+			std::cerr << "⚠️  Storage buffer size must be non-negative. Using default value of "
+			          << STORAGE_BUFFER_SIZE_DEFAULT << " mb.\n";
 			storage_buffer_size_mb_ = STORAGE_BUFFER_SIZE_DEFAULT;
 		}
 
 		// input path
-		inputPath_ = result["dataset"].as<std::string>();
+		inputPath_ = result["feed"].as<std::string>();
 		if (!std::filesystem::is_regular_file(inputPath_) || inputPath_.extension() != ".zip") {
 			throw diagnostics::Error("Settings error: input '" + inputPath_.string() +
 			                         "' doesn't exist or "
@@ -161,18 +157,41 @@ export class Settings {
 		    result["output"].as<std::string>() + "/" + inputPath_.stem().string() + file_ext;
 
 		overwrite_output_ = result["overwrite"].as<bool>();
+
+		// warning level
+		std::string warning_level = result["warning-level"].as<std::string>();
+		if (warning_level == "quiet") {
+			warning_verbosity_ = diagnostics::VerbosityLevelWarnings::Quiet;
+		} else if (warning_level == "warning") {
+			warning_verbosity_ = diagnostics::VerbosityLevelWarnings::Warning;
+		} else if (warning_level == "info") {
+			warning_verbosity_ = diagnostics::VerbosityLevelWarnings::Info;
+		} else {
+			throw diagnostics::Error("Settings error: unsupported warning level '" + warning_level +
+			                         "'. Supported levels are 'quiet', 'warning', and 'info'.\n");
+		}
+
+		// statistics output level
+		std::string stats_level = result["stats"].as<std::string>();
+		if (stats_level == "quiet") {
+			stats_verbosity_ = diagnostics::VerbosityLevelStats::Quiet;
+		} else if (stats_level == "brief") {
+			stats_verbosity_ = diagnostics::VerbosityLevelStats::Brief;
+		} else if (stats_level == "verbose") {
+			stats_verbosity_ = diagnostics::VerbosityLevelStats::Verbose;
+		} else {
+			throw diagnostics::Error("Settings error: unsupported statistics level '" +
+			                         stats_level +
+			                         "'. Supported levels are 'quiet', 'brief', and 'verbose'.\n");
+		}
 	}
 
 	// GETTERs
 	bool isPreRun() const {
 		return pre_run_;
 	}
-
 	bool isNTriplesOutput() const {
 		return ntriples_output_;
-	}
-	bool isDebugWarnings() const {
-		return debug_warnings_;
 	}
 	bool isSpecDump() const {
 		return spec_dump_;
@@ -192,124 +211,67 @@ export class Settings {
 	bool isOverwriteOutput() const {
 		return overwrite_output_;
 	}
-	const std::filesystem::path &InputPath() const {
+	const std::filesystem::path& InputPath() const {
 		return inputPath_;
 	}
-	const std::filesystem::path &OutputPath() const {
+	const std::filesystem::path& OutputPath() const {
 		return outputPath_;
 	}
 	size_t getPreRunSampleSize() const {
 		return PRE_RUN_SAMPLE_SIZE;
 	}
+	diagnostics::VerbosityLevelWarnings getWarningsVerbosity() const {
+		return warning_verbosity_;
+	}
+	diagnostics::VerbosityLevelStats getStatsVerbosity() const {
+		return stats_verbosity_;
+	}
 
   private:
 	bool ntriples_output_;
-	bool debug_warnings_;
 	bool spec_dump_;
 	double read_buffer_size_mb_;
 	double write_buffer_size_mb_;
 	double storage_buffer_size_mb_;
 	bool overwrite_output_;
 	bool pre_run_;
-
 	std::filesystem::path inputPath_;
 	std::filesystem::path outputPath_;
+	diagnostics::VerbosityLevelWarnings warning_verbosity_;
+	diagnostics::VerbosityLevelStats stats_verbosity_;
 };
 
 // container for runtime settings, transform registry, and persistent storage across GTFS files
 export class RuntimeContainer {
   public:
-	RuntimeContainer(const Settings &settings, field_transforms::TransformRegistry &registry)
+	RuntimeContainer(const Settings& settings, field_transforms::TransformRegistry& registry)
 	    : settings_(settings)
 	    , registry_(registry)
-	    , storage_(settings.StorageBufferSizeMB()) {
+	    , warning_collector_(settings.getWarningsVerbosity())
+	    , storage_(
+	          warning_collector_, settings.getStatsVerbosity(), settings.StorageBufferSizeMB()) {
 	}
 
-	const Settings &getSettings() const {
+	const Settings& getSettings() const {
 		return settings_;
 	}
-	field_transforms::TransformRegistry &getTransformRegistry() {
+	field_transforms::TransformRegistry& getTransformRegistry() {
 		return registry_;
 	}
-	const field_transforms::TransformRegistry &getConstTransformRegistry() const {
+	const field_transforms::TransformRegistry& getConstTransformRegistry() const {
 		return registry_;
 	}
-	storage::PersistentStorageSqlite &getStorage() {
+	storage::PersistentStorageSqlite& getStorage() {
 		return storage_;
+	}
+	diagnostics::WarningCollector& getWarningCollector() {
+		return warning_collector_;
 	}
 
   private:
-	const Settings &settings_;
-	field_transforms::TransformRegistry &registry_;
+	const Settings& settings_;
+	field_transforms::TransformRegistry& registry_;
+	diagnostics::WarningCollector warning_collector_;
 	storage::PersistentStorageSqlite storage_;
 };
-
-// container for runtime statistics collected during GTFS processing
-export class Statistics {
-  public:
-	std::string name;
-	uint32_t chunks = 0;
-	uint64_t rows = 0;
-	uint64_t triples = 0;
-
-#if GTFS2RDF_FULL_STATS
-	uint64_t parse_ns = 0;
-	uint64_t write_ns = 0;
-	uint64_t conversion_ns = 0;
-#endif
-
-	// pre-run only
-	std::vector<std::string> header;
-	uint64_t num_chars = 0;
-
-	Statistics() = default;
-
-	std::string fancyPrint() const {
-		std::ostringstream oss;
-
-		oss << "\n--------------------------------------------------------------------\n";
-		oss << "📊 Statistics for " << name << "\n\n";
-
-		oss << "  Chunks processed:  " << chunks << "\n";
-		oss << "  Rows parsed:       " << rows << "\n";
-		oss << "  Triples generated: " << triples << "\n";
-
-#if GTFS2RDF_FULL_STATS
-		oss << "  Parse time:        " << fmt_suffix_padded(parse_ns, UnitType::Time) << "s\n";
-		oss << "  Write time:        " << fmt_suffix_padded(write_ns, UnitType::Time) << "s\n";
-		oss << "  Conversion time:   " << fmt_suffix_padded(conversion_ns, UnitType::Time) << "s\n";
-		oss << "  Total time:        "
-		    << fmt_suffix_padded(parse_ns + write_ns + conversion_ns, UnitType::Time) << "s\n";
-#endif
-
-		oss << "--------------------------------------------------------------------\n";
-		return oss.str();
-	}
-
-	std::string briefPrint() const {
-		std::ostringstream oss;
-		oss << "📈 " << name << ": " << rows << " rows, " << triples << " triples";
-#if GTFS2RDF_FULL_STATS
-		oss << ", " << fmt_suffix_padded(parse_ns, UnitType::Time) << " parse + "
-		    << fmt_suffix_padded(write_ns, UnitType::Time) << " write + "
-		    << fmt_suffix_padded(conversion_ns, UnitType::Time) << " convert";
-#endif
-		return oss.str();
-	}
-
-	Statistics operator+(const Statistics &other) const {
-		Statistics result = *this;
-		result.chunks += other.chunks;
-		result.rows += other.rows;
-		result.triples += other.triples;
-#if GTFS2RDF_FULL_STATS
-		result.parse_ns += other.parse_ns;
-		result.write_ns += other.write_ns;
-		result.conversion_ns += other.conversion_ns;
-#endif
-		result.num_chars += other.num_chars;
-		return result;
-	}
-};
-
 } // namespace runtime

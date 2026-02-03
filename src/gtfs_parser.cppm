@@ -37,7 +37,7 @@ using Rows = std::vector<std::string>;
 namespace gtfs {
 
 // remove UTF-8 BOM from start of string, if present
-void strip_utf8_bom(std::string &s) {
+void strip_utf8_bom(std::string& s) {
 	if (s.size() >= 3 && static_cast<unsigned char>(s[0]) == 0xEF &&
 	    static_cast<unsigned char>(s[1]) == 0xBB && static_cast<unsigned char>(s[2]) == 0xBF) {
 		s.erase(0, 3);
@@ -54,44 +54,44 @@ export class GTFSParser_Workspace {
   private:
 	std::vector<char> read_buffer_;
 	zip_uint64_t read_buffer_capacity_;
-	writer::Writer &writer_;
-	runtime::RuntimeContainer &rt_;
+	writer::Writer& writer_;
+	runtime::RuntimeContainer& rt_;
 
   public:
-	GTFSParser_Workspace(runtime::RuntimeContainer &rt, writer::Writer &writer)
+	GTFSParser_Workspace(runtime::RuntimeContainer& rt, writer::Writer& writer)
 	    : writer_(writer)
 	    , rt_(rt) {
 		read_buffer_capacity_ = rt.getSettings().ReadBufferSizeMB() * 1024 * 1024 + 1;
 		read_buffer_.resize(read_buffer_capacity_);
 	}
 
-	std::vector<char> &getReadBuffer() {
+	std::vector<char>& getReadBuffer() {
 		return read_buffer_;
 	}
 	zip_uint64_t getReadBufferCapacity() {
 		return read_buffer_capacity_;
 	}
-	writer::Writer &getWriter() {
+	writer::Writer& getWriter() {
 		return writer_;
 	}
 
-	GTFSParser_Workspace(const GTFSParser_Workspace &) = delete;
-	GTFSParser_Workspace &operator=(const GTFSParser_Workspace &) = delete;
+	GTFSParser_Workspace(const GTFSParser_Workspace&) = delete;
+	GTFSParser_Workspace& operator=(const GTFSParser_Workspace&) = delete;
 
-	GTFSParser_Workspace(GTFSParser_Workspace &&) = delete;
-	GTFSParser_Workspace &operator=(GTFSParser_Workspace &&) = delete;
+	GTFSParser_Workspace(GTFSParser_Workspace&&) = delete;
+	GTFSParser_Workspace& operator=(GTFSParser_Workspace&&) = delete;
 };
 
 export class GTFSParser {
   private:
 	const std::string filename_;
-	zip_file_t *file_;
-	schema::Schema &schema_;
-	writer::Writer &writer_;
-	runtime::RuntimeContainer &rt_;
+	zip_file_t* file_;
+	schema::Schema& schema_;
+	writer::Writer& writer_;
+	runtime::RuntimeContainer& rt_;
 
 	// shared buffer buffer
-	std::vector<char> &read_buffer_;
+	std::vector<char>& read_buffer_;
 	zip_uint64_t buffer_size_ = 0;
 
 	// parsing state (needs to persist across chunk boundaries)
@@ -103,7 +103,7 @@ export class GTFSParser {
 	size_t col_i_ = 0;    // current column index in row_ (data rows)
 
 	// statistics
-	mutable runtime::Statistics stats_;
+	mutable diagnostics::Statistics stats_;
 
 #if GTFS2RDF_FULL_STATS
 	std::chrono::steady_clock::time_point start_time_;
@@ -145,7 +145,8 @@ export class GTFSParser {
 			strip_utf8_bom(row_[0]);
 			try {
 				schema_.setHeader(row_);
-			} catch (const diagnostics::Error &e) {
+				rt_.getWarningCollector().addNode("while setting header '" + row_ + "'", 5);
+			} catch (const diagnostics::Error& e) {
 				diagnostics::wrap_and_rethrow(e, "while setting header '" + row_ + "'");
 			}
 			num_cols_ = row_.size();
@@ -169,8 +170,8 @@ export class GTFSParser {
 				const auto sample = rt_.getSettings().getPreRunSampleSize();
 
 				if (stats_.rows < sample) {
-					auto &instrs = schema_.getInstructions();
-					for (auto &instr : instrs) {
+					auto& instrs = schema_.getInstructions();
+					for (auto& instr : instrs) {
 						SCOPED_TIMER_NS(conversion_ns_);
 						stats_.num_chars += instr.render(row_).size();
 					}
@@ -224,8 +225,10 @@ export class GTFSParser {
 			} else if (c == '\r') {
 				// ignore; wait for '\n'
 			} else {
-				std::cerr << "⚠️  Parsing warning: unexpected character '" << c
-				          << "' after closing quote in quoted field\n";
+				rt_.getWarningCollector().addLeaf("Parsing warning: unexpected character '" +
+				                                      std::string(1, c) +
+				                                      "' after closing quote in quoted field",
+				                                  diagnostics::WarningLevel::Warning);
 				cache_.push_back(c);
 				state_ = CSVState::UnquotedField;
 			}
@@ -247,10 +250,10 @@ export class GTFSParser {
 	}
 
   public:
-	GTFSParser(zip_file_t *zf,
-	           schema::Schema &schema,
-	           GTFSParser_Workspace &ws,
-	           runtime::RuntimeContainer &rt)
+	GTFSParser(zip_file_t* zf,
+	           schema::Schema& schema,
+	           GTFSParser_Workspace& ws,
+	           runtime::RuntimeContainer& rt)
 	    : filename_(schema.getName())
 	    , file_(zf)
 	    , schema_(schema)
@@ -260,7 +263,7 @@ export class GTFSParser {
 #if GTFS2RDF_FULL_STATS
 		writer_.resetTiming();
 #endif
-
+		stats_.name = filename_;
 		buffer_size_ = ws.getReadBufferCapacity();
 		row_.clear();
 		cache_.clear();
@@ -289,7 +292,9 @@ export class GTFSParser {
 
 				stats_.chunks++;
 				consumeChunk_(n);
-			} catch (const diagnostics::Error &e) {
+				rt_.getWarningCollector().addNode(
+				    "while parsing chunk number " + std::to_string(stats_.chunks + 1), 4);
+			} catch (const diagnostics::Error& e) {
 				diagnostics::wrap_and_rethrow(
 				    e, "while parsing chunk number " + std::to_string(stats_.chunks + 1));
 			}
@@ -297,7 +302,7 @@ export class GTFSParser {
 
 		flushRemainder_();
 
-		for (const auto &instr : schema_.getInstructions()) {
+		for (const auto& instr : schema_.getInstructions()) {
 			stats_.triples += instr.getCount();
 		}
 
@@ -309,7 +314,7 @@ export class GTFSParser {
 #endif
 	}
 
-	const runtime::Statistics &getStats() const {
+	const diagnostics::Statistics& getStats() const {
 #if GTFS2RDF_FULL_STATS
 		if (!rt_.getSettings().isPreRun())
 			conversion_ns_ = writer_.getConversionTimeNS();

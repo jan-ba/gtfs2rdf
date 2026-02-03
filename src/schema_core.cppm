@@ -75,7 +75,7 @@ export class Instruction {
 	uint64_t counter_ = 0;
 	bool is_valid_ = true;
 
-	runtime::RuntimeContainer &rt_;
+	runtime::RuntimeContainer& rt_;
 	const std::string raw_instruction_;
 
 	std::string cur_;         // temporary storage for transform outputs
@@ -91,7 +91,7 @@ export class Instruction {
 	bool suppress_output_ = false;
 
 	// helper: resolve an ArgSource to a string_view for this row
-	std::string_view resolve_arg(const ArgSource &a, std::span<const std::string> row) {
+	std::string_view resolve_arg(const ArgSource& a, std::span<const std::string> row) {
 		switch (a.kind) {
 		case ArgSourceKind::ColumnIndex: {
 			if (a.column_index < 0) {
@@ -104,7 +104,7 @@ export class Instruction {
 			return a.literal;
 		}
 		case ArgSourceKind::StorageVar: {
-			const auto &v = rt_.getStorage().get_variable(a.ctx, a.name);
+			const auto& v = rt_.getStorage().get_variable(a.ctx, a.name);
 			return v;
 		}
 		}
@@ -112,22 +112,22 @@ export class Instruction {
 	}
 
   public:
-	Instruction(const InstructionTemplate &tmpl,
-	            const std::unordered_map<std::string, int> &column_map,
-	            runtime::RuntimeContainer &rt,
-	            const std::string &ctx_name)
+	Instruction(const InstructionTemplate& tmpl,
+	            const std::unordered_map<std::string, int>& column_map,
+	            runtime::RuntimeContainer& rt,
+	            const std::string& ctx_name)
 	    : rt_(rt)
 	    , raw_instruction_(tmpl.raw) {
 		suppress_output_ = tmpl.suppress_output;
 		parts_ = tmpl.parts;
 		base_len_ = 0;
-		for (auto &p : parts_)
+		for (auto& p : parts_)
 			base_len_ += p.size();
 
 		datagaps_.reserve(tmpl.phs.size());
 
 		for (size_t ph_i = 0; ph_i < tmpl.phs.size(); ++ph_i) {
-			const auto &ph = tmpl.phs[ph_i];
+			const auto& ph = tmpl.phs[ph_i];
 			Datagap dg;
 
 			// args
@@ -138,7 +138,7 @@ export class Instruction {
 			dg.num_args = ph.args.size();
 
 			for (size_t i = 0; i < ph.args.size(); ++i) {
-				const auto &a = ph.args[i];
+				const auto& a = ph.args[i];
 				ArgSource src;
 
 				if (a.kind == ArgKind::Column) {
@@ -149,9 +149,9 @@ export class Instruction {
 					if (idx == -1) {
 						// header missing required column -> skip this instruction
 						is_valid_ = false;
-						std::cerr << "⚠️  Warning: column '" << a.name
-						          << "' not found in header for triple: '" << raw_instruction_
-						          << "' . Skipping this triple.\n";
+						rt_.getWarningCollector().addLeaf("Column '" + a.name +
+						                                      "' not found in header. Skipping",
+						                                  diagnostics::WarningLevel::Info);
 						return;
 					}
 					src.kind = ArgSourceKind::ColumnIndex;
@@ -229,7 +229,7 @@ export class Instruction {
 		field_transforms::ArgSpan span1{&cur_sv_, 1};
 
 		for (size_t k = 0; k < datagaps_.size(); ++k) {
-			Datagap &dg = datagaps_[k];
+			Datagap& dg = datagaps_[k];
 
 			cur_.clear();
 			next_.clear();
@@ -311,7 +311,7 @@ export class Instruction {
 
 			// --- side effects: storage write ---
 			if (dg.storage.kind != StorageKind::None) {
-				auto &st = rt_.getStorage();
+				auto& st = rt_.getStorage();
 
 				if (dg.storage.mode == StoreMode::FilterStoreRaw) {
 					// filter predicate: non-empty transform output
@@ -417,7 +417,7 @@ export class Instruction {
 			std::string prefix = out_.substr(0, transf2many_placeholder_index_);
 			std::string suffix = out_.substr(transf2many_placeholder_index_);
 			out_.clear();
-			for (const auto &val : transf_buf_) {
+			for (const auto& val : transf_buf_) {
 				if (val.empty())
 					continue;
 				out_.append(prefix);
@@ -454,13 +454,13 @@ export class Instruction {
 	bool isValid() const {
 		return is_valid_;
 	}
-	const std::string &getRawInstruction() const {
+	const std::string& getRawInstruction() const {
 		return raw_instruction_;
 	}
-	const std::vector<Datagap> &getDatagaps() const {
+	const std::vector<Datagap>& getDatagaps() const {
 		return datagaps_;
 	}
-	std::vector<Datagap> &getModifiableDatagaps() {
+	std::vector<Datagap>& getModifiableDatagaps() {
 		return datagaps_;
 	}
 };
@@ -475,8 +475,8 @@ export class Schema {
 	std::vector<std::vector<RenderKind>> raw_render_kinds_; // per instruction, per placeholder
 
 	size_t num_storage_only_instructions_ = 0;
-	runtime::RuntimeContainer &rt_;
-	const field_transforms::TransformRegistry &registry_;
+	runtime::RuntimeContainer& rt_;
+	const field_transforms::TransformRegistry& registry_;
 	std::unordered_set<std::string> dependencies_; // other schemas that this schema depends on
 	std::vector<InstructionTemplate> templates_;
 	bool compiled_ = false;
@@ -491,16 +491,16 @@ export class Schema {
 	std::unordered_set<std::string> referenced_columns_;
 
   public:
-	Schema(const Schema &) = delete;
-	Schema &operator=(const Schema &) = delete;
-	Schema(Schema &&) noexcept = default;
-	Schema &operator=(Schema &&) noexcept = delete;
+	Schema(const Schema&) = delete;
+	Schema& operator=(const Schema&) = delete;
+	Schema(Schema&&) noexcept = default;
+	Schema& operator=(Schema&&) noexcept = delete;
 
 	Schema(const std::string name,
 	       const std::vector<std::string> possible_columns,
 	       const std::unordered_map<std::string, std::string> prefixes,
-	       const std::vector<Triple> &triples,
-	       runtime::RuntimeContainer &rt)
+	       const std::vector<Triple>& triples,
+	       runtime::RuntimeContainer& rt)
 	    : name_(std::move(name))
 	    , possible_columns_(std::move(possible_columns))
 	    , prefixes_(std::move(prefixes))
@@ -511,7 +511,7 @@ export class Schema {
 			                         "' (must end with .txt)");
 		}
 
-		for (const auto &col : this->possible_columns_) {
+		for (const auto& col : this->possible_columns_) {
 			column_map_[col] = -1; // initialize all to -1 (not found)
 		}
 
@@ -521,7 +521,9 @@ export class Schema {
 				auto t = triples[i].toTemplate(prefixes_, rt_);
 				raw_instructions_.push_back(t.raw);
 				raw_render_kinds_.push_back(t.render_kinds);
-			} catch (const diagnostics::Error &e) {
+				rt_.getWarningCollector().addNode(
+				    "while building instruction from triple number " + std::to_string(i + 1), 4);
+			} catch (const diagnostics::Error& e) {
 				diagnostics::wrap_and_rethrow(
 				    e, "while building instruction from triple number " + std::to_string(i + 1));
 			}
@@ -532,9 +534,9 @@ export class Schema {
 	Schema(const std::string name,
 	       const std::vector<std::string> possible_columns,
 	       const std::unordered_map<std::string, std::string> prefixes,
-	       const std::vector<Triple> &triples,
-	       const std::vector<std::string> &storage_only_instructions,
-	       runtime::RuntimeContainer &rt)
+	       const std::vector<Triple>& triples,
+	       const std::vector<std::string>& storage_only_instructions,
+	       runtime::RuntimeContainer& rt)
 	    : Schema(name, possible_columns, prefixes, triples, rt) {
 		// add side effect instructions in front (so that triples could depend on them)
 		num_storage_only_instructions_ = storage_only_instructions.size();
@@ -556,8 +558,8 @@ export class Schema {
 
 		for (size_t inst_i = 0; inst_i < raw_instructions_.size(); ++inst_i) {
 			try {
-				const auto &raw_inst = raw_instructions_[inst_i];
-				const auto &kinds = raw_render_kinds_[inst_i];
+				const auto& raw_inst = raw_instructions_[inst_i];
+				const auto& kinds = raw_render_kinds_[inst_i];
 				size_t kind_i = 0;
 
 				InstructionTemplate t;
@@ -581,15 +583,15 @@ export class Schema {
 						PlaceholderSpec spec = parse_placeholder(placeholder, registry_);
 
 						// dependencies from args
-						for (const auto &a : spec.args) {
+						for (const auto& a : spec.args) {
 							if (a.kind == ArgKind::StorageVar) {
 								if (!a.ctx.empty()) {
 									// if self-reference, check that the variable was already
 									// written in a previous instruction
 									if (a.ctx == name_) {
 										bool found = false;
-										for (const auto &instr : templates_) {
-											for (const auto &ph : instr.phs) {
+										for (const auto& instr : templates_) {
+											for (const auto& ph : instr.phs) {
 												if (ph.storage.target_name == a.name) {
 													found = true;
 													break;
@@ -613,7 +615,7 @@ export class Schema {
 							}
 						}
 						// dependencies from transform ctx hints
-						for (const auto &tc : spec.transforms) {
+						for (const auto& tc : spec.transforms) {
 							if (!tc.ctx_hint.empty())
 								dependencies_.insert(tc.ctx_hint);
 						}
@@ -629,7 +631,10 @@ export class Schema {
 						}
 
 						start = end + 1;
-					} catch (const diagnostics::Error &e) {
+
+						rt_.getWarningCollector().addNode(
+						    "while parsing placeholder '" + placeholder + "'", 4);
+					} catch (const diagnostics::Error& e) {
 						diagnostics::wrap_and_rethrow(
 						    e, "while parsing placeholder '" + placeholder + "'");
 					}
@@ -637,8 +642,9 @@ export class Schema {
 
 				t.parts.push_back(raw_inst.substr(start));
 				templates_.push_back(std::move(t));
-
-			} catch (const diagnostics::Error &e) {
+				rt_.getWarningCollector().addNode(
+				    "while parsing instruction '" + raw_instructions_[inst_i] + "'", 3);
+			} catch (const diagnostics::Error& e) {
 				diagnostics::wrap_and_rethrow(
 				    e, "while parsing instruction '" + raw_instructions_[inst_i] + "'");
 			}
@@ -652,7 +658,7 @@ export class Schema {
 	}
 
 	// set column map from header and build instructions_ once header from file has been read
-	void setHeader(const std::vector<std::string> &header) {
+	void setHeader(const std::vector<std::string>& header) {
 		header_ = header;
 		instructions_.clear();
 		if (!compiled_)
@@ -663,8 +669,9 @@ export class Schema {
 			if (column_map_.contains(header[file_idx])) {
 				column_map_[header[file_idx]] = static_cast<int>(file_idx);
 			} else {
-				std::cerr << "⚠️  Warning: unknown column " << header[file_idx] << " in " << name_
-				          << "\n";
+				rt_.getWarningCollector().addLeaf("Schema does not use header column'" +
+				                                      header[file_idx] + "'",
+				                                  diagnostics::WarningLevel::Info);
 			}
 		}
 		// build instructions_
@@ -672,19 +679,22 @@ export class Schema {
 		// if no other schema actually depends on storage from this one
 		size_t start_idx = allow_storage_writes_ ? 0 : num_storage_only_instructions_;
 		for (size_t i = start_idx; i < templates_.size(); ++i) {
-			const auto &tmp = templates_[i];
+			const auto& tmp = templates_[i];
 			try {
 				Instruction instr(tmp, column_map_, rt_, name_);
 				if (!instr.isValid()) {
 					continue;
 				} // skip invalid instructions
 				if (!allow_storage_writes_) {
-					for (auto &dg : instr.getModifiableDatagaps()) {
+					for (auto& dg : instr.getModifiableDatagaps()) {
 						dg.storage.kind = StorageKind::None;
 					}
 				}
 				instructions_.push_back(std::move(instr));
-			} catch (const diagnostics::Error &e) {
+
+				rt_.getWarningCollector().addNode(
+				    "while building instruction from template '" + tmp.raw + "'", 3);
+			} catch (const diagnostics::Error& e) {
 				diagnostics::wrap_and_rethrow(
 				    e, "while building instruction from template '" + tmp.raw + "'");
 			}
@@ -692,28 +702,28 @@ export class Schema {
 	}
 
 	// Getters
-	const std::string &getName() const {
+	const std::string& getName() const {
 		return name_;
 	}
-	const std::vector<std::string> &getPossibleColumns() const {
+	const std::vector<std::string>& getPossibleColumns() const {
 		return possible_columns_;
 	}
-	const std::unordered_map<std::string, std::string> &getPrefixes() const {
+	const std::unordered_map<std::string, std::string>& getPrefixes() const {
 		return prefixes_;
 	}
-	const std::unordered_map<std::string, int> &getColumnMap() const {
+	const std::unordered_map<std::string, int>& getColumnMap() const {
 		return column_map_;
 	}
-	std::vector<Instruction> &getInstructions() {
+	std::vector<Instruction>& getInstructions() {
 		return instructions_;
 	}
-	const std::unordered_set<std::string> &getDependencies() const {
+	const std::unordered_set<std::string>& getDependencies() const {
 		return dependencies_;
 	}
 
 	std::vector<std::string> formatHeaderWithUnused() const {
 		std::vector<std::string> out;
-		for (const auto &col : header_) {
+		for (const auto& col : header_) {
 			if (referenced_columns_.contains(col)) {
 				out.push_back(col);
 			} else {
@@ -731,12 +741,14 @@ export class Schema {
 
 // merge prefixes from multiple schemas into one map, checking for conflicts
 export std::unordered_map<std::string, std::string>
-merge_prefixes(const std::vector<Schema> &schemas, bool strict_conflicts = true) {
+merge_prefixes(const std::vector<Schema>& schemas,
+               diagnostics::WarningCollector& wc,
+               bool strict_conflicts = true) {
 	std::unordered_map<std::string, std::string> out;
 
-	for (const auto &sc : schemas) {
-		const auto &pfx = sc.getPrefixes();
-		for (const auto &[k, v] : pfx) {
+	for (const auto& sc : schemas) {
+		const auto& pfx = sc.getPrefixes();
+		for (const auto& [k, v] : pfx) {
 			if (auto it = out.find(k); it == out.end()) {
 				out.emplace(k, v);
 			} else if (it->second != v) {
@@ -744,8 +756,9 @@ merge_prefixes(const std::vector<Schema> &schemas, bool strict_conflicts = true)
 					throw diagnostics::Error("Schema error: prefix conflict for '" + k + "': '" +
 					                         it->second + "' vs '" + v + "'");
 				} else {
-					std::cerr << "⚠️  Warning: prefix conflict for '" << k << "': '" << it->second
-					          << "' vs '" << v << "'. Using first.\n";
+					wc.addLeaf("Prefix conflict for '" + k + "': '" + it->second + "' vs '" + v +
+					               "'. Using first.",
+					           diagnostics::WarningLevel::Warning);
 				}
 			}
 		}

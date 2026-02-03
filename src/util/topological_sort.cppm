@@ -8,7 +8,7 @@
 
 module;
 
-#include "diagnostics.h"
+// #include "diagnostics.h"
 
 #include <stdexcept>
 #include <string>
@@ -48,7 +48,7 @@ class TopologicalSort {
 		if (from == to) {
 			if (!allow_self_loops) {
 				error_node_ = from;
-				throw diagnostics::Error("TopologicalSort error: self-loop detected for node " +
+				throw std::runtime_error("TopologicalSort error: self-loop detected for node " +
 				                         std::to_string(error_node_));
 			}
 		} else {
@@ -70,7 +70,7 @@ class TopologicalSort {
 		// initialise adjacency matrix
 		A_ = std::vector<std::vector<bool>>(node_index_.size(),
 		                                    std::vector<bool>(node_index_.size(), false));
-		for (const auto &[from_id, to_id] : edges_) {
+		for (const auto& [from_id, to_id] : edges_) {
 			A_[from_id][to_id] = true;
 		}
 
@@ -106,7 +106,7 @@ class TopologicalSort {
 		for (size_t i = 0; i < A_.size(); ++i) {
 			if (!isRowFalse_(i)) {
 				error_node_ = index_to_name_[i];
-				throw diagnostics::Error(
+				throw std::runtime_error(
 				    "TopologicalSort error: graph has at least one cycle at node " +
 				    std::to_string(error_node_));
 			}
@@ -149,7 +149,7 @@ class TopologicalSort {
 	}
 
 	bool isColFalse_(size_t col) {
-		for (const auto &row : A_) {
+		for (const auto& row : A_) {
 			if (row[col])
 				return false;
 		}

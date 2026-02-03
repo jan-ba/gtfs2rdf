@@ -38,22 +38,21 @@ struct StorageTimings {
 	uint64_t store_ns = 0;
 	uint64_t read_ns = 0;
 	uint64_t clear_ns = 0;
-	uint64_t clean_up_ns = 0;
 };
 
 struct MultiMapTable {
 	std::string ctx, name;
-	sqlite3_stmt *insert = nullptr;
-	sqlite3_stmt *get = nullptr;
-	sqlite3_stmt *contains = nullptr;
+	sqlite3_stmt* insert = nullptr;
+	sqlite3_stmt* get = nullptr;
+	sqlite3_stmt* contains = nullptr;
 };
 
 struct TupleMapTable {
 	std::string ctx, name;
 	size_t arity = 0; // fixed width of table (1 key + n value columns)
-	sqlite3_stmt *insert = nullptr;
-	sqlite3_stmt *get = nullptr;
-	sqlite3_stmt *contains = nullptr;
+	sqlite3_stmt* insert = nullptr;
+	sqlite3_stmt* get = nullptr;
+	sqlite3_stmt* contains = nullptr;
 };
 
 // creates descriptive table name for every (ctx, name) pair used in multimap/tuplemap
@@ -87,8 +86,12 @@ export class PersistentStorageSqlite {
 	const std::string db_dir_ = "./.tmp"; // path to temporary DB file directory
 
   public:
-	explicit PersistentStorageSqlite(double heap_mb)
-	    : heap_bytes_(static_cast<sqlite3_int64>(heap_mb) * 1024LL * 1024LL) {
+	explicit PersistentStorageSqlite(diagnostics::WarningCollector& wc,
+	                                 diagnostics::VerbosityLevelStats verbosity_level_stats,
+	                                 double heap_mb)
+	    : heap_bytes_(static_cast<sqlite3_int64>(heap_mb) * 1024LL * 1024LL)
+	    , wc_(wc)
+	    , verbosity_level_stats_(verbosity_level_stats) {
 		// process-wide heap cap
 		sqlite3_hard_heap_limit64(heap_bytes_);
 
@@ -98,9 +101,10 @@ export class PersistentStorageSqlite {
 		// create temporary directory and file
 		// ensure directory didn't exist before to avoid accidental user data overwrite
 		if (std::filesystem::create_directory(db_dir_) == false) {
-			std::cerr << "⚠️  Warning: Could not create temporary directory for sqlite database at "
-			          << db_dir_ << " . Perhaps there is an artifact from a previous faulty run?"
-			          << std::endl;
+			wc_.addLeaf("Could not create temporary directory for sqlite database at " + db_dir_ +
+			                ". Perhaps there is an artifact from a previous faulty run?",
+			            diagnostics::WarningLevel::Warning,
+			            true);
 			bool dir_created = false;
 			for (int i = 1; i <= 10; ++i) {
 				if (std::filesystem::create_directory(db_dir_ + std::to_string(i))) {
@@ -160,26 +164,16 @@ export class PersistentStorageSqlite {
 	}
 
 	~PersistentStorageSqlite() {
-#if GTFS2RDF_FULL_STATS
-		stats();
-		{ // inner scope for timing
-			SCOPED_TIMER_NS(timings_.clean_up_ns);
-#endif
-			try {
-				flush();
-			} catch (...) {
-			}
-			finalise_all();
+		try {
+			flush();
+		} catch (...) {
+		}
+		finalise_all();
 
-			if (db_)
-				sqlite3_close(db_);
-			// delete temporary directory and file
-			std::filesystem::remove_all(db_path_.parent_path());
-#if GTFS2RDF_FULL_STATS
-		} // closes inner scope for timing
-		std::cout << "  Cleanup time (deleting tmp db file etc.) [s]: "
-		          << timings_.clean_up_ns / 1e9 << "\n";
-#endif
+		if (db_)
+			sqlite3_close(db_);
+		// delete temporary directory and file
+		std::filesystem::remove_all(db_path_.parent_path());
 	}
 
 	// --- VARIABLES ---
@@ -189,7 +183,7 @@ export class PersistentStorageSqlite {
 	}
 
 	// TODO: perhaps refactor to string_view later
-	const std::string &get_variable(std::string_view ctx, std::string_view name) {
+	const std::string& get_variable(std::string_view ctx, std::string_view name) {
 		auto ctx_it = variables_.find(std::string(ctx));
 		if (ctx_it == variables_.end()) {
 			return empty_variable_;
@@ -208,7 +202,7 @@ export class PersistentStorageSqlite {
 	                 std::string_view value) {
 		SCOPED_TIMER_NS(timings_.store_ns);
 		begin_if_needed();
-		auto &T = ensure_mm_table_(ctx, name);
+		auto& T = ensure_mm_table_(ctx, name);
 		bind_text(T.insert, 1, key);
 		bind_text(T.insert, 2, value);
 		step_done(T.insert);
@@ -239,7 +233,7 @@ export class PersistentStorageSqlite {
 		auto it = mm_tables_.find(tbl);
 		if (it == mm_tables_.end())
 			return false; // table doesn't exist yet
-		auto &T = it->second;
+		auto& T = it->second;
 
 		bind_text(T.contains, 1, key);
 		bind_text(T.contains, 2, val);
@@ -270,11 +264,11 @@ export class PersistentStorageSqlite {
 		auto it = mm_tables_.find(tbl);
 		if (it == mm_tables_.end())
 			return out; // table doesn't exist yet
-		auto &T = it->second;
+		auto& T = it->second;
 
 		bind_text(T.get, 1, key);
 		while (sqlite3_step(T.get) == SQLITE_ROW) {
-			const char *txt = reinterpret_cast<const char *>(sqlite3_column_text(T.get, 0));
+			const char* txt = reinterpret_cast<const char*>(sqlite3_column_text(T.get, 0));
 			int bytes = sqlite3_column_bytes(T.get, 0);
 			if (txt)
 				out.emplace_back(txt, bytes);
@@ -303,7 +297,7 @@ export class PersistentStorageSqlite {
 	                 std::span<const std::string_view> tuple) {
 		SCOPED_TIMER_NS(timings_.store_ns);
 		begin_if_needed();
-		auto &T = ensure_tm_table_(ctx, name, tuple.size());
+		auto& T = ensure_tm_table_(ctx, name, tuple.size());
 		bind_text(T.insert, 1, key);
 		for (size_t i = 0; i < tuple.size(); ++i) {
 			bind_text(T.insert, 2 + i, tuple[i]);
@@ -366,13 +360,13 @@ export class PersistentStorageSqlite {
 		auto it = tm_tables_.find(tbl);
 		if (it == tm_tables_.end())
 			return out; // table doesn't exist yet
-		auto &T = it->second;
+		auto& T = it->second;
 		bind_text(T.get, 1, key);
 		while (sqlite3_step(T.get) == SQLITE_ROW) {
 			std::vector<std::string> tuple;
 			tuple.reserve(T.arity);
 			for (size_t i = 0; i < T.arity; ++i) {
-				const char *txt = reinterpret_cast<const char *>(sqlite3_column_text(T.get, i));
+				const char* txt = reinterpret_cast<const char*>(sqlite3_column_text(T.get, i));
 				int bytes = sqlite3_column_bytes(T.get, i);
 				if (txt)
 					tuple.emplace_back(std::string(txt, bytes));
@@ -406,7 +400,7 @@ export class PersistentStorageSqlite {
 		auto it = tm_tables_.find(tbl);
 		if (it == tm_tables_.end())
 			return false; // table doesn't exist yet
-		auto &T = it->second;
+		auto& T = it->second;
 		if (T.arity != tuple.size()) {
 			throw diagnostics::Error("Storage error: arity mismatch for table " + tbl +
 			                         ": expected " + std::to_string(T.arity) + ", got " +
@@ -475,14 +469,14 @@ export class PersistentStorageSqlite {
 
 		// Drop multimap tables for ctx
 		if (auto it = ctx_mm_tables_.find(ctx); it != ctx_mm_tables_.end()) {
-			for (const auto &tbl : it->second)
+			for (const auto& tbl : it->second)
 				drop_table_and_finalise_mm_(tbl);
 			ctx_mm_tables_.erase(it);
 		}
 
 		// Drop tuplemap tables for ctx
 		if (auto it = ctx_tm_tables_.find(ctx); it != ctx_tm_tables_.end()) {
-			for (const auto &tbl : it->second)
+			for (const auto& tbl : it->second)
 				drop_table_and_finalise_tm_(tbl);
 			ctx_tm_tables_.erase(it);
 		}
@@ -503,16 +497,18 @@ export class PersistentStorageSqlite {
 	void stats() {
 		flush();
 
-		std::cout << "\n--------------------------------------------------------------------\n";
-		std::cout << "🗄️  PERSISTENT STORAGE SUMMARY\n\n";
+		std::cerr << "\n--------------------------------------------------------------------\n";
+		std::cerr << "🗄️  PERSISTENT STORAGE SUMMARY\n\n";
 
+// only if debug flag is set in compiler
+#ifndef NDEBUG
 		// In-memory
-		std::cout << "[In-memory] Variables\n";
-		util::operator<<(std::cout, variables_);
-		std::cout << "\n\n";
+		std::cerr << "[In-memory] Variables\n";
+		util::operator<<(std::cerr, variables_);
+		std::cerr << "\n\n";
 
 		auto count_table = [&](std::string_view tbl) -> sqlite3_int64 {
-			sqlite3_stmt *st = nullptr;
+			sqlite3_stmt* st = nullptr;
 			const std::string sql = "SELECT COUNT(*) FROM " + std::string(tbl) + ";";
 			prep_(st, sql.c_str());
 			sqlite3_int64 cnt = 0;
@@ -523,30 +519,31 @@ export class PersistentStorageSqlite {
 		};
 
 		// SQLite multimaps
-		std::cout << "[SQLite] Multimap counts (ctx, name)\n\n";
-		for (const auto &[tbl, T] : mm_tables_) {
-			std::cout << "• [" << T.ctx << "] " << T.name << "  rows=" << count_table(tbl) << "\n";
+		std::cerr << "[SQLite] Multimap counts (ctx, name)\n\n";
+		for (const auto& [tbl, T] : mm_tables_) {
+			std::cerr << "• [" << T.ctx << "] " << T.name << "  rows=" << count_table(tbl) << "\n";
 		}
-		std::cout << "\n";
+		std::cerr << "\n";
 
 		// SQLite tuplemaps
-		std::cout << "[SQLite] Tuplemap counts (ctx, name)\n\n";
-		for (const auto &[tbl, T] : tm_tables_) {
-			std::cout << "• [" << T.ctx << "] " << T.name << "  rows=" << count_table(tbl) << "\n";
+		std::cerr << "[SQLite] Tuplemap counts (ctx, name)\n\n";
+		for (const auto& [tbl, T] : tm_tables_) {
+			std::cerr << "• [" << T.ctx << "] " << T.name << "  rows=" << count_table(tbl) << "\n";
 		}
-		std::cout << "\n";
+		std::cerr << "\n";
+#endif
 
 		// DB size
 		std::error_code ec;
 		const auto db_size = std::filesystem::file_size(db_path_, ec);
 		if (!ec) {
-			std::cout << "Summary\n"
+			std::cerr << "Summary\n"
 			          << "  approx DB size: " << db_size << " bytes\n\n";
 		}
 
 #if GTFS2RDF_FULL_STATS
 		// Timing block
-		std::cout << "Timing statistics\n"
+		std::cerr << "Timing statistics\n"
 		          << "  initialization: " << std::fixed << std::setprecision(2)
 		          << timings_.init_ns / 1e9 << " s\n"
 		          << "  store:          " << std::fixed << std::setprecision(2)
@@ -557,11 +554,13 @@ export class PersistentStorageSqlite {
 		          << timings_.clear_ns / 1e9 << " s\n\n";
 #endif
 
-		std::cout << "--------------------------------------------------------------------\n";
+		std::cerr << "--------------------------------------------------------------------\n";
 	}
 
   private:
-	sqlite3 *db_ = nullptr;
+	diagnostics::WarningCollector& wc_;
+	diagnostics::VerbosityLevelStats verbosity_level_stats_;
+	sqlite3* db_ = nullptr;
 
 	std::filesystem::path db_path_;
 
@@ -626,8 +625,8 @@ export class PersistentStorageSqlite {
 	}
 
 	// sqlite wrappers
-	void exec_(const char *sql) {
-		char *err = nullptr;
+	void exec_(const char* sql) {
+		char* err = nullptr;
 		if (sqlite3_exec(db_, sql, nullptr, nullptr, &err) != SQLITE_OK) {
 			std::string msg = err ? err : sqlite3_errmsg(db_);
 			sqlite3_free(err);
@@ -635,7 +634,7 @@ export class PersistentStorageSqlite {
 		}
 	}
 
-	void prep_(sqlite3_stmt *&st, const char *sql) {
+	void prep_(sqlite3_stmt*& st, const char* sql) {
 		if (sqlite3_prepare_v2(db_, sql, -1, &st, nullptr) != SQLITE_OK) {
 			throw diagnostics::Error(std::string("Storage error: sqlite prepare failed: ") +
 			                         sqlite3_errmsg(db_));
@@ -649,22 +648,22 @@ export class PersistentStorageSqlite {
 		}
 	}
 
-	static void bind_text(sqlite3_stmt *st, int idx, const std::string &s) {
+	static void bind_text(sqlite3_stmt* st, int idx, const std::string& s) {
 		sqlite3_bind_text(st, idx, s.c_str(), -1, SQLITE_TRANSIENT);
 	}
-	static void bind_text(sqlite3_stmt *st, int idx, std::string_view sv) {
+	static void bind_text(sqlite3_stmt* st, int idx, std::string_view sv) {
 		sqlite3_bind_text(st, idx, sv.data(), (int)sv.size(), SQLITE_TRANSIENT);
 	}
 
-	static void reset_stmt(sqlite3_stmt *st) {
+	static void reset_stmt(sqlite3_stmt* st) {
 		sqlite3_reset(st);
 		sqlite3_clear_bindings(st);
 	}
 
-	static void step_done(sqlite3_stmt *st) {
+	static void step_done(sqlite3_stmt* st) {
 		const int rc = sqlite3_step(st);
 		if (rc != SQLITE_DONE) {
-			sqlite3 *db = sqlite3_db_handle(st);
+			sqlite3* db = sqlite3_db_handle(st);
 			std::string msg = db ? sqlite3_errmsg(db) : "sqlite step failed";
 			reset_stmt(st);
 			throw diagnostics::Error("Storage error: sqlite step failed: " + msg);
@@ -673,7 +672,7 @@ export class PersistentStorageSqlite {
 	}
 
 	void finalise_all() {
-		for (auto &[tbl, T] : mm_tables_) {
+		for (auto& [tbl, T] : mm_tables_) {
 			if (T.insert)
 				sqlite3_finalize(T.insert);
 			if (T.get)
@@ -683,7 +682,7 @@ export class PersistentStorageSqlite {
 		}
 		mm_tables_.clear();
 
-		for (auto &[tbl, T] : tm_tables_) {
+		for (auto& [tbl, T] : tm_tables_) {
 			if (T.insert)
 				sqlite3_finalize(T.insert);
 			if (T.get)
@@ -726,9 +725,9 @@ export class PersistentStorageSqlite {
 	}
 
 	// Create + prepare statements lazily (on first access).
-	MultiMapTable &ensure_mm_table_(std::string_view ctx, std::string_view name) {
+	MultiMapTable& ensure_mm_table_(std::string_view ctx, std::string_view name) {
 		const std::string tbl = make_table_name("mm", ctx, name);
-		auto &T = mm_tables_[tbl];
+		auto& T = mm_tables_[tbl];
 
 		if (!T.insert) {
 			// minimal schema; PRIMARY KEY(key,val) keeps values sorted for a given key.
@@ -745,21 +744,21 @@ export class PersistentStorageSqlite {
 			prep_(T.contains, ("SELECT 1 FROM " + tbl + " WHERE key=? AND val=? LIMIT 1;").c_str());
 
 			// Track for fast clear_context
-			auto &v = get_or_insert(ctx_mm_tables_, ctx);
+			auto& v = get_or_insert(ctx_mm_tables_, ctx);
 			if (std::find(v.begin(), v.end(), tbl) == v.end())
 				v.push_back(tbl);
 		}
 		return T;
 	}
 
-	TupleMapTable &
+	TupleMapTable&
 	ensure_tm_table_(std::string_view ctx, std::string_view name, size_t tuple_arity) {
 		if (tuple_arity == 0) {
 			throw diagnostics::Error(
 			    "Storage error: SqliteBackingStore::ensure_tm_table: zero arity");
 		}
 		const std::string tbl = make_table_name("tm", ctx, name);
-		auto &T = tm_tables_[tbl];
+		auto& T = tm_tables_[tbl];
 
 		if (!T.insert) {
 			T.ctx = ctx;
@@ -816,7 +815,7 @@ export class PersistentStorageSqlite {
 			prep_(T.contains, contains_sql.c_str());
 
 			// tracking ctx tables for fast clear_context
-			auto &v = get_or_insert(ctx_tm_tables_, ctx);
+			auto& v = get_or_insert(ctx_tm_tables_, ctx);
 			if (std::find(v.begin(), v.end(), tbl) == v.end())
 				v.push_back(tbl);
 		} else {

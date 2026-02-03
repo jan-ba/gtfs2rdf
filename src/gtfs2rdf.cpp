@@ -27,12 +27,12 @@ import runtime;
 using namespace util;
 
 using Factory = schema::Factory;
-const auto &factories = schema::factories(); // implemented in schema:registry at build time
+const auto& factories = schema::factories(); // implemented in schema:registry at build time
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 	try {
 		runtime::Settings settings(argc, argv);
-		zip_t *za;
+		zip_t* za;
 		int err;
 
 		// try opening the zip file
@@ -54,13 +54,15 @@ int main(int argc, char *argv[]) {
 		runtime::RuntimeContainer rt(settings, registry);
 
 		// determine which schemas to use based on files present in the zip
-		for (const auto &[file, factory] : factories) {
+		for (const auto& [file, factory] : factories) {
 			if (zip_name_locate(za, file.c_str(), ZIP_FL_ENC_GUESS) != -1) {
 				files_in_dir.push_back(file);
 				try {
 					used_schemas.emplace_back(factory(rt)); // call factory
 					schema_name_to_index[used_schemas.back().getName()] = used_schemas.size() - 1;
-				} catch (const diagnostics::Error &e) {
+					rt.getWarningCollector().addNode(
+					    "while building schema for file '" + file + "'", 1);
+				} catch (const diagnostics::Error& e) {
 					zip_close(za);
 					diagnostics::wrap_and_rethrow(e,
 					                              "while building schema for file '" + file + "'");
@@ -77,29 +79,31 @@ int main(int argc, char *argv[]) {
 		}
 
 		// compile schemas such that they are ready for use and dependency info is available
-		for (auto &sc : used_schemas) {
+		for (auto& sc : used_schemas) {
 			try {
 				sc.compile();
-			} catch (const diagnostics::Error &e) {
+				rt.getWarningCollector().addNode("while compiling schema '" + sc.getName() + "'",
+				                                 2);
+			} catch (const diagnostics::Error& e) {
 				zip_close(za);
 				diagnostics::wrap_and_rethrow(e, "while compiling schema '" + sc.getName() + "'");
 			}
 		}
 
 		// determine processing order via topological sort of dependencies
-		// this whole section is not very efficient, but then again we're looking at GTFS datasets
+		// this whole section is not very efficient, but then again we're looking at GTFS feeds
 		// such that n < 50 in practice
 		TopologicalSort toposort(files_in_dir.size());
 		std::vector<size_t> num_depending_schemas(files_in_dir.size(), 0);
 		for (size_t i = 0; i < files_in_dir.size(); i++) {
 			toposort.addNode(i);
-			for (const auto &dep : used_schemas[i].getDependencies()) {
+			for (const auto& dep : used_schemas[i].getDependencies()) {
 				// TODO: debug info
 				if (!schema_name_to_index.contains(dep)) {
 					zip_close(za);
 					throw diagnostics::Error("Schema error: dependency '" + dep + "' of schema '" +
 					                         used_schemas[i].getName() +
-					                         "' not found in GTFS dataset.");
+					                         "' not found in GTFS feed");
 				}
 				toposort.addEdge(schema_name_to_index[dep], i, true); // dep must come before i
 				num_depending_schemas[schema_name_to_index[dep]]++;
@@ -110,8 +114,11 @@ int main(int argc, char *argv[]) {
 		for (size_t i = 0; i < files_in_dir.size(); i++) {
 			if (num_depending_schemas[i] == 0) {
 				used_schemas[i].forbidStorageWrites();
-				std::cout << "🛑  Deactivated storage writes for schema '"
-				          << used_schemas[i].getName() << "'\n";
+				rt.getWarningCollector().addLeaf("Deactivated storage writes for schema '" +
+				                                     used_schemas[i].getName() +
+				                                     "' (not required by another schema)",
+				                                 diagnostics::WarningLevel::Info,
+				                                 true);
 			}
 		}
 
@@ -119,27 +126,28 @@ int main(int argc, char *argv[]) {
 		std::vector<size_t> order(files_in_dir.size());
 		try {
 			order = toposort.sort();
-		} catch (const diagnostics::Error &e) {
+			rt.getWarningCollector().addNode("while determining processing order of GTFS files", 2);
+		} catch (const std::runtime_error& e) {
 			zip_close(za);
 			size_t error_node = toposort.getErrorNode();
-			diagnostics::wrap_and_rethrow(
-			    e,
-			    "while determining processing order of GTFS files. Problematic schema: '" +
-			        used_schemas[error_node].getName() + "'");
+			throw diagnostics::Error("TopologicalSort error: While determining processing order of "
+			                         "GTFS files. Problematic schema: '" +
+			                         used_schemas[error_node].getName() + "'");
 		}
 
-		std::cout << "🔀  Processing GTFS files in order: ";
+		rt.getWarningCollector().addLeaf(
+		    "Processing GTFS files in order: ", diagnostics::WarningLevel::Info, true);
 		for (size_t i = 0; i < files_in_dir.size(); i++) {
-			std::cout << files_in_dir[order[i]] << " ";
+			rt.getWarningCollector().appendToLeaf(files_in_dir[order[i]],
+			                                      diagnostics::WarningLevel::Info);
 		}
-		std::cout << "\n";
 
 		writer::Writer writer(settings.OutputPath(), rt, !settings.isPreRun());
 		gtfs::GTFSParser_Workspace ws(rt, writer);
-		auto merged_prefixes = schema::merge_prefixes(used_schemas, true);
-		std::vector<runtime::Statistics> per_file_stats(files_in_dir.size());
+		auto merged_prefixes = schema::merge_prefixes(used_schemas, rt.getWarningCollector(), true);
+		std::vector<diagnostics::Statistics> per_file_stats(files_in_dir.size());
 		for (size_t i = 0; i < files_in_dir.size(); i++) {
-			zip_file_t *zf = nullptr;
+			zip_file_t* zf = nullptr;
 			try {
 				zf = zip_fopen(za, files_in_dir[order[i]].c_str(), 0);
 				if (!zf) {
@@ -150,18 +158,23 @@ int main(int argc, char *argv[]) {
 					writer.writePrefixes(merged_prefixes);
 				gtfs::GTFSParser parser(zf, used_schemas[order[i]], ws, rt);
 				parser.parse();
-				for (auto &dep : used_schemas[order[i]].getDependencies()) {
+				for (auto& dep : used_schemas[order[i]].getDependencies()) {
+#ifdef NDEBUG
 					num_depending_schemas[schema_name_to_index[dep]]--;
+#endif
 					if (num_depending_schemas[schema_name_to_index[dep]] == 0) {
 						rt.getStorage().clear_context(dep);
-						std::cout << "🧹  Cleared storage context for schema '" << dep << "' after "
-						          << " last dependent schema '" << used_schemas[order[i]].getName()
-						          << "' was processed.\n";
+						rt.getWarningCollector().addLeaf("Cleared storage for schema '" + dep +
+						                                     "' after last dependent schema '" +
+						                                     used_schemas[order[i]].getName() +
+						                                     "' was processed.",
+						                                 diagnostics::WarningLevel::Info,
+						                                 true);
 					}
 				}
 				zip_fclose(zf);
 				if (settings.isPreRun()) {
-					runtime::Statistics stats;
+					diagnostics::Statistics stats;
 					stats.name = files_in_dir[order[i]];
 					const double quot = static_cast<double>(parser.getStats().rows) /
 					                    static_cast<double>(settings.getPreRunSampleSize());
@@ -179,9 +192,13 @@ int main(int argc, char *argv[]) {
 					                                 : quot * parser.getStats().conversion_ns;
 #endif
 					per_file_stats[order[i]] = stats;
-				} else
+				} else {
 					per_file_stats[order[i]] = parser.getStats();
-			} catch (const diagnostics::Error &e) {
+				}
+
+				rt.getWarningCollector().addNode(
+				    "while processing GTFS file '" + files_in_dir[order[i]] + "'", 2);
+			} catch (const diagnostics::Error& e) {
 				zip_close(za);
 				zip_fclose(zf);
 				writer.deleteFile(); // output will be faulty
@@ -191,7 +208,7 @@ int main(int argc, char *argv[]) {
 		}
 		zip_close(za);
 
-		runtime::Statistics total_stats;
+		diagnostics::Statistics total_stats;
 		total_stats.name = "Total GTFS Feed";
 		for (size_t i = 0; i < files_in_dir.size(); i++) {
 			total_stats = total_stats + per_file_stats[i];
@@ -204,34 +221,41 @@ int main(int argc, char *argv[]) {
 			writer::Writer onth_writer(specPath, rt, 1.0); // small buffer for spec writing
 			if (!settings.isNTriplesOutput())
 				onth_writer.writePrefixes(merged_prefixes);
-			for (auto &schema : used_schemas) {
-				for (auto &inst : schema.getInstructions()) {
+			for (auto& schema : used_schemas) {
+				for (auto& inst : schema.getInstructions()) {
 					onth_writer.writeRaw(inst.getRawInstruction() + "\n");
 				}
 			}
-			std::cout << "📄  Wrote ontology spec to " << specPath << "\n";
+			rt.getWarningCollector().addLeaf("Wrote ontology spec to " + specPath.string(),
+			                                 diagnostics::WarningLevel::Info,
+			                                 true);
 		}
 
-		if (settings.isPreRun()) {
-			std::cout << "\n--------------------------------------------------------------------\n";
-			std::cout << "🧮 PRE-RUN SUMMARY for feed: " << settings.InputPath().filename().string()
+		rt.getWarningCollector().printWarningSummary();
+
+		if (settings.isPreRun() &&
+		    !(settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::Quiet)) {
+			std::cerr << "\n--------------------------------------------------------------------\n";
+			std::cerr << "🧮 PRE-RUN SUMMARY for feed: " << settings.InputPath().filename().string()
 			          << " (sample=" << settings.getPreRunSampleSize() << " rows/file)\n\n";
 
-			for (const auto &st : per_file_stats) {
-				if (st.name.empty())
-					continue; // if some entries unused
+			if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::Verbose) {
+				for (const auto& st : per_file_stats) {
+					if (st.name.empty())
+						continue; // if some entries unused
 
-				std::cout << "• " << st.name << "  rows=" << st.rows << "  est≈"
-				          << fmt_suffix_padded(st.triples, UnitType::Counts) << " triples"
-				          << "  output size≈" << fmt_suffix_padded(st.num_chars, UnitType::Sizes)
-				          << "\n"
-				          << "  header: " << st.header << "\n\n";
+					std::cerr << "• " << st.name << "  rows=" << st.rows << "  est≈"
+					          << fmt_suffix_padded(st.triples, UnitType::Counts) << " triples"
+					          << "  output size≈"
+					          << fmt_suffix_padded(st.num_chars, UnitType::Sizes) << "\n"
+					          << "  header: " << st.header << "\n\n";
+				}
+				std::cerr << "Note: Header fields in (parentheses) were not used in any triple "
+				             "generation.\n\n";
 			}
-			std::cout << "Note: Header fields in (parentheses) were not used in any triple "
-			             "generation.\n\n";
 
 			// total summary
-			std::cout
+			std::cerr
 			    << "Summary\n"
 			    << "  total rows:   " << total_stats.rows << "\n"
 			    << "  est triples:  " << fmt_suffix_padded(total_stats.triples, UnitType::Counts)
@@ -256,12 +280,27 @@ int main(int argc, char *argv[]) {
 			       "may vary significantly depending on the data present in the GTFS feed as "
 			       "well as Transform2Many and filtering."
 			    << "\n--------------------------------------------------------------------\n";
-		} else
-			std::cout << total_stats.fancyPrint() << "\n";
-	} catch (const diagnostics::Error &e) {
+		} else if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::Verbose) {
+			for (const auto& st : per_file_stats) {
+				std::cerr << st.fancyPrint() << "\n";
+			}
+			rt.getStorage().stats();
+			std::cerr << total_stats.fancyPrint() << "\n";
+		} else if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::Brief) {
+			std::cerr << total_stats.fancyPrint() << "\n";
+		}
+		if (!settings.isPreRun()) {
+			std::cerr << "✅  Successful conversion to output file " << settings.OutputPath()
+			          << ".\n";
+		} else {
+			std::cerr << "✅  No errors found during pre-run analysis of GTFS feed "
+			          << settings.InputPath() << ".\n";
+		}
+	} catch (const diagnostics::Error& e) {
 		diagnostics::print_error_chain(e);
+		std::cerr << "\nRun aborted due to errors. No output was generated or it may be faulty.\n";
 		return 1;
-	} catch (const std::exception &e) {
+	} catch (const std::exception& e) {
 		std::cerr << "❌  Unhandled exception: " << e.what() << "\n";
 		return 1;
 	}

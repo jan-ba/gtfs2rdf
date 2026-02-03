@@ -33,12 +33,28 @@ using namespace util;
 namespace schema {
 
 // GTFS -> RDF schema for calendar.txt
-export Schema buildCalendarSchema(runtime::RuntimeContainer &rt) {
+export Schema buildCalendarSchema(runtime::RuntimeContainer& rt) {
 	// Transform function to generate operating days string from weekday flags
 	// ignores disables dates from calendar_dates.txt
 	// Expects 10 arguments (Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday,
 	//                       start_date, end_date, service_id)
 	TRANSFORM2MANY(generate_dates, ARGS, OUT_VAL, STORAGE) {
+		if (ARGS[7].size() != 8 || ARGS[8].size() != 8) {
+			TRANSFORM_ERROR("invalid date string format, expected 'YYYYMMDD', got '" +
+			                std::string(ARGS[7]) + "' and '" + std::string(ARGS[8]) + "'");
+		}
+		for (char c : ARGS[7]) {
+			if (c < '0' || c > '9') {
+				TRANSFORM_ERROR("invalid date string format, expected 'YYYYMMDD', got '" +
+				                std::string(ARGS[7]) + "'");
+			}
+		}
+		for (char c : ARGS[8]) {
+			if (c < '0' || c > '9') {
+				TRANSFORM_ERROR("invalid date string format, expected 'YYYYMMDD', got '" +
+				                std::string(ARGS[8]) + "'");
+			}
+		}
 		auto start_date = util::parseYYYYMMDD(ARGS[7]);
 		auto end_date = util::parseYYYYMMDD(ARGS[8]);
 		// loop through each day in the date range
