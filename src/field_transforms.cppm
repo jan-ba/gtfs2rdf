@@ -31,8 +31,8 @@ export using Args = field_transforms::ArgSpan;
 export using Out1 = std::string;
 export using OutN = std::vector<std::string>;
 
-export using Transform2One = std::function<void(Args, Out1 &)>;
-export using Transform2Many = std::function<void(Args, OutN &)>;
+export using Transform2One = std::function<void(Args, Out1&)>;
+export using Transform2Many = std::function<void(Args, OutN&)>;
 
 export enum class TransformKind { Single, Multi };
 
@@ -45,7 +45,7 @@ export struct Transform {
 
 export class TransformRegistry {
   public:
-	void registerTransform(const std::string &name, Transform2One fn) {
+	void registerTransform(const std::string& name, Transform2One fn) {
 		if (registry_.contains(name)) {
 			throw diagnostics::Error("Transform error: field transform '" + name +
 			                         "' already registered");
@@ -57,7 +57,7 @@ export class TransformRegistry {
 		registry_[name] = Transform{name, TransformKind::Single, fn, {}};
 	}
 
-	void registerTransform(const std::string &name, Transform2Many fn) {
+	void registerTransform(const std::string& name, Transform2Many fn) {
 		if (registry_.contains(name)) {
 			throw diagnostics::Error("Transform error: field transform '" + name +
 			                         "' already registered");
@@ -69,7 +69,7 @@ export class TransformRegistry {
 		registry_[name] = Transform{name, TransformKind::Multi, {}, fn};
 	}
 
-	const Transform &getTransform(const std::string &name) const {
+	const Transform& getTransform(const std::string& name) const {
 		if (!registry_.contains(name)) {
 			throw diagnostics::Error("Transform error: unknown transform '" + name + "'");
 		}
@@ -81,7 +81,7 @@ export class TransformRegistry {
 
 	// function that finds permitted characters in transform names
 	// these include: a-z, A-Z, 0-9, _
-	bool is_permitted_name_(const std::string &s) const {
+	bool is_permitted_name_(const std::string& s) const {
 		for (char c : s) {
 			if (!(c == '_' || ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') ||
 			      ('0' <= c && c <= '9'))) {
