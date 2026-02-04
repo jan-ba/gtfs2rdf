@@ -68,8 +68,7 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rt) {
 				oss << std::chrono::year_month_day{current};
 				auto date = oss.str();
 				// this is a quick lookup (log n) whether the date is disabled in calendar_dates.txt
-				if (!STORAGE.contains_value(
-				        "calendar_dates.txt", "disabled_dates", ARGS[9], date)) {
+				if (!STORAGE.containsValue("calendar_dates.txt", "disabled_dates", ARGS[9], date)) {
 					OUT_VAL.push_back(date);
 				}
 			}

@@ -163,7 +163,7 @@ int main(int argc, char* argv[]) {
 					num_depending_schemas[schema_name_to_index[dep]]--;
 #endif
 					if (num_depending_schemas[schema_name_to_index[dep]] == 0) {
-						rt.getStorage().clear_context(dep);
+						rt.getStorage().clearContext(dep);
 						rt.getWarningCollector().addLeaf("Cleared storage for schema '" + dep +
 						                                     "' after last dependent schema '" +
 						                                     used_schemas[order[i]].getName() +

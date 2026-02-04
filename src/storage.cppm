@@ -34,10 +34,10 @@ namespace storage {
 // timings for storage operations
 // TODO: inline this, since its only used in PersistentStorageSqlite
 struct StorageTimings {
-	uint64_t init_ns = 0;
-	uint64_t store_ns = 0;
-	uint64_t read_ns = 0;
-	uint64_t clear_ns = 0;
+	uint64_t init_ns_ = 0;
+	uint64_t store_ns_ = 0;
+	uint64_t read_ns_ = 0;
+	uint64_t clear_ns_ = 0;
 };
 
 struct MultiMapTable {
@@ -55,35 +55,20 @@ struct TupleMapTable {
 	sqlite3_stmt* contains = nullptr;
 };
 
-// creates descriptive table name for every (ctx, name) pair used in multimap/tuplemap
-std::string make_table_name(std::string_view prefix, std::string_view ctx, std::string_view name) {
-	if (!valid_ctx_name(ctx)) {
-		throw diagnostics::Error("Storage error: invalid context name '" + std::string(ctx) +
-		                         "' for sqlite table");
-	}
-	auto [file_name, file_ext] = split_at(ctx, '.');
-	for (char c : name) {
-		if (!is_gtfs_file_char(c)) {
-			throw diagnostics::Error("Storage error: invalid multimap/tuplemap name '" +
-			                         std::string(name) + "' for sqlite table");
-		}
-	}
-	return std::string(prefix) + "_" + std::string(file_name) + "_" + std::string(name);
-}
-
 // _________________________________________________________________________________________________
 export class PersistentStorageSqlite {
   private:
 	// SQLite settings
-	const sqlite3_int64 heap_bytes_;      // hard heap cap (process-wide)
-	const double cache_frac_ = 0.7;       // Anteil von heap_mb für main.cache_size
-	const double soft_frac_ = 0.9;        // soft heap = soft_frac * hard heap
-	const uint32_t flush_ops_ = 100'000;  // commit after N write ops
-	const uint32_t page_size_ = 32768;    // 32KB pages for larger cache efficiency
-	const bool temp_store_file_ = true;   // predictable RAM for GROUP/ORDER
-	const bool exclusive_lock_ = true;    // speed, single-process
-	const bool journal_off_ = true;       // speed, temp DB (unsafe on crash)
-	const std::string db_dir_ = "./.tmp"; // path to temporary DB file directory
+	const sqlite3_int64 heap_bytes_;        // hard heap cap (process-wide)
+	const double cache_frac_ = 0.7;         // Anteil von heap_mb für main.cache_size
+	const double soft_frac_ = 0.9;          // soft heap = soft_frac * hard heap
+	const uint32_t flush_ops_ = 100'000;    // commit after N write ops
+	const uint32_t page_size_ = 32768;      // 32KB pages for larger cache efficiency
+	const uint32_t busy_timeout_ms_ = 1000; // wait up to 1s if DB is locked
+	const bool temp_store_file_ = true;     // predictable RAM for GROUP/ORDER
+	const bool exclusive_lock_ = true;      // speed, single-process
+	const bool journal_off_ = true;         // speed, temp DB (unsafe on crash)
+	const std::string db_dir_ = "./.tmp";   // path to temporary DB file directory
 
   public:
 	explicit PersistentStorageSqlite(diagnostics::WarningCollector& wc,
@@ -130,6 +115,7 @@ export class PersistentStorageSqlite {
 			throw diagnostics::Error("Storage error: sqlite open failed: " +
 			                         std::string(sqlite3_errmsg(db_)));
 		}
+		sqlite3_busy_timeout(db_, busy_timeout_ms_);
 		sqlite3_extended_result_codes(db_, 1);
 
 		// set pragmas
@@ -158,17 +144,17 @@ export class PersistentStorageSqlite {
 
 #if GTFS2RDF_FULL_STATS
 		const auto init_end = std::chrono::steady_clock::now();
-		timings_.init_ns +=
+		init_ns_ +=
 		    std::chrono::duration_cast<std::chrono::nanoseconds>(init_end - init_start_).count();
 #endif
 	}
 
 	~PersistentStorageSqlite() {
 		try {
-			flush();
+			flush_();
 		} catch (...) {
 		}
-		finalise_all();
+		finaliseAll_();
 
 		if (db_)
 			sqlite3_close(db_);
@@ -176,14 +162,16 @@ export class PersistentStorageSqlite {
 		std::filesystem::remove_all(db_path_.parent_path());
 	}
 
-	// --- VARIABLES ---
-	void store_variable(std::string_view ctx, std::string_view name, std::string_view value) {
-		SCOPED_TIMER_NS(timings_.store_ns);
+	// _____________________________________________________________________________________________
+	// VARIABLE API
+	// _____________________________________________________________________________________________
+
+	void storeVariable(std::string_view ctx, std::string_view name, std::string_view value) {
+		SCOPED_TIMER_NS(store_ns_);
 		variables_[std::string(ctx)][std::string(name)] = std::string(value);
 	}
 
-	// TODO: perhaps refactor to string_view later
-	const std::string& get_variable(std::string_view ctx, std::string_view name) {
+	const std::string& getVariable(std::string_view ctx, std::string_view name) {
 		auto ctx_it = variables_.find(std::string(ctx));
 		if (ctx_it == variables_.end()) {
 			return empty_variable_;
@@ -195,208 +183,243 @@ export class PersistentStorageSqlite {
 		return name_it->second;
 	}
 
-	// ---- MULTIMAP ----
-	void store_value(std::string_view ctx,
-	                 std::string_view name,
-	                 std::string_view key,
-	                 std::string_view value) {
-		SCOPED_TIMER_NS(timings_.store_ns);
-		begin_if_needed();
-		auto& T = ensure_mm_table_(ctx, name);
-		bind_text(T.insert, 1, key);
-		bind_text(T.insert, 2, value);
-		step_done(T.insert);
+	// _____________________________________________________________________________________________
+	// MULTIMAP API
+	// _____________________________________________________________________________________________
+
+	void storeValue(std::string_view ctx,
+	                std::string_view name,
+	                std::string_view key,
+	                std::string_view value) {
+		SCOPED_TIMER_NS(store_ns_);
+		beginIfNeeded_();
+		auto& T = ensureMMTable_(ctx, name);
+		bindText_(T.insert, 1, key);
+		bindText_(T.insert, 2, value);
+		stepDone_(T.insert);
 		if (++pending_ >= flush_ops_)
-			flush();
+			flush_();
 	}
 
-	void store_value(std::string_view ctx,
-	                 std::string_view name,
-	                 std::initializer_list<std::string_view> key_parts,
-	                 std::string_view value) {
-		store_value(ctx, name, concat_key_parts_(key_parts), value);
+	void storeValue(std::string_view ctx,
+	                std::string_view name,
+	                std::initializer_list<std::string_view> key_parts,
+	                std::string_view value) {
+		storeValue(ctx, name, concatKeyParts_(key_parts), value);
 	}
 
-	void store_value(std::string_view ctx,
-	                 std::string_view name,
-	                 std::span<const std::string_view> key_parts,
-	                 std::string_view value) {
-		store_value(ctx, name, concat_key_parts_(key_parts), value);
+	void storeValue(std::string_view ctx,
+	                std::string_view name,
+	                std::span<const std::string_view> key_parts,
+	                std::string_view value) {
+		storeValue(ctx, name, concatKeyParts_(key_parts), value);
 	}
 
-	bool contains_value(std::string_view ctx,
-	                    std::string_view name,
-	                    std::string_view key,
-	                    std::string_view val) {
-		SCOPED_TIMER_NS(timings_.read_ns);
-		const std::string tbl = make_table_name("mm", ctx, name);
+	bool containsValue(std::string_view ctx,
+	                   std::string_view name,
+	                   std::string_view key,
+	                   std::string_view val) {
+		SCOPED_TIMER_NS(read_ns_);
+		const std::string tbl = makeTableName_("mm", ctx, name);
 		auto it = mm_tables_.find(tbl);
 		if (it == mm_tables_.end())
 			return false; // table doesn't exist yet
 		auto& T = it->second;
 
-		bind_text(T.contains, 1, key);
-		bind_text(T.contains, 2, val);
+		bindText_(T.contains, 1, key);
+		bindText_(T.contains, 2, val);
 		const int rc = sqlite3_step(T.contains);
-		reset_stmt(T.contains);
-		return rc == SQLITE_ROW;
+		resetStatement_(T.contains);
+		if (rc == SQLITE_DONE) {
+			return false;
+		} else if (rc != SQLITE_ROW) {
+			std::string msg = sqlite3_errmsg(db_);
+			throw diagnostics::Error("Storage error: sqlite step failed in containsValue: " + msg);
+		}
+		return true;
 	}
 
-	bool contains_value(std::string_view ctx,
-	                    std::string_view name,
-	                    std::initializer_list<std::string_view> key_parts,
-	                    std::string_view val) {
-		return contains_value(ctx, name, concat_key_parts_(key_parts), val);
+	bool containsValue(std::string_view ctx,
+	                   std::string_view name,
+	                   std::initializer_list<std::string_view> key_parts,
+	                   std::string_view val) {
+		return containsValue(ctx, name, concatKeyParts_(key_parts), val);
 	}
 
-	bool contains_value(std::string_view ctx,
-	                    std::string_view name,
-	                    std::span<const std::string_view> key_parts,
-	                    std::string_view val) {
-		return contains_value(ctx, name, concat_key_parts_(key_parts), val);
+	bool containsValue(std::string_view ctx,
+	                   std::string_view name,
+	                   std::span<const std::string_view> key_parts,
+	                   std::string_view val) {
+		return containsValue(ctx, name, concatKeyParts_(key_parts), val);
 	}
 
 	std::vector<std::string>
-	get_values(std::string_view ctx, std::string_view name, std::string_view key) {
-		SCOPED_TIMER_NS(timings_.read_ns);
+	getValues(std::string_view ctx, std::string_view name, std::string_view key) {
+		SCOPED_TIMER_NS(read_ns_);
 		std::vector<std::string> out;
-		const std::string tbl = make_table_name("mm", ctx, name);
+		const std::string tbl = makeTableName_("mm", ctx, name);
 		auto it = mm_tables_.find(tbl);
 		if (it == mm_tables_.end())
 			return out; // table doesn't exist yet
 		auto& T = it->second;
 
-		bind_text(T.get, 1, key);
-		while (sqlite3_step(T.get) == SQLITE_ROW) {
-			const char* txt = reinterpret_cast<const char*>(sqlite3_column_text(T.get, 0));
-			int bytes = sqlite3_column_bytes(T.get, 0);
-			if (txt)
-				out.emplace_back(txt, bytes);
+		bindText_(T.get, 1, key);
+		while (true) {
+			const int rc = sqlite3_step(T.get);
+			if (rc == SQLITE_DONE) {
+				// we're done compiling the results
+				break;
+			} else if (rc != SQLITE_ROW) {
+				// an error occured
+				std::string msg = sqlite3_errmsg(db_);
+				resetStatement_(T.get);
+				throw diagnostics::Error("Storage error: sqlite step failed in getValues: " + msg);
+			} else {
+				const char* txt = reinterpret_cast<const char*>(sqlite3_column_text(T.get, 0));
+				int bytes = sqlite3_column_bytes(T.get, 0);
+				if (txt) {
+					out.emplace_back(txt, bytes);
+				}
+			}
 		}
-		reset_stmt(T.get);
+		resetStatement_(T.get);
 		return out;
 	}
 
-	std::vector<std::string> get_values(std::string_view ctx,
-	                                    std::string_view name,
-	                                    std::initializer_list<std::string_view> key_parts) {
-		return get_values(ctx, name, concat_key_parts_(key_parts));
+	std::vector<std::string> getValues(std::string_view ctx,
+	                                   std::string_view name,
+	                                   std::initializer_list<std::string_view> key_parts) {
+		return getValues(ctx, name, concatKeyParts_(key_parts));
 	}
 
-	std::vector<std::string> get_values(std::string_view ctx,
-	                                    std::string_view name,
-	                                    std::span<const std::string_view> key_parts) {
-		return get_values(ctx, name, concat_key_parts_(key_parts));
+	std::vector<std::string> getValues(std::string_view ctx,
+	                                   std::string_view name,
+	                                   std::span<const std::string_view> key_parts) {
+		return getValues(ctx, name, concatKeyParts_(key_parts));
 	}
 
 	// _____________________________________________________________________________________________
-	// ---- tuplemap ----
-	void store_tuple(std::string_view ctx,
-	                 std::string_view name,
-	                 std::string_view key,
-	                 std::span<const std::string_view> tuple) {
-		SCOPED_TIMER_NS(timings_.store_ns);
-		begin_if_needed();
-		auto& T = ensure_tm_table_(ctx, name, tuple.size());
-		bind_text(T.insert, 1, key);
+	// TUPLEMAP API
+	// _____________________________________________________________________________________________
+
+	void storeTuple(std::string_view ctx,
+	                std::string_view name,
+	                std::string_view key,
+	                std::span<const std::string_view> tuple) {
+		SCOPED_TIMER_NS(store_ns_);
+		beginIfNeeded_();
+		auto& T = ensureTMTable_(ctx, name, tuple.size());
+		bindText_(T.insert, 1, key);
 		for (size_t i = 0; i < tuple.size(); ++i) {
-			bind_text(T.insert, 2 + i, tuple[i]);
+			bindText_(T.insert, 2 + i, tuple[i]);
 		}
-		step_done(T.insert);
+		stepDone_(T.insert);
 		if (++pending_ >= flush_ops_)
-			flush();
+			flush_();
 	}
 
-	void store_tuple(std::string_view ctx,
-	                 std::string_view name,
-	                 std::initializer_list<std::string_view> key_parts,
-	                 std::span<const std::string_view> tuple) {
-		store_tuple(ctx, name, concat_key_parts_(key_parts), tuple);
+	void storeTuple(std::string_view ctx,
+	                std::string_view name,
+	                std::initializer_list<std::string_view> key_parts,
+	                std::span<const std::string_view> tuple) {
+		storeTuple(ctx, name, concatKeyParts_(key_parts), tuple);
 	}
 
-	void store_tuple(std::string_view ctx,
-	                 std::string_view name,
-	                 std::string_view key,
-	                 std::initializer_list<std::string_view> tuple_parts) {
-		store_tuple(ctx,
-		            name,
-		            key,
-		            std::span<const std::string_view>(tuple_parts.begin(), tuple_parts.size()));
+	void storeTuple(std::string_view ctx,
+	                std::string_view name,
+	                std::string_view key,
+	                std::initializer_list<std::string_view> tuple_parts) {
+		storeTuple(ctx,
+		           name,
+		           key,
+		           std::span<const std::string_view>(tuple_parts.begin(), tuple_parts.size()));
 	}
 
-	void store_tuple(std::string_view ctx,
-	                 std::string_view name,
-	                 std::initializer_list<std::string_view> key_parts,
-	                 std::initializer_list<std::string_view> tuple_parts) {
-		store_tuple(ctx,
-		            name,
-		            concat_key_parts_(key_parts),
-		            std::span<const std::string_view>(tuple_parts.begin(), tuple_parts.size()));
+	void storeTuple(std::string_view ctx,
+	                std::string_view name,
+	                std::initializer_list<std::string_view> key_parts,
+	                std::initializer_list<std::string_view> tuple_parts) {
+		storeTuple(ctx,
+		           name,
+		           concatKeyParts_(key_parts),
+		           std::span<const std::string_view>(tuple_parts.begin(), tuple_parts.size()));
 	}
 
-	void store_tuple(std::string_view ctx,
-	                 std::string_view name,
-	                 std::span<const std::string_view> key,
-	                 std::span<const std::string_view> tuple) {
-		store_tuple(ctx, name, concat_key_parts_(key), tuple);
+	void storeTuple(std::string_view ctx,
+	                std::string_view name,
+	                std::span<const std::string_view> key,
+	                std::span<const std::string_view> tuple) {
+		storeTuple(ctx, name, concatKeyParts_(key), tuple);
 	}
 
-	void store_tuple(std::string_view ctx,
-	                 std::string_view name,
-	                 std::span<const std::string_view> key,
-	                 std::initializer_list<std::string_view> tuple_parts) {
-		store_tuple(ctx,
-		            name,
-		            concat_key_parts_(key),
-		            std::span<const std::string_view>(tuple_parts.begin(), tuple_parts.size()));
+	void storeTuple(std::string_view ctx,
+	                std::string_view name,
+	                std::span<const std::string_view> key,
+	                std::initializer_list<std::string_view> tuple_parts) {
+		storeTuple(ctx,
+		           name,
+		           concatKeyParts_(key),
+		           std::span<const std::string_view>(tuple_parts.begin(), tuple_parts.size()));
 	}
 
 	std::vector<std::vector<std::string>>
-	get_tuples(std::string_view ctx, std::string_view name, std::string_view key) {
-		SCOPED_TIMER_NS(timings_.read_ns);
+	getTuples(std::string_view ctx, std::string_view name, std::string_view key) {
+		SCOPED_TIMER_NS(read_ns_);
 		std::vector<std::vector<std::string>> out;
 
-		const std::string tbl = make_table_name("tm", ctx, name);
+		const std::string tbl = makeTableName_("tm", ctx, name);
 		auto it = tm_tables_.find(tbl);
 		if (it == tm_tables_.end())
 			return out; // table doesn't exist yet
 		auto& T = it->second;
-		bind_text(T.get, 1, key);
-		while (sqlite3_step(T.get) == SQLITE_ROW) {
-			std::vector<std::string> tuple;
-			tuple.reserve(T.arity);
-			for (size_t i = 0; i < T.arity; ++i) {
-				const char* txt = reinterpret_cast<const char*>(sqlite3_column_text(T.get, i));
-				int bytes = sqlite3_column_bytes(T.get, i);
-				if (txt)
-					tuple.emplace_back(std::string(txt, bytes));
-				else
-					tuple.emplace_back("");
+		bindText_(T.get, 1, key);
+		while (true) {
+			const int rc = sqlite3_step(T.get);
+			if (rc == SQLITE_DONE) {
+				// we're done compiling the results
+				break;
+			} else if (rc != SQLITE_ROW) {
+				// an error occured
+				std::string msg = sqlite3_errmsg(db_);
+				resetStatement_(T.get);
+				throw diagnostics::Error("Storage error: sqlite step failed in getTuples: " + msg);
+			} else {
+				// read one tuple
+				std::vector<std::string> tuple;
+				tuple.reserve(T.arity);
+				for (size_t i = 0; i < T.arity; ++i) {
+					const char* txt = reinterpret_cast<const char*>(sqlite3_column_text(T.get, i));
+					int bytes = sqlite3_column_bytes(T.get, i);
+					if (txt)
+						tuple.emplace_back(std::string(txt, bytes));
+					else
+						tuple.emplace_back("");
+				}
+				out.emplace_back(std::move(tuple));
 			}
-			out.emplace_back(std::move(tuple));
 		}
-		reset_stmt(T.get);
+		resetStatement_(T.get);
 		return out;
 	}
 
 	std::vector<std::vector<std::string>>
-	get_tuples(std::string_view ctx,
-	           std::string_view name,
-	           std::initializer_list<std::string_view> key_parts) {
-		return get_tuples(ctx, name, concat_key_parts_(key_parts));
+	getTuples(std::string_view ctx,
+	          std::string_view name,
+	          std::initializer_list<std::string_view> key_parts) {
+		return getTuples(ctx, name, concatKeyParts_(key_parts));
 	}
 
 	std::vector<std::vector<std::string>>
-	get_tuples(std::string_view ctx, std::string_view name, std::span<const std::string_view> key) {
-		return get_tuples(ctx, name, concat_key_parts_(key));
+	getTuples(std::string_view ctx, std::string_view name, std::span<const std::string_view> key) {
+		return getTuples(ctx, name, concatKeyParts_(key));
 	}
 
-	bool contains_tuple(std::string_view ctx,
-	                    std::string_view name,
-	                    std::string_view key,
-	                    std::span<const std::string_view> tuple) {
-		SCOPED_TIMER_NS(timings_.read_ns);
-		const std::string tbl = make_table_name("tm", ctx, name);
+	bool containsTuple(std::string_view ctx,
+	                   std::string_view name,
+	                   std::string_view key,
+	                   std::span<const std::string_view> tuple) {
+		SCOPED_TIMER_NS(read_ns_);
+		const std::string tbl = makeTableName_("tm", ctx, name);
 		auto it = tm_tables_.find(tbl);
 		if (it == tm_tables_.end())
 			return false; // table doesn't exist yet
@@ -406,96 +429,94 @@ export class PersistentStorageSqlite {
 			                         ": expected " + std::to_string(T.arity) + ", got " +
 			                         std::to_string(tuple.size()));
 		}
-		bind_text(T.contains, 1, key);
+		bindText_(T.contains, 1, key);
 		for (size_t i = 0; i < T.arity; ++i) {
-			bind_text(T.contains, 2 + i, tuple[i]);
+			bindText_(T.contains, 2 + i, tuple[i]);
 		}
 		const int rc = sqlite3_step(T.contains);
-		reset_stmt(T.contains);
-		return rc == SQLITE_ROW;
+		resetStatement_(T.contains);
+		if (rc == SQLITE_DONE) {
+			return false;
+		} else if (rc != SQLITE_ROW) {
+			std::string msg = sqlite3_errmsg(db_);
+			throw diagnostics::Error("Storage error: sqlite step failed in containsTuple: " + msg);
+		}
+		return true;
 	}
 
-	bool contains_tuple(std::string_view ctx,
-	                    std::string_view name,
-	                    std::initializer_list<std::string_view> key_parts,
-	                    std::span<const std::string_view> tuple) {
-		return contains_tuple(ctx, name, concat_key_parts_(key_parts), tuple);
+	bool containsTuple(std::string_view ctx,
+	                   std::string_view name,
+	                   std::initializer_list<std::string_view> key_parts,
+	                   std::span<const std::string_view> tuple) {
+		return containsTuple(ctx, name, concatKeyParts_(key_parts), tuple);
 	}
 
-	bool contains_tuple(std::string_view ctx,
-	                    std::string_view name,
-	                    std::string_view key,
-	                    std::initializer_list<std::string_view> tuple_parts) {
-		return contains_tuple(
+	bool containsTuple(std::string_view ctx,
+	                   std::string_view name,
+	                   std::string_view key,
+	                   std::initializer_list<std::string_view> tuple_parts) {
+		return containsTuple(
 		    ctx,
 		    name,
 		    key,
 		    std::span<const std::string_view>(tuple_parts.begin(), tuple_parts.size()));
 	}
 
-	bool contains_tuple(std::string_view ctx,
-	                    std::string_view name,
-	                    std::initializer_list<std::string_view> key_parts,
-	                    std::initializer_list<std::string_view> tuple_parts) {
-		return contains_tuple(
+	bool containsTuple(std::string_view ctx,
+	                   std::string_view name,
+	                   std::initializer_list<std::string_view> key_parts,
+	                   std::initializer_list<std::string_view> tuple_parts) {
+		return containsTuple(
 		    ctx,
 		    name,
-		    concat_key_parts_(key_parts),
+		    concatKeyParts_(key_parts),
 		    std::span<const std::string_view>(tuple_parts.begin(), tuple_parts.size()));
 	}
 
-	bool contains_tuple(std::string_view ctx,
-	                    std::string_view name,
-	                    std::span<const std::string_view> key,
-	                    std::span<const std::string_view> tuple) {
-		return contains_tuple(ctx, name, concat_key_parts_(key), tuple);
+	bool containsTuple(std::string_view ctx,
+	                   std::string_view name,
+	                   std::span<const std::string_view> key,
+	                   std::span<const std::string_view> tuple) {
+		return containsTuple(ctx, name, concatKeyParts_(key), tuple);
 	}
 
-	bool contains_tuple(std::string_view ctx,
-	                    std::string_view name,
-	                    std::span<const std::string_view> key,
-	                    std::initializer_list<std::string_view> tuple_parts) {
-		return contains_tuple(
+	bool containsTuple(std::string_view ctx,
+	                   std::string_view name,
+	                   std::span<const std::string_view> key,
+	                   std::initializer_list<std::string_view> tuple_parts) {
+		return containsTuple(
 		    ctx,
 		    name,
-		    concat_key_parts_(key),
+		    concatKeyParts_(key),
 		    std::span<const std::string_view>(tuple_parts.begin(), tuple_parts.size()));
 	}
 
-	void clear_context(std::string_view ctx) {
-		SCOPED_TIMER_NS(timings_.clear_ns);
+	void clearContext(std::string_view ctx) {
+		SCOPED_TIMER_NS(clear_ns_);
 		variables_.erase(std::string(ctx));
-		flush();
+		flush_();
 
 		// Drop multimap tables for ctx
 		if (auto it = ctx_mm_tables_.find(ctx); it != ctx_mm_tables_.end()) {
 			for (const auto& tbl : it->second)
-				drop_table_and_finalise_mm_(tbl);
+				dropTableAndFinaliseMM_(tbl);
 			ctx_mm_tables_.erase(it);
 		}
 
 		// Drop tuplemap tables for ctx
 		if (auto it = ctx_tm_tables_.find(ctx); it != ctx_tm_tables_.end()) {
 			for (const auto& tbl : it->second)
-				drop_table_and_finalise_tm_(tbl);
+				dropTableAndFinaliseTM_(tbl);
 			ctx_tm_tables_.erase(it);
 		}
 	}
 
-	void flush() {
-		if (in_tx_) {
-			exec_("COMMIT;");
-			in_tx_ = false;
-			pending_ = 0;
-		}
-	}
-
-	double get_heap_limit_mb() const {
+	double getHeapLimitMb() const {
 		return static_cast<double>(heap_bytes_) / (1024.0 * 1024.0);
 	}
 
 	void stats() {
-		flush();
+		flush_();
 
 		std::cerr << "\n--------------------------------------------------------------------\n";
 		std::cerr << "🗄️  PERSISTENT STORAGE SUMMARY\n\n";
@@ -544,29 +565,36 @@ export class PersistentStorageSqlite {
 #if GTFS2RDF_FULL_STATS
 		// Timing block
 		std::cerr << "Timing statistics\n"
-		          << "  initialization: " << std::fixed << std::setprecision(2)
-		          << timings_.init_ns / 1e9 << " s\n"
-		          << "  store:          " << std::fixed << std::setprecision(2)
-		          << timings_.store_ns / 1e9 << " s\n"
-		          << "  read:           " << std::fixed << std::setprecision(2)
-		          << timings_.read_ns / 1e9 << " s\n"
-		          << "  clear:          " << std::fixed << std::setprecision(2)
-		          << timings_.clear_ns / 1e9 << " s\n\n";
+		          << "  initialization: " << std::fixed << std::setprecision(2) << init_ns_ / 1e9
+		          << " s\n"
+		          << "  store:          " << std::fixed << std::setprecision(2) << store_ns_ / 1e9
+		          << " s\n"
+		          << "  read:           " << std::fixed << std::setprecision(2) << read_ns_ / 1e9
+		          << " s\n"
+		          << "  clear:          " << std::fixed << std::setprecision(2) << clear_ns_ / 1e9
+		          << " s\n\n";
 #endif
 
 		std::cerr << "--------------------------------------------------------------------\n";
 	}
 
   private:
+	// _____________________________________________________________________________________________
+	// PRIVATE MEMBERS
+	// _____________________________________________________________________________________________
+
 	diagnostics::WarningCollector& wc_;
-	diagnostics::VerbosityLevelStats verbosity_level_stats_;
+	[[maybe_unused]] diagnostics::VerbosityLevelStats verbosity_level_stats_;
 	sqlite3* db_ = nullptr;
 
 	std::filesystem::path db_path_;
 
 #if GTFS2RDF_FULL_STATS
 	const std::chrono::steady_clock::time_point init_start_ = std::chrono::steady_clock::now();
-	mutable StorageTimings timings_;
+	mutable uint64_t init_ns_ = 0;
+	mutable uint64_t store_ns_ = 0;
+	mutable uint64_t read_ns_ = 0;
+	mutable uint64_t clear_ns_ = 0;
 #endif
 
 	// variables in-memory
@@ -580,7 +608,7 @@ export class PersistentStorageSqlite {
 	mutable std::unordered_map<std::string, MultiMapTable, string_hash, std::equal_to<>> mm_tables_;
 	mutable std::unordered_map<std::string, TupleMapTable, string_hash, std::equal_to<>> tm_tables_;
 
-	// keep track which tables belong to which ctx -> enables fast clear_context(ctx)
+	// keep track which tables belong to which ctx -> enables fast clearContext(ctx)
 	std::unordered_map<std::string, std::vector<std::string>, string_hash, std::equal_to<>>
 	    ctx_mm_tables_;
 	std::unordered_map<std::string, std::vector<std::string>, string_hash, std::equal_to<>>
@@ -598,9 +626,27 @@ export class PersistentStorageSqlite {
 
 	// _____________________________________________________________________________________________
 	// PRIVATE METHODS
+	// _____________________________________________________________________________________________
+
+	// creates descriptive table name for every (ctx, name) pair used in multimap/tuplemap
+	std::string
+	makeTableName_(std::string_view prefix, std::string_view ctx, std::string_view name) {
+		if (!valid_ctx_name(ctx)) {
+			throw diagnostics::Error("Storage error: invalid context name '" + std::string(ctx) +
+			                         "' for sqlite table");
+		}
+		auto [file_name, file_ext] = split_at(ctx, '.');
+		for (char c : name) {
+			if (!is_gtfs_file_char(c)) {
+				throw diagnostics::Error("Storage error: invalid multimap/tuplemap name '" +
+				                         std::string(name) + "' for sqlite table");
+			}
+		}
+		return std::string(prefix) + "_" + std::string(file_name) + "_" + std::string(name);
+	}
 
 	// concatenate key parts with null byte separators into key_buf_
-	std::string_view concat_key_parts_(std::span<const std::string_view> parts) {
+	std::string_view concatKeyParts_(std::span<const std::string_view> parts) {
 		key_buf_.clear();
 		size_t total = 0;
 		for (auto p : parts)
@@ -620,11 +666,22 @@ export class PersistentStorageSqlite {
 		return key_buf_;
 	}
 
-	std::string_view concat_key_parts_(std::initializer_list<std::string_view> parts) {
-		return concat_key_parts_(std::span<const std::string_view>(parts.begin(), parts.size()));
+	std::string_view concatKeyParts_(std::initializer_list<std::string_view> parts) {
+		return concatKeyParts_(std::span<const std::string_view>(parts.begin(), parts.size()));
 	}
 
-	// sqlite wrappers
+	// _____________________________________________________________________________________________
+	// SQLITE WRAPPERS
+	// _____________________________________________________________________________________________
+
+	void flush_() {
+		if (in_tx_) {
+			exec_("COMMIT;");
+			in_tx_ = false;
+			pending_ = 0;
+		}
+	}
+
 	void exec_(const char* sql) {
 		char* err = nullptr;
 		if (sqlite3_exec(db_, sql, nullptr, nullptr, &err) != SQLITE_OK) {
@@ -641,37 +698,37 @@ export class PersistentStorageSqlite {
 		}
 	}
 
-	void begin_if_needed() {
+	void beginIfNeeded_() {
 		if (!in_tx_) {
 			exec_("BEGIN;");
 			in_tx_ = true;
 		}
 	}
 
-	static void bind_text(sqlite3_stmt* st, int idx, const std::string& s) {
+	static void bindText_(sqlite3_stmt* st, int idx, const std::string& s) {
 		sqlite3_bind_text(st, idx, s.c_str(), -1, SQLITE_TRANSIENT);
 	}
-	static void bind_text(sqlite3_stmt* st, int idx, std::string_view sv) {
+	static void bindText_(sqlite3_stmt* st, int idx, std::string_view sv) {
 		sqlite3_bind_text(st, idx, sv.data(), (int)sv.size(), SQLITE_TRANSIENT);
 	}
 
-	static void reset_stmt(sqlite3_stmt* st) {
+	static void resetStatement_(sqlite3_stmt* st) {
 		sqlite3_reset(st);
 		sqlite3_clear_bindings(st);
 	}
 
-	static void step_done(sqlite3_stmt* st) {
+	static void stepDone_(sqlite3_stmt* st) {
 		const int rc = sqlite3_step(st);
 		if (rc != SQLITE_DONE) {
 			sqlite3* db = sqlite3_db_handle(st);
 			std::string msg = db ? sqlite3_errmsg(db) : "sqlite step failed";
-			reset_stmt(st);
+			resetStatement_(st);
 			throw diagnostics::Error("Storage error: sqlite step failed: " + msg);
 		}
-		reset_stmt(st);
+		resetStatement_(st);
 	}
 
-	void finalise_all() {
+	void finaliseAll_() {
 		for (auto& [tbl, T] : mm_tables_) {
 			if (T.insert)
 				sqlite3_finalize(T.insert);
@@ -696,7 +753,7 @@ export class PersistentStorageSqlite {
 		ctx_tm_tables_.clear();
 	}
 
-	void drop_table_and_finalise_mm_(std::string_view tbl) {
+	void dropTableAndFinaliseMM_(std::string_view tbl) {
 		auto it = mm_tables_.find(tbl);
 		if (it != mm_tables_.end()) {
 			if (it->second.insert)
@@ -710,7 +767,7 @@ export class PersistentStorageSqlite {
 		exec_(("DROP TABLE IF EXISTS " + std::string(tbl) + ";").c_str());
 	}
 
-	void drop_table_and_finalise_tm_(std::string_view tbl) {
+	void dropTableAndFinaliseTM_(std::string_view tbl) {
 		auto it = tm_tables_.find(tbl);
 		if (it != tm_tables_.end()) {
 			if (it->second.insert)
@@ -725,8 +782,8 @@ export class PersistentStorageSqlite {
 	}
 
 	// Create + prepare statements lazily (on first access).
-	MultiMapTable& ensure_mm_table_(std::string_view ctx, std::string_view name) {
-		const std::string tbl = make_table_name("mm", ctx, name);
+	MultiMapTable& ensureMMTable_(std::string_view ctx, std::string_view name) {
+		const std::string tbl = makeTableName_("mm", ctx, name);
 		auto& T = mm_tables_[tbl];
 
 		if (!T.insert) {
@@ -743,7 +800,7 @@ export class PersistentStorageSqlite {
 			prep_(T.get, ("SELECT val FROM " + tbl + " WHERE key=? ORDER BY val;").c_str());
 			prep_(T.contains, ("SELECT 1 FROM " + tbl + " WHERE key=? AND val=? LIMIT 1;").c_str());
 
-			// Track for fast clear_context
+			// Track for fast clearContext
 			auto& v = get_or_insert(ctx_mm_tables_, ctx);
 			if (std::find(v.begin(), v.end(), tbl) == v.end())
 				v.push_back(tbl);
@@ -751,13 +808,12 @@ export class PersistentStorageSqlite {
 		return T;
 	}
 
-	TupleMapTable&
-	ensure_tm_table_(std::string_view ctx, std::string_view name, size_t tuple_arity) {
+	TupleMapTable& ensureTMTable_(std::string_view ctx, std::string_view name, size_t tuple_arity) {
 		if (tuple_arity == 0) {
 			throw diagnostics::Error(
 			    "Storage error: SqliteBackingStore::ensure_tm_table: zero arity");
 		}
-		const std::string tbl = make_table_name("tm", ctx, name);
+		const std::string tbl = makeTableName_("tm", ctx, name);
 		auto& T = tm_tables_[tbl];
 
 		if (!T.insert) {
@@ -814,7 +870,7 @@ export class PersistentStorageSqlite {
 			contains_sql += " LIMIT 1;";
 			prep_(T.contains, contains_sql.c_str());
 
-			// tracking ctx tables for fast clear_context
+			// tracking ctx tables for fast clearContext
 			auto& v = get_or_insert(ctx_tm_tables_, ctx);
 			if (std::find(v.begin(), v.end(), tbl) == v.end())
 				v.push_back(tbl);

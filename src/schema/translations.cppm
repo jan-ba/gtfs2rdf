@@ -33,7 +33,7 @@ namespace schema {
 // -----------------------------------------------------------------------------
 // GTFS -> RDF schema for translations.txt
 // -----------------------------------------------------------------------------
-export Schema buildTranslationsSchema(runtime::RuntimeContainer &rt) {
+export Schema buildTranslationsSchema(runtime::RuntimeContainer& rt) {
 	// to be used when trying to find translations by field value
 	// hence ARGS[0]: table_name, ARGS[1]: field_name, ARGS[2]: field_value
 	// TODO: don't use if record_id exists since then translations can just be expressed from
@@ -41,13 +41,13 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer &rt) {
 	TRANSFORM2MANY(get_translation, ARGS, OUT_VALS, STORAGE) {
 		if (ARGS[0].empty() || ARGS[1].empty() || ARGS[2].empty())
 			return;
-		for (const auto &tup : STORAGE.get_tuples(
+		for (const auto& tup : STORAGE.getTuples(
 		         "translations.txt", "translations_by_value", {ARGS[0], ARGS[1], ARGS[2]})) {
 			OUT_VALS.emplace_back(tup[0]);
 			// this is a fairly hacky way to store the latest language used for translation
 			// so that the language tag can be set correctly in the triple later
 			// by adding {latest_translation_lookup@translations.txt} in the language field
-			STORAGE.store_variable("translations.txt", "latest_translation_lookup", tup[1]);
+			STORAGE.storeVariable("translations.txt", "latest_translation_lookup", tup[1]);
 		}
 	}
 	TRANSFORM_END
@@ -61,7 +61,7 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer &rt) {
 		auto parts = util::split(ARGS[0], '_');
 
 		bool first_part = true;
-		for (auto &p : parts) {
+		for (auto& p : parts) {
 			unsigned char c0 = static_cast<unsigned char>(p[0]);
 
 			// first chunk: lowerCamel (lowercase first letter), later chunks: UpperCamel (uppercase
@@ -85,7 +85,7 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer &rt) {
 
 	TRANSFORM2ONE(filter_if_record_id_defined, ARGS, OUT_VAL, STORAGE) {
 		(void)ARGS; // unused on purpose
-		if (STORAGE.get_variable("translations.txt", "is_record_id_defined").empty())
+		if (STORAGE.getVariable("translations.txt", "is_record_id_defined").empty())
 			OUT_VAL = "1";
 	}
 	TRANSFORM_END

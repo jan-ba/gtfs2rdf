@@ -30,7 +30,7 @@ using namespace rdf;
 namespace schema {
 
 // GTFS -> RDF schema for trips.txt (covers common/optional fields)
-export Schema buildTripsSchema(runtime::RuntimeContainer &rt) {
+export Schema buildTripsSchema(runtime::RuntimeContainer& rt) {
 	// args: shape_id
 	// output: WKT linestring of all shape points for this shape_id
 	TRANSFORM2ONE(get_linestring, ARGS, OUT_VAL, STORAGE) {
@@ -41,30 +41,30 @@ export Schema buildTripsSchema(runtime::RuntimeContainer &rt) {
 		};
 
 		// early exit if linestring for this shape_id was already created
-		if (STORAGE.contains_value("trips.txt", "created_linestrings", ARGS[0], "1"))
+		if (STORAGE.containsValue("trips.txt", "created_linestrings", ARGS[0], "1"))
 			return;
 
 		// else create linestring and store that we created it
-		STORAGE.store_value("trips.txt", "created_linestrings", ARGS[0], "1");
-		const auto &seq_lon_lat_vec = STORAGE.get_tuples("shapes.txt", "shapes", ARGS[0]);
+		STORAGE.storeValue("trips.txt", "created_linestrings", ARGS[0], "1");
+		const auto& seq_lon_lat_vec = STORAGE.getTuples("shapes.txt", "shapes", ARGS[0]);
 		if (seq_lon_lat_vec.empty())
 			return;
 
 		// sort by sequence number to build correct linestrings
 		std::vector<Row> rows(seq_lon_lat_vec.size());
 		for (size_t i = 0; i < seq_lon_lat_vec.size(); ++i) {
-			const auto &seq_lon_lat = seq_lon_lat_vec[i];
+			const auto& seq_lon_lat = seq_lon_lat_vec[i];
 			std::from_chars(
 			    seq_lon_lat[0].data(), seq_lon_lat[0].data() + seq_lon_lat[0].size(), rows[i].seq);
 			rows[i].lon = seq_lon_lat[1];
 			rows[i].lat = seq_lon_lat[2];
 		}
 		std::sort(
-		    rows.begin(), rows.end(), [](const Row &a, const Row &b) { return a.seq < b.seq; });
+		    rows.begin(), rows.end(), [](const Row& a, const Row& b) { return a.seq < b.seq; });
 
 		// build WKT linestring
 		OUT_VAL = "LINESTRING(";
-		for (const auto &row : rows) {
+		for (const auto& row : rows) {
 			if (OUT_VAL.back() != '(') {
 				OUT_VAL.append(", ");
 			}

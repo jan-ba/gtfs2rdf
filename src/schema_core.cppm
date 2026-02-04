@@ -104,7 +104,7 @@ export class Instruction {
 			return a.literal;
 		}
 		case ArgSourceKind::StorageVar: {
-			const auto& v = rt_.getStorage().get_variable(a.ctx, a.name);
+			const auto& v = rt_.getStorage().getVariable(a.ctx, a.name);
 			return v;
 		}
 		}
@@ -318,18 +318,18 @@ export class Instruction {
 
 					if (!cur_sv_.empty()) {
 						if (dg.storage.kind == StorageKind::MultiMap) {
-							st.store_value(dg.storage.target_ctx,
-							               dg.storage.target_name,
-							               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-							               arg_buf_[dg.storage.key_arity]);
+							st.storeValue(dg.storage.target_ctx,
+							              dg.storage.target_name,
+							              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+							              arg_buf_[dg.storage.key_arity]);
 						} else if (dg.storage.kind == StorageKind::TupleMap) {
-							st.store_tuple(dg.storage.target_ctx,
-							               dg.storage.target_name,
-							               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-							               ArgSpan{arg_buf_.data() + dg.storage.key_arity,
-							                       dg.storage.value_arity});
+							st.storeTuple(dg.storage.target_ctx,
+							              dg.storage.target_name,
+							              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+							              ArgSpan{arg_buf_.data() + dg.storage.key_arity,
+							                      dg.storage.value_arity});
 						} else if (dg.storage.kind == StorageKind::Variable) {
-							st.store_variable(
+							st.storeVariable(
 							    dg.storage.target_ctx, dg.storage.target_name, arg_buf_[0]);
 						}
 					}
@@ -337,16 +337,16 @@ export class Instruction {
 					// store RHS tuple directly, unconditionally
 
 					if (dg.storage.kind == StorageKind::MultiMap) {
-						st.store_value(dg.storage.target_ctx,
-						               dg.storage.target_name,
-						               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-						               arg_buf_[dg.storage.key_arity]);
+						st.storeValue(dg.storage.target_ctx,
+						              dg.storage.target_name,
+						              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+						              arg_buf_[dg.storage.key_arity]);
 					} else if (dg.storage.kind == StorageKind::TupleMap) {
-						st.store_tuple(dg.storage.target_ctx,
-						               dg.storage.target_name,
-						               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-						               ArgSpan{arg_buf_.data() + dg.storage.key_arity,
-						                       dg.storage.value_arity});
+						st.storeTuple(dg.storage.target_ctx,
+						              dg.storage.target_name,
+						              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+						              ArgSpan{arg_buf_.data() + dg.storage.key_arity,
+						                      dg.storage.value_arity});
 					}
 				} else {
 					// StoreComputed
@@ -356,22 +356,22 @@ export class Instruction {
 							for (size_t i = 0; i < transf_buf_.size(); i++) {
 								transf_buf_sv_[i] = transf_buf_[i];
 							}
-							st.store_tuple(dg.storage.target_ctx,
-							               dg.storage.target_name,
-							               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-							               ArgSpan{transf_buf_sv_.data(), transf_buf_sv_.size()});
+							st.storeTuple(dg.storage.target_ctx,
+							              dg.storage.target_name,
+							              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+							              ArgSpan{transf_buf_sv_.data(), transf_buf_sv_.size()});
 						}
 					} else {
 						switch (dg.storage.kind) {
 						case StorageKind::Variable:
-							st.store_variable(
+							st.storeVariable(
 							    dg.storage.target_ctx, dg.storage.target_name, cur_sv_);
 							break;
 						case StorageKind::MultiMap: {
-							st.store_value(dg.storage.target_ctx,
-							               dg.storage.target_name,
-							               ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-							               cur_sv_);
+							st.storeValue(dg.storage.target_ctx,
+							              dg.storage.target_name,
+							              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
+							              cur_sv_);
 							break;
 						}
 						}
