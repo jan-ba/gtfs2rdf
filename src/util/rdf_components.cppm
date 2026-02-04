@@ -63,7 +63,7 @@ constexpr std::array<bool, 256> is_unreserved_table_iridef = [] {
 
 // percent-encode bytes not in RFC3986 "unreserved" (A-Z, a-z, 0-9, '-', '.', '_', '~').
 // This keeps IRIREF safe, such as in <http://example.com/{value}>
-export void percent_encode_iriref(std::string &out, std::string_view value) {
+export void percent_encode_iriref(std::string& out, std::string_view value) {
 	static constexpr char H[] = "0123456789ABCDEF";
 	for (unsigned char c : value) {
 		if (is_unreserved_table_iridef[c] && c != '%') {
@@ -93,7 +93,7 @@ constexpr std::array<bool, 256> is_safe_table_prefixed_local = [] {
 
 // percent-encode bytes not in PN_LOCAL per Turtle spec (letters, digits, '_', '-'),
 // e.g. for prefixed names such as gtfs:{Local Name} where space must be encoded
-export void percent_encode_prefixed_local(std::string &out, std::string_view value) {
+export void percent_encode_prefixed_local(std::string& out, std::string_view value) {
 	static constexpr char H[] = "0123456789ABCDEF";
 	for (unsigned char c : value) {
 		if (is_safe_table_prefixed_local[c] && c != '%') {
@@ -108,7 +108,7 @@ export void percent_encode_prefixed_local(std::string &out, std::string_view val
 
 // percent-encode special characters in literals per RDF spec
 // (e.g. \n, \r, \t, \", \\, and control characters)
-export void percent_encode_literal(std::string &out, std::string_view value) {
+export void percent_encode_literal(std::string& out, std::string_view value) {
 	bool needsEscape = false;
 	for (unsigned char c : value) {
 		if (c < 0x20 || c == 0x7F || c == '\\' || c == '"') {
@@ -167,7 +167,7 @@ export class IRI {
 	const std::string local_name_;
 
   public:
-	IRI(const std::string &prefix, const std::string &local_name)
+	IRI(const std::string& prefix, const std::string& local_name)
 	    : prefix_(prefix)
 	    , local_name_(local_name) {
 		// empty IRIs not allowed
@@ -182,8 +182,8 @@ export class IRI {
 	}
 
 	// convert to template, which combines raw string with RenderKinds for its placeholders
-	TemplateString toTemplate(const std::unordered_map<std::string, std::string> &prefixes,
-	                          const runtime::RuntimeContainer &rt) const {
+	TemplateString toTemplate(const std::unordered_map<std::string, std::string>& prefixes,
+	                          const runtime::RuntimeContainer& rt) const {
 		TemplateString t;
 
 		const bool ntriples = rt.getSettings().isNTriplesOutput();
@@ -229,8 +229,8 @@ export class IRI {
 	}
 
 	// convert to string directly (no escaping)
-	const std::string toString(const std::unordered_map<std::string, std::string> &prefixes,
-	                           const runtime::RuntimeContainer &rt) const {
+	const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
+	                           const runtime::RuntimeContainer& rt) const {
 		return toTemplate(prefixes, rt).raw;
 	}
 };
@@ -244,13 +244,13 @@ export class Object {
 
   public:
 	// IRI
-	Object(const IRI &value)
+	Object(const IRI& value)
 	    : type_(Type::IRI)
 	    , value_(value) {
 	}
 
 	// literal - only language tag (if any)
-	Object(const std::string &literal, const std::string &lang = "")
+	Object(const std::string& literal, const std::string& lang = "")
 	    : type_(Type::Literal)
 	    , value_(IRI("", literal))
 	    , datatype_(IRI())
@@ -258,15 +258,15 @@ export class Object {
 	}
 
 	// literal - with datatype
-	Object(const std::string &literal, const IRI &datatype)
+	Object(const std::string& literal, const IRI& datatype)
 	    : type_(Type::Literal)
 	    , value_(IRI("", literal))
 	    , datatype_(datatype) {
 	}
 
 	// convert to template, which combines raw string with RenderKinds for its placeholders
-	TemplateString toTemplate(const std::unordered_map<std::string, std::string> &prefixes,
-	                          const runtime::RuntimeContainer &rt) const {
+	TemplateString toTemplate(const std::unordered_map<std::string, std::string>& prefixes,
+	                          const runtime::RuntimeContainer& rt) const {
 		TemplateString t;
 
 		switch (type_) {
@@ -315,8 +315,8 @@ export class Object {
 		return t;
 	}
 
-	const std::string toString(const std::unordered_map<std::string, std::string> &prefixes,
-	                           const runtime::RuntimeContainer &rt) const {
+	const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
+	                           const runtime::RuntimeContainer& rt) const {
 		return toTemplate(prefixes, rt).raw;
 	}
 };
@@ -328,14 +328,14 @@ export class Triple {
 	const Object object_;
 
   public:
-	Triple(const IRI &subject, const IRI &predicate, const Object &object)
+	Triple(const IRI& subject, const IRI& predicate, const Object& object)
 	    : subject_(subject)
 	    , predicate_(predicate)
 	    , object_(object) {
 	}
 
-	TemplateString toTemplate(const std::unordered_map<std::string, std::string> &prefixes,
-	                          const runtime::RuntimeContainer &rt) const {
+	TemplateString toTemplate(const std::unordered_map<std::string, std::string>& prefixes,
+	                          const runtime::RuntimeContainer& rt) const {
 		auto s = subject_.toTemplate(prefixes, rt);
 		auto p = predicate_.toTemplate(prefixes, rt);
 		auto o = object_.toTemplate(prefixes, rt);
@@ -351,8 +351,8 @@ export class Triple {
 		return t;
 	}
 
-	const std::string toString(const std::unordered_map<std::string, std::string> &prefixes,
-	                           const runtime::RuntimeContainer &rt) const {
+	const std::string toString(const std::unordered_map<std::string, std::string>& prefixes,
+	                           const runtime::RuntimeContainer& rt) const {
 		return toTemplate(prefixes, rt).raw;
 	}
 };
