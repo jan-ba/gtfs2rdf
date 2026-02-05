@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <exception>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -25,18 +26,18 @@ struct Error : std::runtime_error {
 
 // helper function to wrap and rethrow exceptions with additional context
 // unused parameter 'e' to ensure function is only called with custom Error type
-inline void wrap_and_rethrow([[maybe_unused]] const diagnostics::Error& e,
-                             std::string_view context_message) {
+inline void wrapAndRethrow([[maybe_unused]] const diagnostics::Error& err,
+                           std::string_view context_message) {
 	std::throw_with_nested(Error(std::string(context_message)));
 }
 
 // helper function to print error chain in order 'innermost -> outermost'
-inline void print_error_chain(const diagnostics::Error& e) {
+inline void printErrorChain(const diagnostics::Error& err) {
 	bool printed_context = false;
 
-	auto recursion = [&](auto&& self, const diagnostics::Error& ex) -> void {
+	auto recursion = [&](auto&& self, const diagnostics::Error& err) -> void {
 		try {
-			std::rethrow_if_nested(ex);
+			std::rethrow_if_nested(err);
 		} catch (const diagnostics::Error& inner) {
 			self(self, inner); // print leaf first
 
@@ -44,14 +45,14 @@ inline void print_error_chain(const diagnostics::Error& e) {
 				std::cerr << "Context stack:\n";
 				printed_context = true;
 			}
-			std::cerr << "  - " << ex.what() << "\n";
+			std::cerr << "  - " << err.what() << "\n";
 			return;
 		}
 		// leaf
-		std::cerr << "❌  " << ex.what() << "\n";
+		std::cerr << "❌  " << err.what() << "\n";
 	};
 
-	recursion(recursion, e);
+	recursion(recursion, err);
 }
 
 // _________________________________________________________________________________________________
@@ -60,11 +61,11 @@ inline void print_error_chain(const diagnostics::Error& e) {
 // to be assigned to a Warning in code
 // beware that the ordering matters for proper filtering based on verbosity level, such that
 // less severe < more severe
-enum class WarningLevel { Info, Warning };
+enum class WarningLevel : uint8_t { INFO, WARNING };
 
 // beware that ordering matters for proper filtering based on verbosity level, such that
 // more verbose < less verbose
-enum class VerbosityLevelWarnings { Info, Warning, Quiet };
+enum class VerbosityLevelWarnings : uint8_t { INFO, WARNING, QUIET };
 
 class Warning {
   public:
@@ -87,8 +88,9 @@ class Warning {
 	}
 
 	void print() const {
-		if (message_.empty())
+		if (message_.empty()) {
 			return;
+		}
 
 		// print innermost message with appropriate emoji
 		const char* emoji = getEmoji_(level_);
@@ -107,15 +109,14 @@ class Warning {
 	// populate as more WarningLevels are added
 	static const char* getEmoji_(WarningLevel level) {
 		switch (level) {
-		case WarningLevel::Warning:
+		case WarningLevel::WARNING:
 			return "⚠️  ";
-		case WarningLevel::Info:
+		case WarningLevel::INFO:
 			return "ℹ️  ";
 		}
 		return "";
 	}
 
-  private:
 	WarningLevel level_;
 	bool closed_;
 	std::string message_;
@@ -130,7 +131,7 @@ class WarningCollector {
 	}
 
 	void addLeaf(std::string_view message, WarningLevel level, bool closed = false) {
-		if (static_cast<int>(level) < static_cast<int>(verbosity_level_)) {
+		if (static_cast<uint8_t>(level) < static_cast<uint8_t>(verbosity_level_)) {
 			return;
 		}
 		warnings_.emplace_back(message, level, closed);
@@ -143,7 +144,7 @@ class WarningCollector {
 		if (warnings_.empty()) {
 			return;
 		}
-		if (static_cast<int>(level) < static_cast<int>(verbosity_level_)) {
+		if (static_cast<uint8_t>(level) < static_cast<uint8_t>(verbosity_level_)) {
 			return;
 		}
 		warnings_.back().appendWarningMessage(message);
@@ -171,9 +172,9 @@ class WarningCollector {
 // _________________________________________________________________________________________________
 // Statistics
 // statistics verbosity levels
-enum class VerbosityLevelStats { Quiet, Brief, Verbose };
+enum class VerbosityLevelStats : uint8_t { QUIET, BRIEF, VERBOSE };
 
-// container for runtime statistics collected during GTFS processing
+// container for runtime statistics collected during Gtfs processing
 class Statistics {
   public:
 	std::string name;
@@ -193,7 +194,7 @@ class Statistics {
 
 	Statistics() = default;
 
-	std::string fancyPrint() const {
+	[[nodiscard]] std::string fancyPrint() const {
 		std::ostringstream oss;
 
 		oss << "\n--------------------------------------------------------------------\n";
@@ -204,24 +205,28 @@ class Statistics {
 		oss << "  Triples generated: " << triples << "\n";
 
 #if GTFS2RDF_FULL_STATS
-		oss << "  Parse time:        " << fmt_suffix_padded(parse_ns, UnitType::Time) << "\n";
-		oss << "  Write time:        " << fmt_suffix_padded(write_ns, UnitType::Time) << "\n";
-		oss << "  Conversion time:   " << fmt_suffix_padded(conversion_ns, UnitType::Time) << "\n";
+		oss << "  Parse time:        " << formatValueWithPaddedUnits(parse_ns, UnitType::TIME)
+		    << "\n";
+		oss << "  Write time:        " << formatValueWithPaddedUnits(write_ns, UnitType::TIME)
+		    << "\n";
+		oss << "  Conversion time:   " << formatValueWithPaddedUnits(conversion_ns, UnitType::TIME)
+		    << "\n";
 		oss << "  Total time:        "
-		    << fmt_suffix_padded(parse_ns + write_ns + conversion_ns, UnitType::Time) << "\n";
+		    << formatValueWithPaddedUnits(parse_ns + write_ns + conversion_ns, UnitType::TIME)
+		    << "\n";
 #endif
 
 		oss << "--------------------------------------------------------------------\n";
 		return oss.str();
 	}
 
-	std::string briefPrint() const {
+	[[nodiscard]] std::string briefPrint() const {
 		std::ostringstream oss;
 		oss << "📈 " << name << ": " << rows << " rows, " << triples << " triples";
 #if GTFS2RDF_FULL_STATS
-		oss << ", " << fmt_suffix_padded(parse_ns, UnitType::Time) << " parse + "
-		    << fmt_suffix_padded(write_ns, UnitType::Time) << " write + "
-		    << fmt_suffix_padded(conversion_ns, UnitType::Time) << " convert";
+		oss << ", " << formatValueWithPaddedUnits(parse_ns, UnitType::TIME) << " parse + "
+		    << formatValueWithPaddedUnits(write_ns, UnitType::TIME) << " write + "
+		    << formatValueWithPaddedUnits(conversion_ns, UnitType::TIME) << " convert";
 #endif
 		return oss.str();
 	}

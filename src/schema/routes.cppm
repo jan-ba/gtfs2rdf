@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
@@ -27,9 +27,9 @@ using namespace rdf;
 
 namespace schema {
 
-// GTFS -> RDF schema for routes.txt
-export Schema buildRoutesSchema(runtime::RuntimeContainer &rt) {
-	const std::vector<std::string> possible_columns = {"route_id",
+// Gtfs -> Rdf schema for routes.txt
+export Schema buildRoutesSchema(runtime::RuntimeContainer& rtc) {
+	const std::vector<std::string> POSSIBLE_COLUMNS = {"route_id",
 	                                                   "agency_id",
 	                                                   "route_short_name",
 	                                                   "route_long_name",
@@ -44,7 +44,7 @@ export Schema buildRoutesSchema(runtime::RuntimeContainer &rt) {
 	                                                   "network_id",
 	                                                   "cemv_support"};
 
-	const std::unordered_map<std::string, std::string> prefixes = {
+	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"routes", "https://gtfs.org/routes/"},
 	    {"agencies", "https://gtfs.org/agencies/"},
 	    {"networks", "https://gtfs.org/networks/"},
@@ -53,44 +53,44 @@ export Schema buildRoutesSchema(runtime::RuntimeContainer &rt) {
 	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
-	const IRI subj = IRI("routes", "{route_id}");
+	const IRI SUBJ = IRI("routes", "{route_id}");
 
-	const std::vector<Triple> triples = {
+	const std::vector<Triple> TRIPLES = {
 	    // SUBJECT  PREDICATE                  OBJECT
 	    // Identity / type
-	    {subj, {"rdf", "type"}, {IRI("gtfs", "Route")}},
+	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Route")}},
 
 	    // Foreign keys
-	    {subj, {"gtfs", "agency"}, {IRI("agencies", "{agency_id}")}},
-	    {subj, {"gtfs", "network"}, {IRI("networks", "{network_id}")}},
+	    {SUBJ, {"gtfs", "agency"}, {IRI("agencies", "{agency_id}")}},
+	    {SUBJ, {"gtfs", "network"}, {IRI("networks", "{network_id}")}},
 
 	    // Names / description
-	    {subj, {"gtfs", "routeShortName"}, {"{route_short_name}"}},
-	    {subj, {"gtfs", "routeLongName"}, {"{route_long_name}", "{FEED_LANG@feed_info.txt}"}},
-	    {subj, {"gtfs", "routeDesc"}, {"{route_desc}", "{FEED_LANG@feed_info.txt}"}},
+	    {SUBJ, {"gtfs", "routeShortName"}, {"{route_short_name}"}},
+	    {SUBJ, {"gtfs", "routeLongName"}, {"{route_long_name}", "{FEED_LANG@feed_info.txt}"}},
+	    {SUBJ, {"gtfs", "routeDesc"}, {"{route_desc}", "{FEED_LANG@feed_info.txt}"}},
 
 	    // Type (required)
-	    {subj, {"gtfs", "routeType"}, {"{route_type}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "routeType"}, {"{route_type}", IRI("xs", "integer")}},
 
 	    // URL
-	    {subj, {"gtfs", "routeUrl"}, {"{route_url}", IRI("xs", "anyURI")}},
+	    {SUBJ, {"gtfs", "routeUrl"}, {"{route_url}", IRI("xs", "anyURI")}},
 
 	    // Colors
-	    {subj, {"gtfs", "routeColor"}, {"{route_color}"}},
-	    {subj, {"gtfs", "routeTextColor"}, {"{route_text_color}"}},
+	    {SUBJ, {"gtfs", "routeColor"}, {"{route_color}"}},
+	    {SUBJ, {"gtfs", "routeTextColor"}, {"{route_text_color}"}},
 
 	    // Sort order (non-negative integer)
-	    {subj, {"gtfs", "routeSortOrder"}, {"{route_sort_order}", IRI("xs", "nonNegativeInteger")}},
+	    {SUBJ, {"gtfs", "routeSortOrder"}, {"{route_sort_order}", IRI("xs", "nonNegativeInteger")}},
 
 	    // Continuous pickup/drop-off (enums)
-	    {subj, {"gtfs", "continuousPickup"}, {"{continuous_pickup}", IRI("xs", "integer")}},
-	    {subj, {"gtfs", "continuousDropOff"}, {"{continuous_drop_off}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "continuousPickup"}, {"{continuous_pickup}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "continuousDropOff"}, {"{continuous_drop_off}", IRI("xs", "integer")}},
 
 	    // cEMV support (enum)
-	    {subj, {"gtfs", "cemvSupport"}, {"{cemv_support}", IRI("xs", "integer")}}};
+	    {SUBJ, {"gtfs", "cemvSupport"}, {"{cemv_support}", IRI("xs", "integer")}}};
 
-	Schema sc("routes.txt", possible_columns, prefixes, triples, rt);
-	return sc;
+	Schema sch("routes.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
+	return sch;
 }
 
 } // namespace schema

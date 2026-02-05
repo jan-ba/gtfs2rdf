@@ -2,29 +2,29 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
 /*
 ================================================================================
-GTFS2RDF — Schema Template (NOT COMPILED)
+gtfs2rdf — Schema Template (NOT COMPILED)
 ================================================================================
 
 Drop this file somewhere that is NOT picked up by your build (e.g. src/schema/schema_template.txt).
 Copy-paste it into a new *.cppm schema file when you want to add a schema.
 
-This template follows your current GTFS2RDF "schema file" structure:
+This template follows your current gtfs2rdf "schema file" structure:
   - one exported build<Name>Schema(...) function that returns schema::Schema
-  - a list of possible_columns (for header validation / column lookup)
-  - a prefixes map (used for Turtle prefixes and CURIE expansion)
+  - a list of POSSIBLE_COLUMNS (for header validation / column lookup)
+  - a PREFIXES map (used for Turtle PREFIXES and CURIE expansion)
   - a vector of rdf::Triple entries with placeholder instructions
   - OPTIONAL: a vector<string> side_effects (placeholder-instructions that DO NOT write to file)
 
 -------------------------------------------------------------------------------
 1) Placeholder syntax inside strings
 -------------------------------------------------------------------------------
-In any instruction string, `{...}` marks a placeholder that is filled from the GTFS row.
+In any instruction string, `{...}` marks a placeholder that is filled from the Gtfs row.
 
 A placeholder has this general form:
 
@@ -33,8 +33,8 @@ A placeholder has this general form:
 Rules:
   - whitespace inside the braces is removed.
   - args BEFORE the first '|' are comma-separated "arguments".
-  - transforms are chained with '|'. (MaxTransforms is currently 3.)
-  - MaxArgs is currently 9.
+  - transforms are chained with '|'. (MAX_TRANSFORMS is currently 3.)
+  - MAX_ARGS is currently 9.
 
 -------------------------------------------------------------------------------
 2) Transform kinds: Transform2One vs Transform2Many
@@ -53,7 +53,7 @@ Important limitation (current implementation):
 
 Evaluation order:
   - transforms BEFORE a Transform2Many can take spanN (all args)
-  - Transform2Many (multi) produces transf_buf_
+  - Transform2Many produces transf_buf_
   - transforms AFTER Transform2Many are applied element-wise to transf_buf_
 
 -------------------------------------------------------------------------------
@@ -97,17 +97,17 @@ Instead of using a fake triple like: { "", "", "{... > ...}" },
 you can define side effects directly:
 
     const std::vector<std::string> side_effects = {
-        "{ service_id : date, exception_type | some_filter | convert_date > disabled_dates@calendar_dates.txt }"
+        "{ service_id : date, exception_type | some_filter | convertDate2xs_unchecked > disabled_dates@calendar_dates.txt }"
     };
 
-These are processed like normal instruction strings, but are not written to the RDF output.
+These are processed like normal instruction strings, but are not written to the Rdf output.
 
 -------------------------------------------------------------------------------
 5) Triple structure
 -------------------------------------------------------------------------------
-A triple is: { SUBJECT, PREDICATE, OBJECT }
+A triple is: { SUBJ, PREDICATE, OBJECT }
 
-  - SUBJECT / PREDICATE are rdf::IRI
+  - SUBJ / PREDICATE are rdf::IRI
   - OBJECT is an rdf::Object, which can be:
       * a plain literal:           { "{field}" }
       * a language-tag literal:    { "{field}", "de" }
@@ -189,18 +189,18 @@ void split_semicolon(const field_transforms::ArgSpan& args,
 // =============================================================================
 // 2) REQUIRED: build function
 // =============================================================================
-export Schema buildYourSchemaNameSchema(runtime::RuntimeContainer& rt) {
+export Schema buildYourSchemaNameSchema(runtime::RuntimeContainer& rtc) {
 
   // ---------------------------------------------------------------------------
   // (A) Register transforms (schema-local + shared)
   // ---------------------------------------------------------------------------
-  rt.getTransformRegistry().registerTransform("wkt_point", example_transforms::wkt_point_lon_lat);
-  rt.getTransformRegistry().registerTransform("split_semicolon", example_transforms::split_semicolon);
+  rtc.getTransformRegistry().registerTransform("wkt_point", example_transforms::wkt_point_lon_lat);
+  rtc.getTransformRegistry().registerTransform("split_semicolon", example_transforms::split_semicolon);
 
   // ---------------------------------------------------------------------------
-  // (B) Columns that may appear in the GTFS file header
+  // (B) Columns that may appear in the Gtfs file header
   // ---------------------------------------------------------------------------
-  const std::vector<std::string> possible_columns = {
+  const std::vector<std::string> POSSIBLE_COLUMNS = {
     "id",
     "name",
     "lon",
@@ -211,7 +211,7 @@ export Schema buildYourSchemaNameSchema(runtime::RuntimeContainer& rt) {
   // ---------------------------------------------------------------------------
   // (C) Prefixes (Turtle expansion)
   // ---------------------------------------------------------------------------
-  const std::unordered_map<std::string, std::string> prefixes = {
+  const std::unordered_map<std::string, std::string> PREFIXES = {
     { "ex",   "https://example.org/resource/" },
     { "rdf",  "http://www.w3.org/1999/02/22-rdf-syntax-ns#" },
     { "xs",  "http://www.w3.org/2001/XMLSchema#" },
@@ -221,16 +221,16 @@ export Schema buildYourSchemaNameSchema(runtime::RuntimeContainer& rt) {
   // ---------------------------------------------------------------------------
   // (D) Subject IRI template
   // ---------------------------------------------------------------------------
-  const IRI subject = IRI("ex", "{id}");
+  const IRI SUBJ = IRI("ex", "{id}");
 
   // ---------------------------------------------------------------------------
   // (E) Triples (file output)
   // ---------------------------------------------------------------------------
-  const std::vector<Triple> triples = {
-    { subject, {"rdf","type"}, { IRI("gtfs","YourClass") } },
-    { subject, {"gtfs","name"}, { "{name}" } },
-    { subject, {"gtfs","wktPoint"}, { "{lon,lat|wkt_point}" } },
-    { subject, {"gtfs","tag"}, { "{tags|split_semicolon}" } },
+  const std::vector<Triple> TRIPLES = {
+    { SUBJ, {"rdf","type"}, { IRI("gtfs","YourClass") } },
+    { SUBJ, {"gtfs","name"}, { "{name}" } },
+    { SUBJ, {"gtfs","wktPoint"}, { "{lon,lat|wkt_point}" } },
+    { SUBJ, {"gtfs","tag"}, { "{tags|split_semicolon}" } },
   };
 
   // ---------------------------------------------------------------------------
@@ -239,7 +239,7 @@ export Schema buildYourSchemaNameSchema(runtime::RuntimeContainer& rt) {
   //
   // NOTE: This is intentionally a vector<string> and NOT rdf::Triple.
   // The engine can parse+execute these placeholders for each row, but does not
-  // append anything to the RDF writer.
+  // append anything to the Rdf writer.
   //
   // Example (keyed computed store): id -> formatted(name) only if some filter returns non-empty
   //   "{ id : name | my_filter | my_format > some_map@your_schema_name.txt }"
@@ -251,9 +251,9 @@ export Schema buildYourSchemaNameSchema(runtime::RuntimeContainer& rt) {
   // ---------------------------------------------------------------------------
   // (G) Build Schema object
   // ---------------------------------------------------------------------------
-  // CHANGE: Schema now also accepts side_effects (new field) so you can avoid fake triples.
-  Schema sc("your_schema_name.txt", possible_columns, prefixes, triples, side_effects, rt);
-  return sc;
+  // CHANGE: Schema now also accepts side_effects (new field) so you can avoid fake TRIPLES.
+  Schema sch("your_schema_name.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, side_effects, rtc);
+  return sch;
 }
 
 } // namespace schema
@@ -272,4 +272,5 @@ For updated version of template:
   usage of the storage 
 - stress that storage-only instructions are always executed before all non-storage-only instructions 
   (i.e. triple generation instructions)
-- 
+- several argument types are supported: column from the file row, literal (in \", important that " are escaped)
+  and storage variables via <var_name>@<context_name ending in .txt>

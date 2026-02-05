@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
@@ -32,8 +32,8 @@ using namespace util;
 
 namespace schema {
 
-// GTFS -> RDF schema for calendar.txt
-export Schema buildCalendarSchema(runtime::RuntimeContainer& rt) {
+// Gtfs -> Rdf schema for calendar.txt
+export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
 	// Transform function to generate operating days string from weekday flags
 	// ignores disables dates from calendar_dates.txt
 	// Expects 10 arguments (Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday,
@@ -76,7 +76,7 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rt) {
 	}
 	TRANSFORM_END
 
-	const std::vector<std::string> possible_columns = {"service_id",
+	const std::vector<std::string> POSSIBLE_COLUMNS = {"service_id",
 	                                                   "monday",
 	                                                   "tuesday",
 	                                                   "wednesday",
@@ -87,31 +87,31 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rt) {
 	                                                   "start_date",
 	                                                   "end_date"};
 
-	const std::unordered_map<std::string, std::string> prefixes = {
+	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"services", "https://gtfs.org/services/"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
 	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
-	const IRI subject = IRI("services", "{service_id}");
+	const IRI SUBJ = IRI("services", "{service_id}");
 
-	const std::vector<Triple> triples = {
+	const std::vector<Triple> TRIPLES = {
 	    // SUBJECT        PREDICATE                 OBJECT
 	    // Type
-	    {subject, {"rdf", "type"}, {IRI("gtfs", "Service")}},
+	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Service")}},
 
-	    // Weekday flags (0/1), these are not really meaningful in RDF but included for completeness
-	    //   { subject,        {"gtfs","monday"},        { "{monday}", IRI("xs","integer") } },
-	    //   { subject,        {"gtfs","tuesday"},       { "{tuesday}", IRI("xs","integer") } },
-	    //   { subject,        {"gtfs","wednesday"},     { "{wednesday}", IRI("xs","integer") } },
-	    //   { subject,        {"gtfs","thursday"},      { "{thursday}", IRI("xs","integer") } },
-	    //   { subject,        {"gtfs","friday"},        { "{friday}", IRI("xs","integer") } },
-	    //   { subject,        {"gtfs","saturday"},      { "{saturday}", IRI("xs","integer") } },
-	    //   { subject,        {"gtfs","sunday"},        { "{sunday}", IRI("xs","integer") } },
+	    // Weekday flags (0/1), these are not really meaningful in Rdf but included for completeness
+	    //   { SUBJ,        {"gtfs","monday"},        { "{monday}", IRI("xs","integer") } },
+	    //   { SUBJ,        {"gtfs","tuesday"},       { "{tuesday}", IRI("xs","integer") } },
+	    //   { SUBJ,        {"gtfs","wednesday"},     { "{wednesday}", IRI("xs","integer") } },
+	    //   { SUBJ,        {"gtfs","thursday"},      { "{thursday}", IRI("xs","integer") } },
+	    //   { SUBJ,        {"gtfs","friday"},        { "{friday}", IRI("xs","integer") } },
+	    //   { SUBJ,        {"gtfs","saturday"},      { "{saturday}", IRI("xs","integer") } },
+	    //   { SUBJ,        {"gtfs","sunday"},        { "{sunday}", IRI("xs","integer") } },
 
 	    // Operating dates (generated from weekday flags + start_date + end_date)
 	    // uses calendar_dates.txt to ignore disabled dates
-	    {subject,
+	    {SUBJ,
 	     {"gtfs", "serviceDate"},
 	     {"{sunday, monday, tuesday, wednesday, thursday,"
 	      "friday, saturday, start_date, end_date,"
@@ -119,11 +119,13 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rt) {
 	      IRI("xs", "date")}},
 
 	    // Date range
-	    {subject, {"gtfs", "startDate"}, {"{start_date | convert_date }", IRI("xs", "date")}},
-	    {subject, {"gtfs", "endDate"}, {"{end_date | convert_date}", IRI("xs", "date")}}};
+	    {SUBJ,
+	     {"gtfs", "startDate"},
+	     {"{start_date | convertDate2xs_unchecked }", IRI("xs", "date")}},
+	    {SUBJ, {"gtfs", "endDate"}, {"{end_date | convertDate2xs_unchecked}", IRI("xs", "date")}}};
 
-	Schema sc("calendar.txt", possible_columns, prefixes, triples, rt);
-	return sc;
+	Schema sch("calendar.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
+	return sch;
 }
 
 } // namespace schema

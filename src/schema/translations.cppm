@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
@@ -31,16 +31,17 @@ using namespace rdf;
 namespace schema {
 
 // -----------------------------------------------------------------------------
-// GTFS -> RDF schema for translations.txt
+// Gtfs -> Rdf schema for translations.txt
 // -----------------------------------------------------------------------------
-export Schema buildTranslationsSchema(runtime::RuntimeContainer& rt) {
+export Schema buildTranslationsSchema(runtime::RuntimeContainer& rtc) {
 	// to be used when trying to find translations by field value
 	// hence ARGS[0]: table_name, ARGS[1]: field_name, ARGS[2]: field_value
 	// TODO: don't use if record_id exists since then translations can just be expressed from
 	// within this schema file directly without storage across schemas
 	TRANSFORM2MANY(get_translation, ARGS, OUT_VALS, STORAGE) {
-		if (ARGS[0].empty() || ARGS[1].empty() || ARGS[2].empty())
+		if (ARGS[0].empty() || ARGS[1].empty() || ARGS[2].empty()) {
 			return;
+		}
 		for (const auto& tup : STORAGE.getTuples(
 		         "translations.txt", "translations_by_value", {ARGS[0], ARGS[1], ARGS[2]})) {
 			OUT_VALS.emplace_back(tup[0]);
@@ -56,13 +57,14 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer& rt) {
 	// with this translations by record_id can be easily created in this schema file
 	// TODO: move to lib?
 	TRANSFORM2ONE(capitalise_underscored, ARGS, OUT_VAL, STORAGE) {
-		if (ARGS[0].empty())
+		if (ARGS[0].empty()) {
 			return;
+		}
 		auto parts = util::split(ARGS[0], '_');
 
 		bool first_part = true;
-		for (auto& p : parts) {
-			unsigned char c0 = static_cast<unsigned char>(p[0]);
+		for (auto& part : parts) {
+			auto c0 = static_cast<unsigned char>(part[0]);
 
 			// first chunk: lowerCamel (lowercase first letter), later chunks: UpperCamel (uppercase
 			// first letter)
@@ -75,8 +77,8 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer& rt) {
 				                                   : static_cast<char>(c0));
 			}
 
-			for (size_t i = 1; i < p.size(); ++i) {
-				unsigned char c = static_cast<unsigned char>(p[i]);
+			for (size_t i = 1; i < part.size(); ++i) {
+				auto c = static_cast<unsigned char>(part[i]);
 				OUT_VAL.push_back(static_cast<char>(std::tolower(c)));
 			}
 		}
@@ -85,12 +87,13 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer& rt) {
 
 	TRANSFORM2ONE(filter_if_record_id_defined, ARGS, OUT_VAL, STORAGE) {
 		(void)ARGS; // unused on purpose
-		if (STORAGE.getVariable("translations.txt", "is_record_id_defined").empty())
+		if (STORAGE.getVariable("translations.txt", "is_record_id_defined").empty()) {
 			OUT_VAL = "1";
+		}
 	}
 	TRANSFORM_END
 
-	const std::vector<std::string> possible_columns = {"table_name",
+	const std::vector<std::string> POSSIBLE_COLUMNS = {"table_name",
 	                                                   "field_name",
 	                                                   "language",
 	                                                   "record_id",
@@ -98,14 +101,14 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer& rt) {
 	                                                   "field_value",
 	                                                   "translation"};
 
-	const std::unordered_map<std::string, std::string> prefixes = {
+	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"trans", "https://gtfs.org/translations/"},
 
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
 	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
-	const std::vector<std::string> storage_only_instructions = {
+	const std::vector<std::string> STORAGE_ONLY_INSTRUCTIONS = {
 	    // store whether record_id is defined in variable
 	    "{ record_id > is_record_id_defined}",
 
@@ -117,11 +120,11 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer& rt) {
 	    " | filter_if_record_id_defined@translations.txt > translations_by_value@translations.txt "
 	    "}"};
 
-	const std::vector<Triple> triples = {};
+	const std::vector<Triple> TRIPLES = {};
 
-	Schema sc(
-	    "translations.txt", possible_columns, prefixes, triples, storage_only_instructions, rt);
-	return sc;
+	Schema sch(
+	    "translations.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, STORAGE_ONLY_INSTRUCTIONS, rtc);
+	return sch;
 }
 
 } // namespace schema

@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
@@ -27,13 +27,14 @@ using namespace rdf;
 
 namespace schema {
 
-// GTFS -> RDF schema for calendar_dates.txt
-export Schema buildCalendarDatesSchema(runtime::RuntimeContainer &rt) {
+// Gtfs -> Rdf schema for calendar_dates.txt
+export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rtc) {
 	// args: date, exception_type
 	TRANSFORM2ONE(ignore_disabled_dates, ARGS, OUT_VAL, STORAGE) {
 		if (ARGS[1] == "2") {
 			return; // exception_type 2 = removed -> ignore
-		} else if (ARGS[1] == "1") {
+		}
+		if (ARGS[1] == "1") {
 			// exception_type 1 = added -> output date
 			OUT_VAL = ARGS[0];
 		} else {
@@ -52,9 +53,9 @@ export Schema buildCalendarDatesSchema(runtime::RuntimeContainer &rt) {
 	}
 	TRANSFORM_END
 
-	const std::vector<std::string> possible_columns = {"service_id", "date", "exception_type"};
+	const std::vector<std::string> POSSIBLE_COLUMNS = {"service_id", "date", "exception_type"};
 
-	const std::unordered_map<std::string, std::string> prefixes = {
+	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"caldates", "https://gtfs.org/calendar_dates/"},
 	    {"services", "https://gtfs.org/services/"},
 
@@ -62,33 +63,28 @@ export Schema buildCalendarDatesSchema(runtime::RuntimeContainer &rt) {
 	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
-	const IRI subject = IRI("caldates", "{service_id}");
+	const IRI SUBJ = IRI("caldates", "{service_id}");
 
-	const std::vector<Triple> triples = {
+	const std::vector<Triple> TRIPLES = {
 	    // SUBJECT            PREDICATE                   OBJECT
 
 	    // date of the exception (if exception_type is 1, the service is added for the specified
 	    // date,
 	    //                        else ignored)
-	    {subject,
+	    {SUBJ,
 	     {"gtfs", "serviceDate"},
 	     {"{ date, exception_type | ignore_disabled_dates"
-	      "| convert_date }",
+	      "| convertDate2xs_unchecked }",
 	      IRI("xs", "date")}},
 	};
 
-	const std::vector<std::string> raw_storage_only_instructions = {
+	const std::vector<std::string> STORAGE_ONLY = {
 	    // store disabled dates for later use in calendar.txt
-	    "{ service_id : date, exception_type | is_disabled_date | convert_date"
+	    "{ service_id : date, exception_type | is_disabled_date | convertDate2xs_unchecked"
 	    "> disabled_dates@calendar_dates.txt }"};
 
-	Schema sc("calendar_dates.txt",
-	          possible_columns,
-	          prefixes,
-	          triples,
-	          raw_storage_only_instructions,
-	          rt);
-	return sc;
+	Schema sch("calendar_dates.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, STORAGE_ONLY, rtc);
+	return sch;
 }
 
 } // namespace schema

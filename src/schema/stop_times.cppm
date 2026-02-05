@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
@@ -28,9 +28,8 @@ using namespace rdf;
 namespace schema {
 
 // this gtfs->rdf schema is preliminary and only covers a subset of all possible fields
-export Schema buildStopTimesSchema(runtime::RuntimeContainer &rt) {
-
-	const std::vector<std::string> possible_columns = {"trip_id",
+export Schema buildStopTimesSchema(runtime::RuntimeContainer& rtc) {
+	const std::vector<std::string> POSSIBLE_COLUMNS = {"trip_id",
 	                                                   "arrival_time",
 	                                                   "departure_time",
 	                                                   "stop_id",
@@ -50,7 +49,7 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer &rt) {
 	                                                   "drop_off_booking_rule_id"};
 
 	//
-	const std::unordered_map<std::string, std::string> prefixes = {
+	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"stops", "https://gtfs.org/stops/"},
 	    {"stop_times", "https://gtfs.org/stop_times/"},
 	    {"trips", "https://gtfs.org/trips/"},
@@ -65,55 +64,59 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer &rt) {
 	    {"geo", "http://www.opengis.net/ont/geosparql#"},
 	    {"gtfs2rdfgeom", "https://w3id.org/gtfs2rdf/geometry#"}};
 
-	const IRI subj = IRI("stop_times", "{trip_id}_{stop_sequence}");
+	const IRI SUBJ = IRI("stop_times", "{trip_id}_{stop_sequence}");
 
-	const std::vector<Triple> triples = {
+	const std::vector<Triple> TRIPLES = {
 	    // SUBJECT PREDICATE                          OBJECT
 	    // Identity & links
-	    {subj, {"rdf", "type"}, {IRI("gtfs", "StopTime")}},
-	    {subj, {"gtfs", "trip"}, {IRI("trips", "{trip_id}")}},
+	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "StopTime")}},
+	    {SUBJ, {"gtfs", "trip"}, {IRI("trips", "{trip_id}")}},
 
-	    // One of these (mutually exclusive per GTFS)
-	    {subj, {"gtfs", "stop"}, {IRI("stops", "{stop_id}")}},
-	    {subj, {"gtfs", "locationGroup"}, {IRI("locationgroups", "{location_group_id}")}},
-	    {subj, {"gtfs", "location"}, {IRI("locations", "{location_id}")}},
+	    // One of these (mutually exclusive per Gtfs)
+	    {SUBJ, {"gtfs", "stop"}, {IRI("stops", "{stop_id}")}},
+	    {SUBJ, {"gtfs", "locationGroup"}, {IRI("locationgroups", "{location_group_id}")}},
+	    {SUBJ, {"gtfs", "location"}, {IRI("locations", "{location_id}")}},
 
 	    // Core fields
-	    {subj, {"gtfs", "stopSequence"}, {"{stop_sequence}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "stopSequence"}, {"{stop_sequence}", IRI("xs", "integer")}},
 
 	    // Times (converted to xs:time, i.e. capped at 24:00:00)
-	    {subj, {"gtfs", "arrivalTime"}, {"{arrival_time | convert_time}", IRI("xs", "time")}},
-	    {subj, {"gtfs", "departureTime"}, {"{departure_time | convert_time}", IRI("xs", "time")}},
+	    {SUBJ,
+	     {"gtfs", "arrivalTime"},
+	     {"{arrival_time | convertTime2xs_unchecked}", IRI("xs", "time")}},
+	    {SUBJ,
+	     {"gtfs", "departureTime"},
+	     {"{departure_time | convertTime2xs_unchecked}", IRI("xs", "time")}},
 
 	    // Optional headsign override
-	    {subj, {"gtfs", "stopHeadsign"}, {"{stop_headsign}"}},
+	    {SUBJ, {"gtfs", "stopHeadsign"}, {"{stop_headsign}"}},
 
 	    // On-demand windows
-	    {subj,
+	    {SUBJ,
 	     {"gtfs", "startPickupDropOffWindow"},
-	     {"{start_pickup_drop_off_window | convert_time}", IRI("xs", "time")}},
-	    {subj,
+	     {"{start_pickup_drop_off_window | convertTime2xs_unchecked}", IRI("xs", "time")}},
+	    {SUBJ,
 	     {"gtfs", "endPickupDropOffWindow"},
-	     {"{end_pickup_drop_off_window | convert_time}", IRI("xs", "time")}},
+	     {"{end_pickup_drop_off_window | convertTime2xs_unchecked}", IRI("xs", "time")}},
 
 	    // Enums (as integers)
-	    {subj, {"gtfs", "pickupType"}, {"{pickup_type}", IRI("xs", "integer")}},
-	    {subj, {"gtfs", "dropOffType"}, {"{drop_off_type}", IRI("xs", "integer")}},
-	    {subj, {"gtfs", "continuousPickup"}, {"{continuous_pickup}", IRI("xs", "integer")}},
-	    {subj, {"gtfs", "continuousDropOff"}, {"{continuous_drop_off}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "pickupType"}, {"{pickup_type}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "dropOffType"}, {"{drop_off_type}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "continuousPickup"}, {"{continuous_pickup}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "continuousDropOff"}, {"{continuous_drop_off}", IRI("xs", "integer")}},
 
 	    // Distance along shape
-	    {subj, {"gtfs", "shapeDistTraveled"}, {"{shape_dist_traveled}", IRI("xs", "decimal")}},
+	    {SUBJ, {"gtfs", "shapeDistTraveled"}, {"{shape_dist_traveled}", IRI("xs", "decimal")}},
 
 	    // Exact vs. approximate
-	    {subj, {"gtfs", "timepoint"}, {"{timepoint}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "timepoint"}, {"{timepoint}", IRI("xs", "integer")}},
 
 	    // Booking rules
-	    {subj, {"gtfs", "pickupBookingRule"}, {IRI("booking", "{pickup_booking_rule_id}")}},
-	    {subj, {"gtfs", "dropOffBookingRule"}, {IRI("booking", "{drop_off_booking_rule_id}")}}};
+	    {SUBJ, {"gtfs", "pickupBookingRule"}, {IRI("booking", "{pickup_booking_rule_id}")}},
+	    {SUBJ, {"gtfs", "dropOffBookingRule"}, {IRI("booking", "{drop_off_booking_rule_id}")}}};
 
-	Schema sc("stop_times.txt", possible_columns, prefixes, triples, rt);
-	return sc;
+	Schema sch("stop_times.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
+	return sch;
 }
 
 } // namespace schema

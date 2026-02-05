@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
@@ -41,60 +41,62 @@ namespace writer {
 // one instance per output file
 export class Writer {
   public:
-	Writer(const std::filesystem::path &path,
-	       runtime::RuntimeContainer &rt,
+	Writer(const std::filesystem::path& path,
+	       runtime::RuntimeContainer& rtc,
 	       double buffer_size_mb,
 	       bool active = true)
-	    : rt_(rt)
-	    , threshold_(buffer_size_mb * 1024 * 1024)
-	    , active_(active) {
+	    : rtc_(rtc)
+	    // NOLINT(readability-magic-numbers, bugprone-narrowing-conversions)
+	    , THRESHOLD_(buffer_size_mb * 1024 * 1024)
+	    , ACTIVE_(active) {
 		if (std::filesystem::exists(path)) {
-			if (!rt_.getSettings().isOverwriteOutput()) {
+			if (!rtc_.getSettings().isOverwriteOutput()) {
 				throw diagnostics::Error(
 				    "IO error: output file '" + path.string() +
 				    "' already exists. To overwrite, enable the overwrite option.");
 			}
 		}
-		if (active_) {
+		if (ACTIVE_) {
 			file_ = std::fopen(path.string().c_str(), "wb");
 			file_path_ = path;
 		} else {
 			file_ = nullptr; // discard output
 		}
-		if (active_ && !file_)
+		if (ACTIVE_ && !file_) {
 			throw diagnostics::Error("IO error: Cannot open '" + path.string() + "' for writing.");
-		buffer_.reserve(threshold_);
+		}
+		buffer_.reserve(THRESHOLD_);
 	}
 
-	Writer(const std::filesystem::path &path, runtime::RuntimeContainer &rt, bool active = true)
-	    : Writer(path, rt, rt.getSettings().WriteBufferSizeMB(), active) {
+	Writer(const std::filesystem::path& path, runtime::RuntimeContainer& rtc, bool active = true)
+	    : Writer(path, rtc, rtc.getSettings().getWriteBufferSize_MB(), active) {
 	}
 
-	void writePrefixes(const std::unordered_map<std::string, std::string> &map) {
+	void writePrefixes(const std::unordered_map<std::string, std::string>& map) {
 		SCOPED_TIMER_NS(write_ns_tmp_);
 
 		std::string out;
-		out.reserve(map.size() * 15); // rough estimate
-		for (const auto &[pfx, iri] : map) {
+		out.reserve(map.size() * 20); // NOLINT(readability-magic-numbers) rough estimate
+		for (const auto& [pfx, iri] : map) {
 			out.append("@prefix ").append(pfx).append(": <").append(iri).append("> .\n");
 		}
 		out.append("\n");
 		append_(out);
 	}
 
-	void writeRaw(std::string_view sv) {
+	void writeRaw(std::string_view svw) {
 		SCOPED_TIMER_NS(write_ns_tmp_);
 
-		append_(std::string(sv));
+		append_(std::string(svw));
 	}
 
 	// converts gtfs row according to given schema and appends to buffer
-	void convertRow(Schema &sc, const std::vector<std::string> &row) {
+	void convertRow(Schema& sch, const std::vector<std::string>& row) {
 		SCOPED_TIMER_NS(write_ns_tmp_);
 
-		auto &instructions = sc.getInstructions();
+		auto& instructions = sch.getInstructions();
 
-		for (auto &instr : instructions) {
+		for (auto& instr : instructions) {
 			try {
 				std::string_view rendered;
 				{ // timer scope
@@ -102,17 +104,17 @@ export class Writer {
 					rendered = instr.render(row);
 				}
 				append_(rendered);
-			} catch (const diagnostics::Error &e) {
-				diagnostics::wrap_and_rethrow(e,
-				                              "while rendering instruction '" +
-				                                  instr.getRawInstruction() + "' in schema '" +
-				                                  sc.getName() + "'");
+			} catch (const diagnostics::Error& err) {
+				diagnostics::wrapAndRethrow(err,
+				                            "while rendering instruction '" +
+				                                instr.getRawInstruction() + "' in schema '" +
+				                                sch.getName() + "'");
 			}
 		}
 	}
 
 	void deleteFile() {
-		if (active_) {
+		if (ACTIVE_) {
 			std::filesystem::remove(file_path_);
 		}
 	}
@@ -132,51 +134,63 @@ export class Writer {
 	}
 #endif
 
-	Writer(const Writer &) = delete;
-	Writer &operator=(const Writer &) = delete;
+	Writer(const Writer&) = delete;
+	Writer& operator=(const Writer&) = delete;
 
-	Writer(Writer &&) = delete;
-	Writer &operator=(Writer &&) = delete;
+	Writer(Writer&&) = delete;
+	Writer& operator=(Writer&&) = delete;
 
 	~Writer() {
 		flush_();
-		if (active_ && file_)
+		if (ACTIVE_ && file_) {
 			std::fclose(file_);
+		}
 	}
 
   private:
+	// _____________________________________________________________________________________________
+	// private helper methods
+	// _____________________________________________________________________________________________
+
+	void flush_() {
+		if (!ACTIVE_ || buffer_.empty()) {
+			return;
+		}
+		size_t len = buffer_.size();
+		const char* data = buffer_.data();
+		while (len) {
+			size_t len_written = std::fwrite(data, 1, len, file_);
+			if (len_written == 0) {
+				throw diagnostics::Error("IO error: Could not flush to disk.");
+			}
+			data += len_written;
+			len -= len_written;
+		}
+		buffer_.clear();
+	}
+
+	void append_(std::string_view svw) {
+		buffer_.append(svw.data(), svw.size());
+		if (buffer_.size() >= THRESHOLD_) {
+			flush_();
+		}
+	}
+
+	// _____________________________________________________________________________________________
+	// private members
+	// _____________________________________________________________________________________________
+
 	std::filesystem::path file_path_;
-	std::FILE *file_;
+	std::FILE* file_;
 	std::string buffer_;
-	const runtime::RuntimeContainer &rt_;
-	size_t threshold_;
-	const bool active_ = true; // whether this writer should actually write (or discard) data
+	const runtime::RuntimeContainer& rtc_;
+	const size_t THRESHOLD_;
+	const bool ACTIVE_ = true; // whether this writer should actually write (or discard) data
 
 #if GTFS2RDF_FULL_STATS
 	uint64_t write_ns_tmp_ = 0;
 	uint64_t conversion_ns_ = 0;
 #endif
-
-	void flush_() {
-		if (!active_ || buffer_.empty())
-			return;
-		size_t n = buffer_.size();
-		const char *d = buffer_.data();
-		while (n) {
-			size_t w = std::fwrite(d, 1, n, file_);
-			if (w == 0)
-				throw diagnostics::Error("IO error: Could not flush to disk.");
-			d += w;
-			n -= w;
-		}
-		buffer_.clear();
-	}
-
-	void append_(std::string_view sv) {
-		buffer_.append(sv.data(), sv.size());
-		if (buffer_.size() >= threshold_)
-			flush_();
-	}
 };
 
 } // namespace writer

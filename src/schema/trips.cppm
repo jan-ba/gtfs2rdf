@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
@@ -29,8 +29,8 @@ using namespace rdf;
 
 namespace schema {
 
-// GTFS -> RDF schema for trips.txt (covers common/optional fields)
-export Schema buildTripsSchema(runtime::RuntimeContainer& rt) {
+// Gtfs -> Rdf schema for trips.txt (covers common/optional fields)
+export Schema buildTripsSchema(runtime::RuntimeContainer& rtc) {
 	// args: shape_id
 	// output: WKT linestring of all shape points for this shape_id
 	TRANSFORM2ONE(get_linestring, ARGS, OUT_VAL, STORAGE) {
@@ -41,14 +41,16 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rt) {
 		};
 
 		// early exit if linestring for this shape_id was already created
-		if (STORAGE.containsValue("trips.txt", "created_linestrings", ARGS[0], "1"))
+		if (STORAGE.containsValue("trips.txt", "created_linestrings", ARGS[0], "1")) {
 			return;
+		}
 
 		// else create linestring and store that we created it
 		STORAGE.storeValue("trips.txt", "created_linestrings", ARGS[0], "1");
 		const auto& seq_lon_lat_vec = STORAGE.getTuples("shapes.txt", "shapes", ARGS[0]);
-		if (seq_lon_lat_vec.empty())
+		if (seq_lon_lat_vec.empty()) {
 			return;
+		}
 
 		// sort by sequence number to build correct linestrings
 		std::vector<Row> rows(seq_lon_lat_vec.size());
@@ -59,8 +61,9 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rt) {
 			rows[i].lon = seq_lon_lat[1];
 			rows[i].lat = seq_lon_lat[2];
 		}
-		std::sort(
-		    rows.begin(), rows.end(), [](const Row& a, const Row& b) { return a.seq < b.seq; });
+		std::sort(rows.begin(), rows.end(), [](const Row& row_a, const Row& row_b) {
+			return row_a.seq < row_b.seq;
+		});
 
 		// build WKT linestring
 		OUT_VAL = "LINESTRING(";
@@ -74,7 +77,7 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rt) {
 	}
 	TRANSFORM_END
 
-	const std::vector<std::string> possible_columns = {"route_id",
+	const std::vector<std::string> POSSIBLE_COLUMNS = {"route_id",
 	                                                   "service_id",
 	                                                   "trip_id",
 	                                                   "trip_headsign",
@@ -86,9 +89,9 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rt) {
 	                                                   "bikes_allowed",
 	                                                   "cars_allowed"};
 
-	const IRI subj = IRI("trips", "{trip_id}");
+	const IRI SUBJ = IRI("trips", "{trip_id}");
 
-	const std::unordered_map<std::string, std::string> prefixes = {
+	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"trips", "https://gtfs.org/trips/"},
 	    {"routes", "https://gtfs.org/routes/"},
 	    {"services", "https://gtfs.org/services/"},
@@ -100,37 +103,37 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rt) {
 	    {"gtfs2rdfgeom", "https://w3id.org/gtfs2rdf/geometry#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
-	const std::vector<Triple> triples = {
+	const std::vector<Triple> TRIPLES = {
 	    // SUBJECT                    PREDICATE         OBJECT
 	    // Identity
-	    {subj, {"rdf", "type"}, {IRI("gtfs", "Trip")}},
+	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Trip")}},
 
 	    // Foreign keys
-	    {subj, {"gtfs", "route"}, {IRI("routes", "{route_id}")}},
-	    {subj, {"gtfs", "service"}, {IRI("services", "{service_id}")}},
+	    {SUBJ, {"gtfs", "route"}, {IRI("routes", "{route_id}")}},
+	    {SUBJ, {"gtfs", "service"}, {IRI("services", "{service_id}")}},
 
 	    // Labels
-	    {subj, {"gtfs", "tripHeadsign"}, {"{trip_headsign}"}},
-	    {subj, {"gtfs", "tripShortName"}, {"{trip_short_name}"}},
+	    {SUBJ, {"gtfs", "tripHeadsign"}, {"{trip_headsign}"}},
+	    {SUBJ, {"gtfs", "tripShortName"}, {"{trip_short_name}"}},
 
 	    // Direction (0/1)
-	    {subj, {"gtfs", "directionId"}, {"{direction_id}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "directionId"}, {"{direction_id}", IRI("xs", "integer")}},
 
 	    // Block and shape
-	    {subj, {"gtfs", "block"}, {IRI("blocks", "{block_id}")}},
-	    // {subj, {"gtfs", "shape"}, {IRI("shapes", "{shape_id}")}},
-	    {subj, {"geo", "hasGeometry"}, {IRI("gtfs2rdfgeom", "shapes_{shape_id}")}},
+	    {SUBJ, {"gtfs", "block"}, {IRI("blocks", "{block_id}")}},
+	    // {SUBJ, {"gtfs", "shape"}, {IRI("shapes", "{shape_id}")}},
+	    {SUBJ, {"geo", "hasGeometry"}, {IRI("gtfs2rdfgeom", "shapes_{shape_id}")}},
 	    {IRI("gtfs2rdfgeom", "shapes_{shape_id}"),
 	     {"geo", "asWKT"},
 	     {{"{shape_id | get_linestring@shapes.txt}"}, IRI("geo", "wktLiteral")}},
 
 	    // Accessibility / allowances (enums: 0/1/2)
-	    {subj, {"gtfs", "wheelchairAccessible"}, {"{wheelchair_accessible}", IRI("xs", "integer")}},
-	    {subj, {"gtfs", "bikesAllowed"}, {"{bikes_allowed}", IRI("xs", "integer")}},
-	    {subj, {"gtfs", "carsAllowed"}, {"{cars_allowed}", IRI("xs", "integer")}}};
+	    {SUBJ, {"gtfs", "wheelchairAccessible"}, {"{wheelchair_accessible}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "bikesAllowed"}, {"{bikes_allowed}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "carsAllowed"}, {"{cars_allowed}", IRI("xs", "integer")}}};
 
-	Schema sc("trips.txt", possible_columns, prefixes, triples, rt);
-	return sc;
+	Schema sch("trips.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
+	return sch;
 }
 
 } // namespace schema

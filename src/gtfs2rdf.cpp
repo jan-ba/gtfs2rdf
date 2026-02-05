@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
@@ -32,16 +32,17 @@ const auto& factories = schema::factories(); // implemented in schema:registry a
 int main(int argc, char* argv[]) {
 	try {
 		runtime::Settings settings(argc, argv);
-		zip_t* za;
+		zip_t* z_arch;
 		int err;
 
 		// try opening the zip file
-		if ((za = zip_open(settings.InputPath().string().c_str(), ZIP_RDONLY, &err)) == NULL) {
+		if ((z_arch = zip_open(settings.getInputPath().string().c_str(), ZIP_RDONLY, &err)) ==
+		    nullptr) {
 			zip_error_t error;
 			zip_error_init_with_code(&error, err);
 			zip_error_fini(&error);
 			throw diagnostics::Error("IO error: cannot open zip archive '" +
-			                         settings.InputPath().string() + "' (error '" +
+			                         settings.getInputPath().string() + "' (error '" +
 			                         std::string(zip_error_strerror(&error)) + "')");
 		}
 
@@ -50,48 +51,48 @@ int main(int argc, char* argv[]) {
 		std::unordered_map<std::string, size_t>
 		    schema_name_to_index; // map from schema name to index
 		field_transforms::TransformRegistry registry;
-		t_lib::register_lib_transforms(registry);
-		runtime::RuntimeContainer rt(settings, registry);
+		t_lib::registerLibTransforms(registry);
+		runtime::RuntimeContainer rtc(settings, registry);
 
 		// determine which schemas to use based on files present in the zip
 		for (const auto& [file, factory] : factories) {
-			if (zip_name_locate(za, file.c_str(), ZIP_FL_ENC_GUESS) != -1) {
+			if (zip_name_locate(z_arch, file.c_str(), ZIP_FL_ENC_GUESS) != -1) {
 				files_in_dir.push_back(file);
 				try {
-					used_schemas.emplace_back(factory(rt)); // call factory
+					used_schemas.emplace_back(factory(rtc)); // call factory
 					schema_name_to_index[used_schemas.back().getName()] = used_schemas.size() - 1;
-					rt.getWarningCollector().addNode(
+					rtc.getWarningCollector().addNode(
 					    "while building schema for file '" + file + "'", 1);
-				} catch (const diagnostics::Error& e) {
-					zip_close(za);
-					diagnostics::wrap_and_rethrow(e,
-					                              "while building schema for file '" + file + "'");
+				} catch (const diagnostics::Error& err) {
+					zip_close(z_arch);
+					diagnostics::wrapAndRethrow(err,
+					                            "while building schema for file '" + file + "'");
 				}
 			}
 		}
 
 		// error if no files found that correspond to known schemas
 		if (files_in_dir.empty()) {
-			zip_close(za);
+			zip_close(z_arch);
 			throw diagnostics::Error(
-			    "IO error: no GTFS files corresponding to known schemas found in archive '" +
-			    settings.InputPath().string() + "'.\n");
+			    "IO error: no Gtfs files corresponding to known schemas found in zip archive '" +
+			    settings.getInputPath().string() + "'.\n");
 		}
 
 		// compile schemas such that they are ready for use and dependency info is available
-		for (auto& sc : used_schemas) {
+		for (auto& sch : used_schemas) {
 			try {
-				sc.compile();
-				rt.getWarningCollector().addNode("while compiling schema '" + sc.getName() + "'",
-				                                 2);
-			} catch (const diagnostics::Error& e) {
-				zip_close(za);
-				diagnostics::wrap_and_rethrow(e, "while compiling schema '" + sc.getName() + "'");
+				sch.compile();
+				rtc.getWarningCollector().addNode("while compiling schema '" + sch.getName() + "'",
+				                                  2);
+			} catch (const diagnostics::Error& err) {
+				zip_close(z_arch);
+				diagnostics::wrapAndRethrow(err, "while compiling schema '" + sch.getName() + "'");
 			}
 		}
 
 		// determine processing order via topological sort of dependencies
-		// this whole section is not very efficient, but then again we're looking at GTFS feeds
+		// this whole section is not very efficient, but then again we're looking at Gtfs feeds
 		// such that n < 50 in practice
 		TopologicalSort toposort(files_in_dir.size());
 		std::vector<size_t> num_depending_schemas(files_in_dir.size(), 0);
@@ -100,10 +101,10 @@ int main(int argc, char* argv[]) {
 			for (const auto& dep : used_schemas[i].getDependencies()) {
 				// TODO: debug info
 				if (!schema_name_to_index.contains(dep)) {
-					zip_close(za);
+					zip_close(z_arch);
 					throw diagnostics::Error("Schema error: dependency '" + dep + "' of schema '" +
 					                         used_schemas[i].getName() +
-					                         "' not found in GTFS feed");
+					                         "' not found in Gtfs feed");
 				}
 				toposort.addEdge(schema_name_to_index[dep], i, true); // dep must come before i
 				num_depending_schemas[schema_name_to_index[dep]]++;
@@ -114,11 +115,11 @@ int main(int argc, char* argv[]) {
 		for (size_t i = 0; i < files_in_dir.size(); i++) {
 			if (num_depending_schemas[i] == 0) {
 				used_schemas[i].forbidStorageWrites();
-				rt.getWarningCollector().addLeaf("Deactivated storage writes for schema '" +
-				                                     used_schemas[i].getName() +
-				                                     "' (not required by another schema)",
-				                                 diagnostics::WarningLevel::Info,
-				                                 true);
+				rtc.getWarningCollector().addLeaf("Deactivated storage writes for schema '" +
+				                                      used_schemas[i].getName() +
+				                                      "' (not required by another schema)",
+				                                  diagnostics::WarningLevel::INFO,
+				                                  true);
 			}
 		}
 
@@ -126,129 +127,141 @@ int main(int argc, char* argv[]) {
 		std::vector<size_t> order(files_in_dir.size());
 		try {
 			order = toposort.sort();
-			rt.getWarningCollector().addNode("while determining processing order of GTFS files", 2);
-		} catch (const std::runtime_error& e) {
-			zip_close(za);
+			rtc.getWarningCollector().addNode("while determining processing order of Gtfs files",
+			                                  2);
+		} catch (const std::runtime_error& err) {
+			zip_close(z_arch);
 			size_t error_node = toposort.getErrorNode();
 			throw diagnostics::Error("TopologicalSort error: While determining processing order of "
-			                         "GTFS files. Problematic schema: '" +
+			                         "Gtfs files. Problematic schema: '" +
 			                         used_schemas[error_node].getName() + "'");
 		}
 
-		rt.getWarningCollector().addLeaf(
-		    "Processing GTFS files in order: ", diagnostics::WarningLevel::Info, true);
+		rtc.getWarningCollector().addLeaf(
+		    "Processing Gtfs files in order: ", diagnostics::WarningLevel::INFO, true);
 		for (size_t i = 0; i < files_in_dir.size(); i++) {
-			rt.getWarningCollector().appendToLeaf(files_in_dir[order[i]],
-			                                      diagnostics::WarningLevel::Info);
+			rtc.getWarningCollector().appendToLeaf(files_in_dir[order[i]],
+			                                       diagnostics::WarningLevel::INFO);
 		}
 
-		writer::Writer writer(settings.OutputPath(), rt, !settings.isPreRun());
-		gtfs::GTFSParser_Workspace ws(rt, writer);
-		auto merged_prefixes = schema::merge_prefixes(used_schemas, rt.getWarningCollector(), true);
+		writer::Writer writer(settings.getOutputPath(), rtc, !settings.isPreRun());
+		gtfs::GtfsParserWorkspace wsp(rtc, writer);
+		auto merged_prefixes = schema::mergePrefixes(used_schemas, rtc.getWarningCollector(), true);
 		std::vector<diagnostics::Statistics> per_file_stats(files_in_dir.size());
 		for (size_t i = 0; i < files_in_dir.size(); i++) {
-			zip_file_t* zf = nullptr;
+			zip_file_t* z_file = nullptr;
 			try {
-				zf = zip_fopen(za, files_in_dir[order[i]].c_str(), 0);
-				if (!zf) {
-					zip_close(za);
+				z_file = zip_fopen(z_arch, files_in_dir[order[i]].c_str(), 0);
+				if (!z_file) {
+					zip_close(z_arch);
 					throw diagnostics::Error("IO error: cannot open entry inside ZIP archive");
 				}
-				if (i == 0 && !settings.isNTriplesOutput() && !settings.isPreRun())
+				if (i == 0 && !settings.isNTriplesOutput() && !settings.isPreRun()) {
 					writer.writePrefixes(merged_prefixes);
-				gtfs::GTFSParser parser(zf, used_schemas[order[i]], ws, rt);
+				}
+				gtfs::GtfsParser parser(z_file, used_schemas[order[i]], wsp, rtc);
 				parser.parse();
-				for (auto& dep : used_schemas[order[i]].getDependencies()) {
+				for (const auto& dep : used_schemas[order[i]].getDependencies()) {
 #ifdef NDEBUG
 					num_depending_schemas[schema_name_to_index[dep]]--;
 #endif
 					if (num_depending_schemas[schema_name_to_index[dep]] == 0) {
-						rt.getStorage().clearContext(dep);
-						rt.getWarningCollector().addLeaf("Cleared storage for schema '" + dep +
-						                                     "' after last dependent schema '" +
-						                                     used_schemas[order[i]].getName() +
-						                                     "' was processed.",
-						                                 diagnostics::WarningLevel::Info,
-						                                 true);
+						rtc.getStorage().clearContext(dep);
+						rtc.getWarningCollector().addLeaf("Cleared storage for schema '" + dep +
+						                                      "' after last dependent schema '" +
+						                                      used_schemas[order[i]].getName() +
+						                                      "' was processed.",
+						                                  diagnostics::WarningLevel::INFO,
+						                                  true);
 					}
 				}
-				zip_fclose(zf);
+				zip_fclose(z_file);
 				if (settings.isPreRun()) {
 					diagnostics::Statistics stats;
 					stats.name = files_in_dir[order[i]];
-					const double quot = static_cast<double>(parser.getStats().rows) /
+					// NOLINT(bugprone-narrowing-conversions)
+					const double QUOT = static_cast<double>(parser.getStats().rows) /
 					                    static_cast<double>(settings.getPreRunSampleSize());
+					// NOLINT(bugprone-narrowing-conversions)
 					stats.triples =
-					    quot < 1.0 ? parser.getStats().triples : quot * parser.getStats().triples;
+					    QUOT < 1.0 ? parser.getStats().triples : QUOT * parser.getStats().triples;
 					stats.rows = parser.getStats().rows;
 					stats.header = used_schemas[order[i]].formatHeaderWithUnused();
-					stats.num_chars = quot < 1.0 ? parser.getStats().num_chars
-					                             : quot * parser.getStats().num_chars;
+					// NOLINT(bugprone-narrowing-conversions)
+					stats.num_chars = QUOT < 1.0 ? parser.getStats().num_chars
+					                             : QUOT * parser.getStats().num_chars;
 #if GTFS2RDF_FULL_STATS
+					// NOLINT(bugprone-narrowing-conversions)
 					stats.write_ns =
-					    quot < 1.0 ? parser.getStats().write_ns : quot * parser.getStats().write_ns;
+					    QUOT < 1.0 ? parser.getStats().write_ns : QUOT * parser.getStats().write_ns;
+					// NOLINT(bugprone-narrowing-conversions)
 					stats.parse_ns = parser.getStats().parse_ns;
-					stats.conversion_ns = quot < 1.0 ? parser.getStats().conversion_ns
-					                                 : quot * parser.getStats().conversion_ns;
+					// NOLINT(bugprone-narrowing-conversions)
+					stats.conversion_ns = QUOT < 1.0 ? parser.getStats().conversion_ns
+					                                 : QUOT * parser.getStats().conversion_ns;
 #endif
 					per_file_stats[order[i]] = stats;
 				} else {
 					per_file_stats[order[i]] = parser.getStats();
 				}
 
-				rt.getWarningCollector().addNode(
-				    "while processing GTFS file '" + files_in_dir[order[i]] + "'", 2);
-			} catch (const diagnostics::Error& e) {
-				zip_close(za);
-				zip_fclose(zf);
+				rtc.getWarningCollector().addNode(
+				    "while processing Gtfs file '" + files_in_dir[order[i]] + "'", 2);
+			} catch (const diagnostics::Error& err) {
+				zip_close(z_arch);
+				zip_fclose(z_file);
 				writer.deleteFile(); // output will be faulty
-				diagnostics::wrap_and_rethrow(
-				    e, "while processing GTFS file '" + files_in_dir[order[i]] + "'");
+				diagnostics::wrapAndRethrow(
+				    err, "while processing Gtfs file '" + files_in_dir[order[i]] + "'");
 			}
 		}
-		zip_close(za);
+		zip_close(z_arch);
 
 		diagnostics::Statistics total_stats;
-		total_stats.name = "Total GTFS Feed";
+		total_stats.name = "Total Gtfs Feed";
 		for (size_t i = 0; i < files_in_dir.size(); i++) {
 			total_stats = total_stats + per_file_stats[i];
 		}
 
 		// dump ontology spec if requested
 		if (settings.isSpecDump() && !used_schemas.empty()) {
-			std::filesystem::path specPath = settings.OutputPath();
-			specPath.replace_extension(".spec.txt");
-			writer::Writer onth_writer(specPath, rt, 1.0); // small buffer for spec writing
-			if (!settings.isNTriplesOutput())
+			std::filesystem::path spec_path = settings.getOutputPath();
+			spec_path.replace_extension(".spec.txt");
+			writer::Writer onth_writer(spec_path, rtc, 1.0); // small buffer for spec writing
+			if (!settings.isNTriplesOutput()) {
 				onth_writer.writePrefixes(merged_prefixes);
+			}
 			for (auto& schema : used_schemas) {
 				for (auto& inst : schema.getInstructions()) {
 					onth_writer.writeRaw(inst.getRawInstruction() + "\n");
 				}
 			}
-			rt.getWarningCollector().addLeaf("Wrote ontology spec to " + specPath.string(),
-			                                 diagnostics::WarningLevel::Info,
-			                                 true);
+			rtc.getWarningCollector().addLeaf("Wrote ontology spec to " + spec_path.string(),
+			                                  diagnostics::WarningLevel::INFO,
+			                                  true);
 		}
 
-		rt.getWarningCollector().printWarningSummary();
+		rtc.getWarningCollector().printWarningSummary();
 
 		if (settings.isPreRun() &&
-		    !(settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::Quiet)) {
+		    !(settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::QUIET)) {
 			std::cerr << "\n--------------------------------------------------------------------\n";
-			std::cerr << "🧮 PRE-RUN SUMMARY for feed: " << settings.InputPath().filename().string()
+			std::cerr << "🧮 PRE-RUN SUMMARY for feed: "
+			          << settings.getInputPath().filename().string()
 			          << " (sample=" << settings.getPreRunSampleSize() << " rows/file)\n\n";
 
-			if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::Verbose) {
-				for (const auto& st : per_file_stats) {
-					if (st.name.empty())
+			if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::VERBOSE) {
+				for (const auto& f_stats : per_file_stats) {
+					if (f_stats.name.empty()) {
 						continue; // if some entries unused
-
-					std::cerr << "• " << st.name << "  rows=" << st.rows << "  est≈"
-					          << fmt_suffix_padded(st.triples, UnitType::Counts) << " triples"
+					}
+					std::cerr << "• " << f_stats.name << "  rows=" << f_stats.rows << "  est≈"
+					          << formatValueWithPaddedUnits(f_stats.triples, UnitType::COUNT)
+					          << " triples"
 					          << "  output size≈"
-					          << fmt_suffix_padded(st.num_chars, UnitType::Sizes) << "\n"
-					          << "  header: " << st.header << "\n\n";
+					          << formatValueWithPaddedUnits(f_stats.num_chars, UnitType::SIZE)
+					          << "\n"
+					          << "  header: " << f_stats.header << "\n\n";
 				}
 				std::cerr << "Note: Header fields in (parentheses) were not used in any triple "
 				             "generation.\n\n";
@@ -258,50 +271,52 @@ int main(int argc, char* argv[]) {
 			std::cerr
 			    << "Summary\n"
 			    << "  total rows:   " << total_stats.rows << "\n"
-			    << "  est triples:  " << fmt_suffix_padded(total_stats.triples, UnitType::Counts)
-			    << " triples\n"
+			    << "  est triples:  "
+			    << formatValueWithPaddedUnits(total_stats.triples, UnitType::COUNT) << " triples\n"
 #if GTFS2RDF_FULL_STATS
-			    << "  est parse time: " << fmt_suffix_padded(total_stats.parse_ns, UnitType::Time)
-			    << "\n"
+			    << "  est parse time: "
+			    << formatValueWithPaddedUnits(total_stats.parse_ns, UnitType::TIME) << "\n"
 			    << "  est conversion time: "
-			    << fmt_suffix_padded(total_stats.conversion_ns, UnitType::Time) << "\n"
+			    << formatValueWithPaddedUnits(total_stats.conversion_ns, UnitType::TIME) << "\n"
 			    << "  est run time: "
-			    << fmt_suffix_padded(total_stats.parse_ns + total_stats.write_ns +
-			                             total_stats.conversion_ns,
-			                         UnitType::Time)
+			    << formatValueWithPaddedUnits(total_stats.parse_ns + total_stats.write_ns +
+			                                      total_stats.conversion_ns,
+			                                  UnitType::TIME)
 			    << "\n"
 #endif
 			    << "  est peak RAM usage: "
-			    << fmt_suffix_padded(settings.estimatedPeakRAMMB() * 1024 * 1024, UnitType::Sizes)
+			    // NOLINT(bugprone-narrowing-conversions, readability-magic-numbers)
+			    << formatValueWithPaddedUnits(settings.getEstimatedPeakRAM_MB() * 1024 * 1024,
+			                                  UnitType::SIZE)
 			    << "\n"
 			    << "  est. output size: "
-			    << fmt_suffix_padded(total_stats.num_chars, UnitType::Sizes) << "\n\n"
+			    << formatValueWithPaddedUnits(total_stats.num_chars, UnitType::SIZE) << "\n\n"
 			    << " ⚠️  Note: These are only estimates based on a sample data run. Actual output "
-			       "may vary significantly depending on the data present in the GTFS feed as "
+			       "may vary significantly depending on the data present in the Gtfs feed as "
 			       "well as Transform2Many and filtering."
 			    << "\n--------------------------------------------------------------------\n";
-		} else if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::Verbose) {
-			for (const auto& st : per_file_stats) {
-				std::cerr << st.fancyPrint() << "\n";
+		} else if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::VERBOSE) {
+			for (const auto& f_stats : per_file_stats) {
+				std::cerr << f_stats.fancyPrint() << "\n";
 			}
-			rt.getStorage().stats();
+			rtc.getStorage().stats();
 			std::cerr << total_stats.fancyPrint() << "\n";
-		} else if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::Brief) {
+		} else if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::BRIEF) {
 			std::cerr << total_stats.fancyPrint() << "\n";
 		}
 		if (!settings.isPreRun()) {
-			std::cerr << "✅  Successful conversion to output file " << settings.OutputPath()
+			std::cerr << "✅  Successful conversion to output file " << settings.getOutputPath()
 			          << ".\n";
 		} else {
-			std::cerr << "✅  No errors found during pre-run analysis of GTFS feed "
-			          << settings.InputPath() << ".\n";
+			std::cerr << "✅  No errors found during pre-run analysis of Gtfs feed "
+			          << settings.getInputPath() << ".\n";
 		}
-	} catch (const diagnostics::Error& e) {
-		diagnostics::print_error_chain(e);
+	} catch (const diagnostics::Error& err) {
+		diagnostics::printErrorChain(err);
 		std::cerr << "\nRun aborted due to errors. No output was generated or it may be faulty.\n";
 		return 1;
-	} catch (const std::exception& e) {
-		std::cerr << "❌  Unhandled exception: " << e.what() << "\n";
+	} catch (const std::exception& err) {
+		std::cerr << "❌  Unhandled exception: " << err.what() << "\n";
 		return 1;
 	}
 

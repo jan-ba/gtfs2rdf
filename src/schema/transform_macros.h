@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-// For user convenience when registering their own transforms inside build<Schema>(rt):
+// For user convenience when registering their own transforms inside build<Schema>(rtc):
 
 // information for developers: the STORAGE variable is created automatically inside the lambda
 // by getting it from the runtime container passed to build<Schema> such that the user does not
@@ -21,19 +21,19 @@
 	                         std::string(__gtfs2rdf_transform_name) + "': " + std::string(MSG));
 
 #define TRANSFORM2ONE(NAME, ARGS, OUT_VAL, STORAGE)                                                \
-  rt.getTransformRegistry().registerTransform(                                       \
+  rtc.getTransformRegistry().registerTransform(                                       \
     #NAME,                                                                           \
     field_transforms::Transform2One{                                                 \
-      [&](field_transforms::Args ARGS, field_transforms::Out1& OUT_VAL) -> void {     \
+      [&](field_transforms::Args (ARGS), field_transforms::Out1& (OUT_VAL)) -> void {     \
         [[maybe_unused]] constexpr std::string_view __gtfs2rdf_transform_name = #NAME;         \
-        [[maybe_unused]] auto& STORAGE = rt.getStorage();
+        [[maybe_unused]] auto& (STORAGE) = rtc.getStorage();
 #define TRANSFORM2MANY(NAME, ARGS, OUT_VALS, STORAGE)                                              \
-  rt.getTransformRegistry().registerTransform(                                       \
+  rtc.getTransformRegistry().registerTransform(                                       \
     #NAME,                                                                           \
     field_transforms::Transform2Many{                                                   \
-      [&](field_transforms::Args ARGS, field_transforms::OutN& OUT_VALS) -> void {     \
+      [&](field_transforms::Args (ARGS), field_transforms::OutN& (OUT_VALS)) -> void {     \
         [[maybe_unused]] constexpr std::string_view __gtfs2rdf_transform_name = #NAME;         \
-        [[maybe_unused]] auto& STORAGE = rt.getStorage();
+        [[maybe_unused]] auto& (STORAGE) = rtc.getStorage();
 #define TRANSFORM_END                                                                              \
 	}                                                                                              \
 	}                                                                                              \

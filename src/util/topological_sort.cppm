@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
@@ -10,6 +10,7 @@ module;
 
 // #include "diagnostics.h"
 
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -23,11 +24,11 @@ export namespace util::topological_sort {
 // Upon researching briefly, I couldn't find a plug-and-play TopoSort implementation without adding
 // a heavy dependency, so I implemented this simple version here. Due to its use of an adjacency
 // matrix for simplicity, performance will likely cause issues for large graphs, but for the use
-// cases in GTFS2RDF (dozens of nodes at most), this should be fine.
+// cases in gtfs2rdf (dozens of nodes at most), this should be fine.
 class TopologicalSort {
   public:
 	// enter estimated number of nodes to avoid reallocations for efficiency
-	TopologicalSort(size_t num_nodes = 10) {
+	TopologicalSort(size_t num_nodes) {
 		edges_.reserve(num_nodes * 2); // assume very sparse graph
 		node_index_.reserve(num_nodes);
 		index_to_name_.reserve(num_nodes);
@@ -35,32 +36,32 @@ class TopologicalSort {
 		S_.reserve(num_nodes);
 	}
 
-	void addEdge(size_t from, size_t to, bool allow_self_loops = false) {
-		auto [it, res] = node_index_.emplace(from, node_index_.size());
+	void addEdge(size_t from_node, size_t to_node, bool allow_self_loops = false) {
+		auto [itr, res] = node_index_.emplace(from_node, node_index_.size());
 		if (res) {
-			index_to_name_.push_back(from);
+			index_to_name_.push_back(from_node);
 		}
-		auto [it2, res2] = node_index_.emplace(to, node_index_.size());
+		auto [it2, res2] = node_index_.emplace(to_node, node_index_.size());
 		if (res2) {
-			index_to_name_.push_back(to);
+			index_to_name_.push_back(to_node);
 		}
 
-		if (from == to) {
+		if (from_node == to_node) {
 			if (!allow_self_loops) {
-				error_node_ = from;
+				error_node_ = from_node;
 				throw std::runtime_error("TopologicalSort error: self-loop detected for node " +
 				                         std::to_string(error_node_));
 			}
 		} else {
 			// don't add self-loops as edges, that would be pointless
-			edges_.emplace_back(it->second, it2->second);
+			edges_.emplace_back(itr->second, it2->second);
 		}
 	}
 
 	// this can be used for nodes which might not have any edges but should still appear in the
 	// sorted output
 	void addNode(size_t node) {
-		auto [it, res] = node_index_.emplace(node, node_index_.size());
+		auto [itr, res] = node_index_.emplace(node, node_index_.size());
 		if (res) {
 			index_to_name_.push_back(node);
 		}
@@ -70,7 +71,7 @@ class TopologicalSort {
 		// initialise adjacency matrix
 		A_ = std::vector<std::vector<bool>>(node_index_.size(),
 		                                    std::vector<bool>(node_index_.size(), false));
-		for (const auto& [from_id, to_id] : edges_) {
+		for (const auto& [from_id, to_id] : edges_) { // NOLINT(readability-use-anyallof)
 			A_[from_id][to_id] = true;
 		}
 
@@ -85,12 +86,14 @@ class TopologicalSort {
 		}
 
 		while (!S_.empty()) {
-			size_t n = S_.back();
+			size_t n =
+			    S_.back(); // NOLINT(readability-identifier-length): common name for node index
 			S_.pop_back();
 			L_.push_back(n);
 
 			// for each node m with an edge e from n to m
-			for (size_t m = 0; m < A_.size(); ++m) {
+			for (size_t m = 0; m < A_.size();
+			     ++m) { // NOLINT(readability-identifier-length): common matrix column index name
 				if (A_[n][m]) {
 					// remove edge e from the graph
 					A_[n][m] = false;
@@ -127,7 +130,7 @@ class TopologicalSort {
 
   private:
 	// adjacency matrix
-	std::vector<std::vector<bool>> A_;
+	std::vector<std::vector<bool>> A_; // NOLINT(readability-identifier-naming): common matrix name
 
 	std::vector<std::pair<size_t, size_t>> edges_;
 
@@ -135,25 +138,17 @@ class TopologicalSort {
 	std::unordered_map<size_t, size_t> node_index_;
 	std::vector<size_t> index_to_name_;
 
-	std::vector<size_t> L_;
-	std::vector<size_t> S_;
+	std::vector<size_t> L_; // NOLINT(readability-identifier-naming):  name follows algorithm
+	std::vector<size_t> S_; // NOLINT(readability-identifier-naming):  name follows algorithm
 
 	size_t error_node_ = -1; // set to MAXSIZE_T on no error
 
 	bool isRowFalse_(size_t row) {
-		for (bool val : A_[row]) {
-			if (val)
-				return false;
-		}
-		return true;
+		return std::all_of(A_[row].begin(), A_[row].end(), [](bool val) { return !val; });
 	}
 
 	bool isColFalse_(size_t col) {
-		for (const auto& row : A_) {
-			if (row[col])
-				return false;
-		}
-		return true;
+		return std::ranges::all_of(A_, [col](const std::vector<bool>& row) { return !row[col]; });
 	}
 };
 

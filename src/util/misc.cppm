@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
@@ -23,108 +23,110 @@ export module util:misc;
 export namespace util::misc {
 
 template <class MapType>
-typename MapType::mapped_type& get_or_insert(MapType& map, std::string_view key) {
-	auto it = map.find(key);
-	if (it != map.end()) {
-		return it->second;
-	} else {
+typename MapType::mapped_type& getOrInsert(MapType& map, std::string_view key) {
+	auto itr = map.find(key);
+	if (itr == map.end()) {
 		auto res = map.emplace(std::string(key), typename MapType::mapped_type{});
 		return res.first->second;
 	}
+	return itr->second;
 }
 
 // RAII timer that accumulates elapsed nanoseconds into passed acc
-struct ScopedTimerNS {
-	uint64_t* acc;
-	std::chrono::steady_clock::time_point t0;
-
-	explicit ScopedTimerNS(uint64_t& a)
-	    : acc(&a)
-	    , t0(std::chrono::steady_clock::now()) {
+class ScopedTimerNS {
+  public:
+	explicit ScopedTimerNS(uint64_t& acc)
+	    : acc_(&acc)
+	    , t_start_(std::chrono::steady_clock::now()) {
 	}
 
-	explicit ScopedTimerNS(uint64_t* a)
-	    : acc(a)
-	    , t0(std::chrono::steady_clock::now()) {
+	explicit ScopedTimerNS(uint64_t* acc)
+	    : acc_(acc)
+	    , t_start_(std::chrono::steady_clock::now()) {
 	}
 
 	~ScopedTimerNS() {
-		*acc += (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
-		            std::chrono::steady_clock::now() - t0)
-		            .count();
+		*acc_ += (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
+		             std::chrono::steady_clock::now() - t_start_)
+		             .count();
 	}
+
+  private:
+	uint64_t* acc_;
+	std::chrono::steady_clock::time_point t_start_;
 };
 
 // _________________________________________________________________________________________________
 // overloaded stream and string operators for STL containers (for convenient pretty printing)
 
-template <typename T> std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec) {
-	os << "[";
+template <typename T> std::ostream& operator<<(std::ostream& out, const std::vector<T>& vec) {
+	out << "[";
 	for (size_t i = 0; i < vec.size(); ++i) {
-		os << vec[i];
+		out << vec[i];
 		if (i < vec.size() - 1) {
-			os << ", ";
+			out << ", ";
 		}
 	}
-	os << "]";
-	return os;
+	out << "]";
+	return out;
 }
 
-template <typename T> std::string operator+(const std::string& s, const std::vector<T>& vec) {
+template <typename T> std::string operator+(const std::string& str, const std::vector<T>& vec) {
 	std::ostringstream oss;
 	oss << vec;
-	return s + oss.str();
+	return str + oss.str();
 }
 
 template <typename K, typename V>
-std::ostream& operator<<(std::ostream& os, const std::map<K, V>& map) {
-	os << "{";
-	for (auto it = map.begin(); it != map.end(); ++it) {
-		os << it->first << ": " << it->second;
-		if (std::next(it) != map.end()) {
-			os << ", ";
+std::ostream& operator<<(std::ostream& out, const std::map<K, V>& map) {
+	out << "{";
+	for (auto itr = map.begin(); itr != map.end(); ++itr) {
+		out << itr->first << ": " << itr->second;
+		if (std::next(itr) != map.end()) {
+			out << ", ";
 		}
 	}
-	os << "}";
-	return os;
+	out << "}";
+	return out;
 }
 
 template <typename K, typename V, typename Hash, typename Equal>
-std::ostream& operator<<(std::ostream& os, const std::unordered_map<K, V, Hash, Equal>& map) {
-	os << "{";
-	for (auto it = map.begin(); it != map.end(); ++it) {
-		os << it->first << ": " << it->second;
-		if (std::next(it) != map.end()) {
-			os << ", ";
+std::ostream& operator<<(std::ostream& out, const std::unordered_map<K, V, Hash, Equal>& map) {
+	out << "{";
+	for (auto itr = map.begin(); itr != map.end(); ++itr) {
+		out << itr->first << ": " << itr->second;
+		if (std::next(itr) != map.end()) {
+			out << ", ";
 		}
 	}
-	os << "}";
-	return os;
+	out << "}";
+	return out;
 }
 
 template <typename K, typename V>
-std::ostream& operator<<(std::ostream& os, const std::unordered_map<K, V>& map) {
-	os << "{";
-	for (auto it = map.begin(); it != map.end(); ++it) {
-		os << it->first << ": " << it->second;
-		if (std::next(it) != map.end()) {
-			os << ", ";
+std::ostream& operator<<(std::ostream& out, const std::unordered_map<K, V>& map) {
+	out << "{";
+	for (auto itr = map.begin(); itr != map.end(); ++itr) {
+		out << itr->first << ": " << itr->second;
+		if (std::next(itr) != map.end()) {
+			out << ", ";
 		}
 	}
-	os << "}";
-	return os;
+	out << "}";
+	return out;
 }
 
-template <typename T> std::ostream& operator<<(std::ostream& os, const std::unordered_set<T>& set) {
-	os << "{";
-	for (auto it = set.begin(); it != set.end(); ++it) {
-		os << *it;
-		if (std::next(it) != set.end()) {
-			os << ", ";
+template <typename T>
+std::ostream& operator<<(std::ostream& out, const std::unordered_set<T>& set) {
+	out << "{";
+	for (auto itr = set.begin(); itr != set.end(); ++itr) {
+		out << *itr;
+		if (std::next(itr) != set.end()) {
+			out << ", ";
 		}
 	}
-	os << "}";
-	return os;
+	out << "}";
+	return out;
 }
 
 } // namespace util::misc

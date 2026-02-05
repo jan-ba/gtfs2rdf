@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Jan Babin
 // Chair of Algorithms and Data Structures, University of Freiburg
 //
-// This file is part of the GTFS2RDF project.
+// This file is part of the gtfs2rdf project.
 // It is licensed under the GNU General Public License version 3.
 // See the LICENSE file in the project root for the full license text.
 
@@ -41,21 +41,21 @@ struct Datagap {
 	size_t num_transforms = 0;
 
 	// arguments for this placeholder (columns/litearls/storage/consts etc.)
-	std::array<ArgSource, field_transforms::MaxArgs> arg_sources;
+	std::array<ArgSource, field_transforms::MAX_ARGS> arg_sources;
 
 	// transforms as functors
-	std::array<field_transforms::Transform, field_transforms::MaxTransforms> transforms;
+	std::array<field_transforms::Transform, field_transforms::MAX_TRANSFORMS> transforms;
 	bool contains_transf2many = false;
 	size_t transf2many_index = 0;
 	StorageWriteSpec storage; // full storage spec
 
-	RenderKind render_kind = RenderKind::Raw; // how to render this placeholder
+	RenderKind render_kind = RenderKind::RAW; // how to render this placeholder
 };
 
 struct InstructionTemplate {
 	std::string raw;
 	std::vector<std::string> parts;       // static parts between datagaps
-	std::vector<PlaceholderSpec> phs;     // dynamic parts, one per each placeholder '{...}'
+	std::vector<PlaceholderSpec> plhs;    // dynamic parts, one per each placeholder '{...}'
 	std::vector<RenderKind> render_kinds; // per placeholder in order
 	bool suppress_output = false;         // if true, do not write to file (only store internally)
 };
@@ -65,159 +65,159 @@ export class Instruction {
 	std::vector<std::string> parts_; // static parts between placeholders
 	std::vector<Datagap> datagaps_;  // bound placeholders
 
-	std::array<std::string_view, field_transforms::MaxArgs> arg_buf_;
+	std::array<std::string_view, field_transforms::MAX_ARGS> arg_buf_;
 
 	size_t base_len_ = 0;
 	std::string out_;
-	static inline const std::string empty_ = "";
-	static inline constexpr std::string_view empty_sv_ = "";
+	static constexpr std::string EMPTY_;
+	static constexpr std::string_view EMPTY_SV_{EMPTY_};
 
 	uint64_t counter_ = 0;
 	bool is_valid_ = true;
 
-	runtime::RuntimeContainer& rt_;
-	const std::string raw_instruction_;
+	runtime::RuntimeContainer& rtc_;
+	const std::string RAW_INSTRUCTION_;
 
 	std::string cur_;         // temporary storage for transform outputs
 	std::string_view cur_sv_; // view into 'cur_'
 	std::string next_;        // temporary swap storage
 
 	bool contains_transf2many_ = false;
-	RenderKind transf2many_render_kind_ = RenderKind::Raw;
+	RenderKind transf2many_render_kind_ = RenderKind::RAW;
 	std::vector<std::string> transf_buf_; // buffer for Transform2Many outputs
 	std::vector<std::string_view> transf_buf_sv_;
 	size_t transf2many_placeholder_index_ = 0;
 
-	bool suppress_output_ = false;
+	const bool SUPPRESS_OUTPUT_ = false;
 
 	// helper: resolve an ArgSource to a string_view for this row
-	std::string_view resolve_arg(const ArgSource& a, std::span<const std::string> row) {
-		switch (a.kind) {
-		case ArgSourceKind::ColumnIndex: {
-			if (a.column_index < 0) {
-				return empty_sv_;
-			} else {
-				return row[a.column_index];
+	std::string_view resolveARG_(const ArgSource& arg_src, std::span<const std::string> row) {
+		switch (arg_src.kind) {
+		case ArgSourceKind::COLUMN_INDEX: {
+			if (arg_src.column_index < 0) {
+				return EMPTY_SV_;
 			}
+			return row[arg_src.column_index];
 		}
-		case ArgSourceKind::Literal: {
-			return a.literal;
+		case ArgSourceKind::LITERAL: {
+			return arg_src.literal;
 		}
-		case ArgSourceKind::StorageVar: {
-			const auto& v = rt_.getStorage().getVariable(a.ctx, a.name);
-			return v;
+		case ArgSourceKind::STORAGE_VAR: {
+			const auto& var = rtc_.getStorage().getVariable(arg_src.ctx, arg_src.name);
+			return var;
 		}
 		}
-		return empty_sv_;
+		return EMPTY_SV_;
 	}
 
   public:
 	Instruction(const InstructionTemplate& tmpl,
 	            const std::unordered_map<std::string, int>& column_map,
-	            runtime::RuntimeContainer& rt,
+	            runtime::RuntimeContainer& rtc,
 	            const std::string& ctx_name)
-	    : rt_(rt)
-	    , raw_instruction_(tmpl.raw) {
-		suppress_output_ = tmpl.suppress_output;
+	    : rtc_(rtc)
+	    , RAW_INSTRUCTION_(tmpl.raw)
+	    , SUPPRESS_OUTPUT_(tmpl.suppress_output) {
 		parts_ = tmpl.parts;
 		base_len_ = 0;
-		for (auto& p : parts_)
-			base_len_ += p.size();
+		for (auto& part : parts_) {
+			base_len_ += part.size();
+		}
 
-		datagaps_.reserve(tmpl.phs.size());
+		datagaps_.reserve(tmpl.plhs.size());
 
-		for (size_t ph_i = 0; ph_i < tmpl.phs.size(); ++ph_i) {
-			const auto& ph = tmpl.phs[ph_i];
-			Datagap dg;
+		for (size_t ph_i = 0; ph_i < tmpl.plhs.size(); ++ph_i) {
+			const auto& plh = tmpl.plhs[ph_i];
+			Datagap dgp;
 
 			// args
-			if (ph.args.size() > static_cast<size_t>(field_transforms::MaxArgs)) {
+			if (plh.args.size() > static_cast<size_t>(field_transforms::MAX_ARGS)) {
 				throw diagnostics::Error("Schema error: too many placeholder args (Max value is " +
-				                         std::to_string(field_transforms::MaxArgs) + ")");
+				                         std::to_string(field_transforms::MAX_ARGS) + ")");
 			}
-			dg.num_args = ph.args.size();
+			dgp.num_args = plh.args.size();
 
-			for (size_t i = 0; i < ph.args.size(); ++i) {
-				const auto& a = ph.args[i];
+			for (size_t i = 0; i < plh.args.size(); ++i) {
+				const auto& arg = plh.args[i];
 				ArgSource src;
 
-				if (a.kind == ArgKind::Column) {
-					if (!column_map.contains(a.name)) {
-						throw diagnostics::Error("Schema error: unknown column '" + a.name + "'");
+				if (arg.kind == ArgKind::COLUMN) {
+					if (!column_map.contains(arg.name)) {
+						throw diagnostics::Error("Schema error: unknown column '" + arg.name + "'");
 					}
-					int idx = column_map.at(a.name);
+					int idx = column_map.at(arg.name);
 					if (idx == -1) {
 						// header missing required column -> skip this instruction
 						is_valid_ = false;
-						rt_.getWarningCollector().addLeaf("Column '" + a.name +
-						                                      "' not found in header. Skipping",
-						                                  diagnostics::WarningLevel::Info);
+						rtc_.getWarningCollector().addLeaf("Column '" + arg.name +
+						                                       "' not found in header. Skipping",
+						                                   diagnostics::WarningLevel::INFO);
 						return;
 					}
-					src.kind = ArgSourceKind::ColumnIndex;
+					src.kind = ArgSourceKind::COLUMN_INDEX;
 					src.column_index = idx;
-				} else if (a.kind == ArgKind::Literal) {
-					src.kind = ArgSourceKind::Literal;
-					src.literal = a.name;
-				} else { // StorageVar
-					src.kind = ArgSourceKind::StorageVar;
-					src.name = a.name;
-					src.ctx = a.ctx;
+				} else if (arg.kind == ArgKind::LITERAL) {
+					src.kind = ArgSourceKind::LITERAL;
+					src.literal = arg.name;
+				} else { // STORAGE_VAR
+					src.kind = ArgSourceKind::STORAGE_VAR;
+					src.name = arg.name;
+					src.ctx = arg.ctx;
 				}
 
-				dg.arg_sources[i] = std::move(src);
+				dgp.arg_sources[i] = std::move(src);
 			}
 
 			// transforms
-			if (ph.transforms.size() > static_cast<size_t>(field_transforms::MaxTransforms)) {
+			if (plh.transforms.size() > static_cast<size_t>(field_transforms::MAX_TRANSFORMS)) {
 				throw diagnostics::Error(
 				    "Schema error: too many chained transforms (Max value is " +
-				    std::to_string(field_transforms::MaxTransforms) + ")");
+				    std::to_string(field_transforms::MAX_TRANSFORMS) + ")");
 			}
-			dg.num_transforms = ph.transforms.size();
+			dgp.num_transforms = plh.transforms.size();
 
-			for (size_t j = 0; j < ph.transforms.size(); ++j) {
-				dg.transforms[j] = ph.transforms[j].transform;
-				if (dg.transforms[j].kind == field_transforms::TransformKind::Multi) {
+			for (size_t j = 0; j < plh.transforms.size(); ++j) {
+				dgp.transforms[j] = plh.transforms[j].transform;
+				if (dgp.transforms[j].kind == field_transforms::TransformKind::MANY) {
 					if (contains_transf2many_) {
 						throw diagnostics::Error(
 						    "Schema error: only 1 Transform2Many allowed in total per instruction");
 					}
 					contains_transf2many_ = true;
-					dg.contains_transf2many = true;
-					dg.transf2many_index = j;
+					dgp.contains_transf2many = true;
+					dgp.transf2many_index = j;
 				}
 			}
 
 			// storage
-			dg.storage = ph.storage;
-			if (dg.storage.kind != StorageKind::None) {
-				if (dg.storage.target_ctx.empty()) {
-					dg.storage.target_ctx = ctx_name; // default: current schema context
-				} else if (dg.storage.target_ctx != ctx_name) {
+			dgp.storage = plh.storage;
+			if (dgp.storage.kind != StorageKind::NONE) {
+				if (dgp.storage.target_ctx.empty()) {
+					dgp.storage.target_ctx = ctx_name; // default: current schema context
+				} else if (dgp.storage.target_ctx != ctx_name) {
 					throw diagnostics::Error(
-					    "Schema error: storage context '" + dg.storage.target_ctx +
+					    "Schema error: storage context '" + dgp.storage.target_ctx +
 					    "' does not match current schema context '" + ctx_name + "'");
 				}
 			}
 
 			// some sanity checks
-			if (dg.storage.kind == StorageKind::Variable && dg.contains_transf2many) {
+			if (dgp.storage.kind == StorageKind::VARIABLE && dgp.contains_transf2many) {
 				throw diagnostics::Error(
 				    "Schema error: cannot store Transform2Many output into a variable");
 			}
 
-			dg.render_kind =
-			    (ph_i < tmpl.render_kinds.size()) ? tmpl.render_kinds[ph_i] : RenderKind::Raw;
+			dgp.render_kind =
+			    (ph_i < tmpl.render_kinds.size()) ? tmpl.render_kinds[ph_i] : RenderKind::RAW;
 
-			datagaps_.push_back(std::move(dg));
+			datagaps_.push_back(std::move(dgp));
 		}
 
 		// final newline
 		parts_.back().append("\n");
 		base_len_ += 1;
 
-		out_.reserve(base_len_ + 256);
+		out_.reserve(base_len_ + 256); // NOLINT(readability-magic-numbers)
 	}
 
 	std::string_view render(std::span<const std::string> row) {
@@ -226,34 +226,34 @@ export class Instruction {
 		cur_.clear();
 		next_.clear();
 		cur_sv_ = cur_;
-		field_transforms::ArgSpan span1{&cur_sv_, 1};
+		field_transforms::ArgSpan span_1{&cur_sv_, 1};
 
 		for (size_t k = 0; k < datagaps_.size(); ++k) {
-			Datagap& dg = datagaps_[k];
+			Datagap& dgp = datagaps_[k];
 
 			cur_.clear();
 			next_.clear();
 
 			// resolve args to pointers
-			for (size_t j = 0; j < dg.num_args; ++j) {
-				arg_buf_[j] = resolve_arg(dg.arg_sources[j], row);
+			for (size_t j = 0; j < dgp.num_args; ++j) {
+				arg_buf_[j] = resolveARG_(dgp.arg_sources[j], row);
 			}
 
 			// compute placeholder output (and possibly Transform2Many buffer)
-			if (dg.num_transforms > 0) {
-				field_transforms::ArgSpan spanN{arg_buf_.data(), dg.num_args};
-				if (dg.contains_transf2many) {
-					transf2many_render_kind_ = dg.render_kind;
+			if (dgp.num_transforms > 0) {
+				field_transforms::ArgSpan span_n{arg_buf_.data(), dgp.num_args};
+				if (dgp.contains_transf2many) {
+					transf2many_render_kind_ = dgp.render_kind;
 					transf_buf_.clear();
 					transf2many_placeholder_index_ = out_.size();
 
 					// apply transforms before the 2N
-					for (size_t i = 0; i < dg.transf2many_index; i++) {
+					for (size_t i = 0; i < dgp.transf2many_index; i++) {
 						cur_sv_ = cur_;
 						if (i == 0) {
-							dg.transforms[i].single(spanN, next_);
+							dgp.transforms[i].single(span_n, next_);
 						} else {
-							dg.transforms[i].single(span1, next_);
+							dgp.transforms[i].single(span_1, next_);
 						}
 						cur_.swap(next_);
 						next_.clear();
@@ -262,30 +262,30 @@ export class Instruction {
 					cur_sv_ = cur_;
 
 					// run the Transform2Many
-					if (dg.transf2many_index == 0) {
-						dg.transforms[dg.transf2many_index].multi(spanN, transf_buf_);
+					if (dgp.transf2many_index == 0) {
+						dgp.transforms[dgp.transf2many_index].many(span_n, transf_buf_);
 					} else {
-						dg.transforms[dg.transf2many_index].multi(span1, transf_buf_);
+						dgp.transforms[dgp.transf2many_index].many(span_1, transf_buf_);
 					}
 
 					// run remaining transforms elementwise on the produced vector
-					for (size_t i = dg.transf2many_index + 1; i < dg.num_transforms; i++) {
-						for (size_t buf_i = 0; buf_i < transf_buf_.size(); buf_i++) {
-							cur_sv_ = transf_buf_[buf_i];
-							dg.transforms[i].single(span1, next_);
-							transf_buf_[buf_i].swap(next_);
+					for (size_t i = dgp.transf2many_index + 1; i < dgp.num_transforms; i++) {
+						for (auto& buf_i : transf_buf_) {
+							cur_sv_ = buf_i;
+							dgp.transforms[i].single(span_1, next_);
+							buf_i.swap(next_);
 							next_.clear();
 						}
 					}
 				} else { // no Transform2Many
-					dg.transforms[0].single(spanN, cur_);
+					dgp.transforms[0].single(span_n, cur_);
 
-					if (dg.num_transforms > 1) {
+					if (dgp.num_transforms > 1) {
 						cur_sv_ = cur_;
 
-						for (size_t i = 1; i < dg.num_transforms; ++i) {
+						for (size_t i = 1; i < dgp.num_transforms; ++i) {
 							cur_sv_ = cur_;
-							dg.transforms[i].single(span1, next_);
+							dgp.transforms[i].single(span_1, next_);
 							cur_.swap(next_);
 							next_.clear();
 						}
@@ -297,8 +297,8 @@ export class Instruction {
 				// no transforms:
 				// - non-keyed: placeholder output is arg0
 				// - keyed: placeholder output is the first VALUE field (right side), not key0
-				if (dg.storage.is_keyed()) {
-					cur_sv_ = arg_buf_[dg.storage.key_arity];
+				if (dgp.storage.isKeyed()) {
+					cur_sv_ = arg_buf_[dgp.storage.key_arity];
 				} else {
 					cur_sv_ = arg_buf_[0];
 				}
@@ -306,72 +306,73 @@ export class Instruction {
 
 			// early exit: either transforms filter (empty output) or empty column or empty
 			// computed Transform2Many result which need not be rendered
-			if (!dg.contains_transf2many && cur_sv_.empty())
-				return empty_;
+			if (!dgp.contains_transf2many && cur_sv_.empty()) {
+				return EMPTY_;
+			}
 
 			// --- side effects: storage write ---
-			if (dg.storage.kind != StorageKind::None) {
-				auto& st = rt_.getStorage();
+			if (dgp.storage.kind != StorageKind::NONE) {
+				auto& stor = rtc_.getStorage();
 
-				if (dg.storage.mode == StoreMode::FilterStoreRaw) {
+				if (dgp.storage.mode == StoreMode::FILTER_STORE_RAW) {
 					// filter predicate: non-empty transform output
 
 					if (!cur_sv_.empty()) {
-						if (dg.storage.kind == StorageKind::MultiMap) {
-							st.storeValue(dg.storage.target_ctx,
-							              dg.storage.target_name,
-							              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-							              arg_buf_[dg.storage.key_arity]);
-						} else if (dg.storage.kind == StorageKind::TupleMap) {
-							st.storeTuple(dg.storage.target_ctx,
-							              dg.storage.target_name,
-							              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-							              ArgSpan{arg_buf_.data() + dg.storage.key_arity,
-							                      dg.storage.value_arity});
-						} else if (dg.storage.kind == StorageKind::Variable) {
-							st.storeVariable(
-							    dg.storage.target_ctx, dg.storage.target_name, arg_buf_[0]);
+						if (dgp.storage.kind == StorageKind::MULTI_MAP) {
+							stor.storeValue(dgp.storage.target_ctx,
+							                dgp.storage.target_name,
+							                ArgSpan{arg_buf_.data(), dgp.storage.key_arity},
+							                arg_buf_[dgp.storage.key_arity]);
+						} else if (dgp.storage.kind == StorageKind::TUPLE_MAP) {
+							stor.storeTuple(dgp.storage.target_ctx,
+							                dgp.storage.target_name,
+							                ArgSpan{arg_buf_.data(), dgp.storage.key_arity},
+							                ArgSpan{arg_buf_.data() + dgp.storage.key_arity,
+							                        dgp.storage.value_arity});
+						} else if (dgp.storage.kind == StorageKind::VARIABLE) {
+							stor.storeVariable(
+							    dgp.storage.target_ctx, dgp.storage.target_name, arg_buf_[0]);
 						}
 					}
-				} else if (dg.storage.mode == StoreMode::StoreRaw) {
+				} else if (dgp.storage.mode == StoreMode::STORE_RAW) {
 					// store RHS tuple directly, unconditionally
 
-					if (dg.storage.kind == StorageKind::MultiMap) {
-						st.storeValue(dg.storage.target_ctx,
-						              dg.storage.target_name,
-						              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-						              arg_buf_[dg.storage.key_arity]);
-					} else if (dg.storage.kind == StorageKind::TupleMap) {
-						st.storeTuple(dg.storage.target_ctx,
-						              dg.storage.target_name,
-						              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-						              ArgSpan{arg_buf_.data() + dg.storage.key_arity,
-						                      dg.storage.value_arity});
+					if (dgp.storage.kind == StorageKind::MULTI_MAP) {
+						stor.storeValue(dgp.storage.target_ctx,
+						                dgp.storage.target_name,
+						                ArgSpan{arg_buf_.data(), dgp.storage.key_arity},
+						                arg_buf_[dgp.storage.key_arity]);
+					} else if (dgp.storage.kind == StorageKind::TUPLE_MAP) {
+						stor.storeTuple(dgp.storage.target_ctx,
+						                dgp.storage.target_name,
+						                ArgSpan{arg_buf_.data(), dgp.storage.key_arity},
+						                ArgSpan{arg_buf_.data() + dgp.storage.key_arity,
+						                        dgp.storage.value_arity});
 					}
 				} else {
 					// StoreComputed
-					if (dg.contains_transf2many) {
+					if (dgp.contains_transf2many) {
 						if (!transf_buf_.empty()) {
 							transf_buf_sv_.resize(transf_buf_.size());
 							for (size_t i = 0; i < transf_buf_.size(); i++) {
 								transf_buf_sv_[i] = transf_buf_[i];
 							}
-							st.storeTuple(dg.storage.target_ctx,
-							              dg.storage.target_name,
-							              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-							              ArgSpan{transf_buf_sv_.data(), transf_buf_sv_.size()});
+							stor.storeTuple(dgp.storage.target_ctx,
+							                dgp.storage.target_name,
+							                ArgSpan{arg_buf_.data(), dgp.storage.key_arity},
+							                ArgSpan{transf_buf_sv_.data(), transf_buf_sv_.size()});
 						}
 					} else {
-						switch (dg.storage.kind) {
-						case StorageKind::Variable:
-							st.storeVariable(
-							    dg.storage.target_ctx, dg.storage.target_name, cur_sv_);
+						switch (dgp.storage.kind) {
+						case StorageKind::VARIABLE:
+							stor.storeVariable(
+							    dgp.storage.target_ctx, dgp.storage.target_name, cur_sv_);
 							break;
-						case StorageKind::MultiMap: {
-							st.storeValue(dg.storage.target_ctx,
-							              dg.storage.target_name,
-							              ArgSpan{arg_buf_.data(), dg.storage.key_arity},
-							              cur_sv_);
+						case StorageKind::MULTI_MAP: {
+							stor.storeValue(dgp.storage.target_ctx,
+							                dgp.storage.target_name,
+							                ArgSpan{arg_buf_.data(), dgp.storage.key_arity},
+							                cur_sv_);
 							break;
 						}
 						}
@@ -381,22 +382,22 @@ export class Instruction {
 
 			// --- output rendering ---
 			// suppress output for the whole instruction
-			if (!suppress_output_) {
-				if (!dg.contains_transf2many) {
-					switch (dg.render_kind) { // how to escape the placeholder
-					case RenderKind::IriRef:
-						percent_encode_iriref(out_, cur_sv_);
+			if (!SUPPRESS_OUTPUT_) {
+				if (!dgp.contains_transf2many) {
+					switch (dgp.render_kind) { // how to escape the placeholder
+					case RenderKind::IRI_REF:
+						percentEncodeIRIREF(out_, cur_sv_);
 						break;
-					case RenderKind::PrefixedLocal:
-						percent_encode_prefixed_local(out_, cur_sv_);
+					case RenderKind::PREFIXED_LOCAL:
+						percentEncodePrefixedLocal(out_, cur_sv_);
 						break;
-					case RenderKind::Literal:
-						percent_encode_literal(out_, cur_sv_);
+					case RenderKind::LITERAL:
+						percentEncodeLiteral(out_, cur_sv_);
 						break;
-					case RenderKind::LangTag:
+					case RenderKind::LANG_TAG:
 						out_.append(cur_sv_); // language tags do not need escaping
 						break;
-					case RenderKind::Raw:
+					case RenderKind::RAW: // TODO: think about this
 					default:
 						out_.append(cur_sv_);
 						break;
@@ -406,10 +407,10 @@ export class Instruction {
 			}
 		}
 
-		// If suppress_output_ => side effect only, skip writing entirely
-		if (suppress_output_) {
+		// If SUPPRESS_OUTPUT_ => side effect only, skip writing entirely
+		if (SUPPRESS_OUTPUT_) {
 			// counter_++;  // no triples written
-			return empty_;
+			return EMPTY_;
 		}
 
 		// replicate for Transform2Many
@@ -418,23 +419,24 @@ export class Instruction {
 			std::string suffix = out_.substr(transf2many_placeholder_index_);
 			out_.clear();
 			for (const auto& val : transf_buf_) {
-				if (val.empty())
+				if (val.empty()) {
 					continue;
+				}
 				out_.append(prefix);
 				switch (transf2many_render_kind_) { // how to escape the placeholder
-				case RenderKind::IriRef:
-					percent_encode_iriref(out_, val);
+				case RenderKind::IRI_REF:
+					percentEncodeIRIREF(out_, val);
 					break;
-				case RenderKind::PrefixedLocal:
-					percent_encode_prefixed_local(out_, val);
+				case RenderKind::PREFIXED_LOCAL:
+					percentEncodePrefixedLocal(out_, val);
 					break;
-				case RenderKind::Literal:
-					percent_encode_literal(out_, val);
+				case RenderKind::LITERAL:
+					percentEncodeLiteral(out_, val);
 					break;
-				case RenderKind::LangTag:
+				case RenderKind::LANG_TAG:
 					out_.append(val); // language tags do not need escaping
 					break;
-				case RenderKind::Raw:
+				case RenderKind::RAW: // TODO: think about this
 				default:
 					out_.append(val);
 					break;
@@ -448,35 +450,33 @@ export class Instruction {
 		return out_;
 	}
 
-	uint64_t getCount() const {
+	[[nodiscard]] uint64_t getCount() const {
 		return counter_;
 	}
-	bool isValid() const {
+	[[nodiscard]] bool isValid() const {
 		return is_valid_;
 	}
-	const std::string& getRawInstruction() const {
-		return raw_instruction_;
+	[[nodiscard]] const std::string& getRawInstruction() const {
+		return RAW_INSTRUCTION_;
 	}
-	const std::vector<Datagap>& getDatagaps() const {
+	[[nodiscard]] const std::vector<Datagap>& getDatagaps() const {
 		return datagaps_;
 	}
-	std::vector<Datagap>& getModifiableDatagaps() {
+	[[nodiscard]] std::vector<Datagap>& getModifiableDatagaps() {
 		return datagaps_;
 	}
 };
 
 export class Schema {
   private:
-	const std::string name_; // name of file with file type, e.g. "stops.txt"
-	const std::vector<std::string> possible_columns_ =
-	    {}; // all columns that could be contained by <name_>  TODO: actually needed?
-	std::unordered_map<std::string, std::string> prefixes_;
+	const std::string NAME_; // name of file with file type, e.g. "stops.txt"
+	const std::unordered_map<std::string, std::string> PREFIXES_;
 	std::vector<std::string> raw_instructions_;
 	std::vector<std::vector<RenderKind>> raw_render_kinds_; // per instruction, per placeholder
 
 	size_t num_storage_only_instructions_ = 0;
-	runtime::RuntimeContainer& rt_;
-	const field_transforms::TransformRegistry& registry_;
+	runtime::RuntimeContainer& rtc_;
+	const field_transforms::TransformRegistry& REGISTRY_;
 	std::unordered_set<std::string> dependencies_; // other schemas that this schema depends on
 	std::vector<InstructionTemplate> templates_;
 	bool compiled_ = false;
@@ -496,60 +496,60 @@ export class Schema {
 	Schema(Schema&&) noexcept = default;
 	Schema& operator=(Schema&&) noexcept = delete;
 
-	Schema(const std::string name,
-	       const std::vector<std::string> possible_columns,
-	       const std::unordered_map<std::string, std::string> prefixes,
-	       const std::vector<Triple>& triples,
-	       runtime::RuntimeContainer& rt)
-	    : name_(std::move(name))
-	    , possible_columns_(std::move(possible_columns))
-	    , prefixes_(std::move(prefixes))
-	    , rt_(rt)
-	    , registry_(rt.getTransformRegistry()) {
-		if (!valid_ctx_name(name_)) {
-			throw diagnostics::Error("Schema error: invalid schema name '" + name_ +
+	Schema(std::string name,
+	       const std::vector<std::string>& POSSIBLE_COLUMNS,
+	       std::unordered_map<std::string, std::string> prefixes,
+	       const std::vector<Triple>& TRIPLES,
+	       runtime::RuntimeContainer& rtc)
+	    : NAME_(std::move(name))
+	    , PREFIXES_(std::move(prefixes))
+	    , rtc_(rtc)
+	    , REGISTRY_(rtc.getTransformRegistry()) {
+		if (!isValidCTXName(NAME_)) {
+			throw diagnostics::Error("Schema error: invalid schema name '" + NAME_ +
 			                         "' (must end with .txt)");
 		}
 
-		for (const auto& col : this->possible_columns_) {
+		for (const auto& col : POSSIBLE_COLUMNS) {
 			column_map_[col] = -1; // initialize all to -1 (not found)
 		}
 
 		// build raw_instructions_ from triples
-		for (size_t i = 0; i < triples.size(); ++i) {
+		for (size_t i = 0; i < TRIPLES.size(); ++i) {
 			try {
-				auto t = triples[i].toTemplate(prefixes_, rt_);
-				raw_instructions_.push_back(t.raw);
-				raw_render_kinds_.push_back(t.render_kinds);
-				rt_.getWarningCollector().addNode(
+				auto templ = TRIPLES[i].toTemplate(PREFIXES_, rtc_);
+				raw_instructions_.push_back(templ.raw);
+				raw_render_kinds_.push_back(templ.render_kinds);
+				rtc_.getWarningCollector().addNode(
 				    "while building instruction from triple number " + std::to_string(i + 1), 4);
-			} catch (const diagnostics::Error& e) {
-				diagnostics::wrap_and_rethrow(
-				    e, "while building instruction from triple number " + std::to_string(i + 1));
+			} catch (const diagnostics::Error& err) {
+				diagnostics::wrapAndRethrow(
+				    err, "while building instruction from triple number " + std::to_string(i + 1));
 			}
 		}
 	}
 
 	// allow side-effect only instructions to be added as well and add them to the front
-	Schema(const std::string name,
-	       const std::vector<std::string> possible_columns,
-	       const std::unordered_map<std::string, std::string> prefixes,
-	       const std::vector<Triple>& triples,
-	       const std::vector<std::string>& storage_only_instructions,
-	       runtime::RuntimeContainer& rt)
-	    : Schema(name, possible_columns, prefixes, triples, rt) {
+	Schema(std::string name,
+	       const std::vector<std::string>& POSSIBLE_COLUMNS,
+	       std::unordered_map<std::string, std::string> prefixes,
+	       const std::vector<Triple>& TRIPLES,
+	       const std::vector<std::string>& STORAGE_ONLY_INSTRUCTIONS,
+	       runtime::RuntimeContainer& rtc)
+	    : Schema(std::move(name), POSSIBLE_COLUMNS, std::move(prefixes), TRIPLES, rtc) {
 		// add side effect instructions in front (so that triples could depend on them)
-		num_storage_only_instructions_ = storage_only_instructions.size();
+		num_storage_only_instructions_ = STORAGE_ONLY_INSTRUCTIONS.size();
 		raw_instructions_.insert(raw_instructions_.begin(),
-		                         storage_only_instructions.begin(),
-		                         storage_only_instructions.end());
+		                         STORAGE_ONLY_INSTRUCTIONS.begin(),
+		                         STORAGE_ONLY_INSTRUCTIONS.end());
 		raw_render_kinds_.insert(raw_render_kinds_.begin(), num_storage_only_instructions_, {});
 	}
 
 	// compile raw_instructions_ into templates_ and compute dependencies_ from other schemas
 	void compile() {
-		if (compiled_)
+		if (compiled_) {
 			return;
+		}
 
 		templates_.clear();
 		dependencies_.clear();
@@ -562,8 +562,8 @@ export class Schema {
 				const auto& kinds = raw_render_kinds_[inst_i];
 				size_t kind_i = 0;
 
-				InstructionTemplate t;
-				t.raw = raw_inst;
+				InstructionTemplate templ;
+				templ.raw = raw_inst;
 
 				size_t start = 0;
 				size_t pos = 0;
@@ -575,78 +575,81 @@ export class Schema {
 						    "Syntax error: malformed instruction (missing '}')");
 					}
 
-					t.parts.push_back(raw_inst.substr(start, pos - start));
+					templ.parts.push_back(raw_inst.substr(start, pos - start));
 
 					std::string placeholder = raw_inst.substr(pos + 1, end - pos - 1);
 
 					try {
-						PlaceholderSpec spec = parse_placeholder(placeholder, registry_);
+						PlaceholderSpec spec = parsePlaceholder(placeholder, REGISTRY_);
 
 						// dependencies from args
-						for (const auto& a : spec.args) {
-							if (a.kind == ArgKind::StorageVar) {
-								if (!a.ctx.empty()) {
+						for (const auto& arg : spec.args) {
+							if (arg.kind == ArgKind::STORAGE_VAR) {
+								if (!arg.ctx.empty()) {
 									// if self-reference, check that the variable was already
 									// written in a previous instruction
-									if (a.ctx == name_) {
+									if (arg.ctx == NAME_) {
 										bool found = false;
 										for (const auto& instr : templates_) {
-											for (const auto& ph : instr.phs) {
-												if (ph.storage.target_name == a.name) {
+											for (const auto& plh : instr.plhs) {
+												if (plh.storage.target_name == arg.name) {
 													found = true;
 													break;
 												}
 											}
-											if (found)
+											if (found) {
 												break;
+											}
 										}
 										if (!found) {
 											throw diagnostics::Error("Schema error: self-reference "
 											                         "to storage variable '" +
-											                         a.name + "' in context '" +
-											                         a.ctx +
+											                         arg.name + "' in context '" +
+											                         arg.ctx +
 											                         "' before it was written");
 										}
-									} else
-										dependencies_.insert(a.ctx);
+									} else {
+										dependencies_.insert(arg.ctx);
+									}
 								}
-							} else if (a.kind == ArgKind::Column) {
-								referenced_columns_.insert(a.name);
+							} else if (arg.kind == ArgKind::COLUMN) {
+								referenced_columns_.insert(arg.name);
 							}
 						}
 						// dependencies from transform ctx hints
-						for (const auto& tc : spec.transforms) {
-							if (!tc.ctx_hint.empty())
-								dependencies_.insert(tc.ctx_hint);
+						for (const auto& trf : spec.transforms) {
+							if (!trf.ctx_hint.empty()) {
+								dependencies_.insert(trf.ctx_hint);
+							}
 						}
 
-						t.phs.push_back(std::move(spec));
+						templ.plhs.push_back(std::move(spec));
 
 						// preserve render kind per placeholder coming from Triple::toTemplate
 						if (kind_i < kinds.size()) {
-							t.render_kinds.push_back(kinds[kind_i]);
+							templ.render_kinds.push_back(kinds[kind_i]);
 							kind_i++;
 						} else {
-							t.render_kinds.push_back(RenderKind::Raw); // default
+							templ.render_kinds.push_back(RenderKind::RAW); // default
 						}
 
 						start = end + 1;
 
-						rt_.getWarningCollector().addNode(
+						rtc_.getWarningCollector().addNode(
 						    "while parsing placeholder '" + placeholder + "'", 4);
-					} catch (const diagnostics::Error& e) {
-						diagnostics::wrap_and_rethrow(
-						    e, "while parsing placeholder '" + placeholder + "'");
+					} catch (const diagnostics::Error& err) {
+						diagnostics::wrapAndRethrow(
+						    err, "while parsing placeholder '" + placeholder + "'");
 					}
 				}
 
-				t.parts.push_back(raw_inst.substr(start));
-				templates_.push_back(std::move(t));
-				rt_.getWarningCollector().addNode(
+				templ.parts.push_back(raw_inst.substr(start));
+				templates_.push_back(std::move(templ));
+				rtc_.getWarningCollector().addNode(
 				    "while parsing instruction '" + raw_instructions_[inst_i] + "'", 3);
-			} catch (const diagnostics::Error& e) {
-				diagnostics::wrap_and_rethrow(
-				    e, "while parsing instruction '" + raw_instructions_[inst_i] + "'");
+			} catch (const diagnostics::Error& err) {
+				diagnostics::wrapAndRethrow(
+				    err, "while parsing instruction '" + raw_instructions_[inst_i] + "'");
 			}
 		}
 
@@ -661,17 +664,18 @@ export class Schema {
 	void setHeader(const std::vector<std::string>& header) {
 		header_ = header;
 		instructions_.clear();
-		if (!compiled_)
+		if (!compiled_) {
 			throw diagnostics::Error(
 			    "Internal error: schema must be compiled before setting header");
+		}
 		// compute column_map_ from header
 		for (size_t file_idx = 0; file_idx < header.size(); ++file_idx) {
 			if (column_map_.contains(header[file_idx])) {
 				column_map_[header[file_idx]] = static_cast<int>(file_idx);
 			} else {
-				rt_.getWarningCollector().addLeaf("Schema does not use header column'" +
-				                                      header[file_idx] + "'",
-				                                  diagnostics::WarningLevel::Info);
+				rtc_.getWarningCollector().addLeaf("Schema does not use header column '" +
+				                                       header[file_idx] + "'",
+				                                   diagnostics::WarningLevel::INFO);
 			}
 		}
 		// build instructions_
@@ -681,35 +685,32 @@ export class Schema {
 		for (size_t i = start_idx; i < templates_.size(); ++i) {
 			const auto& tmp = templates_[i];
 			try {
-				Instruction instr(tmp, column_map_, rt_, name_);
+				Instruction instr(tmp, column_map_, rtc_, NAME_);
 				if (!instr.isValid()) {
 					continue;
 				} // skip invalid instructions
 				if (!allow_storage_writes_) {
-					for (auto& dg : instr.getModifiableDatagaps()) {
-						dg.storage.kind = StorageKind::None;
+					for (auto& dgp : instr.getModifiableDatagaps()) {
+						dgp.storage.kind = StorageKind::NONE;
 					}
 				}
 				instructions_.push_back(std::move(instr));
 
-				rt_.getWarningCollector().addNode(
+				rtc_.getWarningCollector().addNode(
 				    "while building instruction from template '" + tmp.raw + "'", 3);
-			} catch (const diagnostics::Error& e) {
-				diagnostics::wrap_and_rethrow(
-				    e, "while building instruction from template '" + tmp.raw + "'");
+			} catch (const diagnostics::Error& err) {
+				diagnostics::wrapAndRethrow(
+				    err, "while building instruction from template '" + tmp.raw + "'");
 			}
 		}
 	}
 
 	// Getters
 	const std::string& getName() const {
-		return name_;
-	}
-	const std::vector<std::string>& getPossibleColumns() const {
-		return possible_columns_;
+		return NAME_;
 	}
 	const std::unordered_map<std::string, std::string>& getPrefixes() const {
-		return prefixes_;
+		return PREFIXES_;
 	}
 	const std::unordered_map<std::string, int>& getColumnMap() const {
 		return column_map_;
@@ -741,25 +742,24 @@ export class Schema {
 
 // merge prefixes from multiple schemas into one map, checking for conflicts
 export std::unordered_map<std::string, std::string>
-merge_prefixes(const std::vector<Schema>& schemas,
-               diagnostics::WarningCollector& wc,
-               bool strict_conflicts = true) {
+mergePrefixes(const std::vector<Schema>& schemas,
+              diagnostics::WarningCollector& wcol,
+              bool strict_conflicts = true) {
 	std::unordered_map<std::string, std::string> out;
 
-	for (const auto& sc : schemas) {
-		const auto& pfx = sc.getPrefixes();
+	for (const auto& sch : schemas) {
+		const auto& pfx = sch.getPrefixes();
 		for (const auto& [k, v] : pfx) {
-			if (auto it = out.find(k); it == out.end()) {
+			if (auto itr = out.find(k); itr == out.end()) {
 				out.emplace(k, v);
-			} else if (it->second != v) {
+			} else if (itr->second != v) {
 				if (strict_conflicts) {
 					throw diagnostics::Error("Schema error: prefix conflict for '" + k + "': '" +
-					                         it->second + "' vs '" + v + "'");
-				} else {
-					wc.addLeaf("Prefix conflict for '" + k + "': '" + it->second + "' vs '" + v +
-					               "'. Using first.",
-					           diagnostics::WarningLevel::Warning);
+					                         itr->second + "' vs '" + v + "'");
 				}
+				wcol.addLeaf("Prefix conflict for '" + k + "': '" + itr->second + "' vs '" + v +
+				                 "'. Using first.",
+				             diagnostics::WarningLevel::WARNING);
 			}
 		}
 	}

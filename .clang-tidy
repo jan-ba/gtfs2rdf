@@ -5,43 +5,54 @@ Checks: >
   modernize-*,
   performance-*,
   readability-*,
-  readability-identifier-naming
+  readability-identifier-naming,
+  -readability-implicit-bool-conversion,
+  -modernize-use-trailing-return-type,
+  -readability-function-cognitive-complexity,
+  -bugprone-assignment-in-if-condition
+  -bugprone-easily-swappable-parameters
 
 WarningsAsErrors: ''
-HeaderFilterRegex: '^(?!.*src/third_party/).*'  # exclude headers under third_party
+HeaderFilterRegex: '(^|.*/)src/(?!third_party/).*'
 
 CheckOptions:
-  # Naming examples (tune to your taste)
-  - { key: readability-identifier-naming.VariableCase,           value: lower_case }
-  - { key: readability-identifier-naming.ParameterCase,          value: lower_case }
-  - { key: readability-identifier-naming.FunctionCase,           value: camelBack }
-  - { key: readability-identifier-naming.MethodCase,             value: camelBack }
+  # Variables / parameters / functions
+  - { key: readability-identifier-naming.VariableCase,  value: lower_case }
+  - { key: readability-identifier-naming.ParameterCase, value: lower_case }
+  - { key: readability-identifier-naming.FunctionCase,  value: camelBack }
+  - { key: readability-identifier-naming.MethodCase,    value: camelBack }
 
-  # Members (default)
-  - { key: readability-identifier-naming.MemberCase,             value: lower_case }
-  - { key: readability-identifier-naming.MemberSuffix,           value: _ }
+  # Public members: lower_case
+  - { key: readability-identifier-naming.PublicMemberCase,   value: lower_case }
+  - { key: readability-identifier-naming.PublicMemberSuffix, value: "" }
 
-  # Constants / macros
-  - { key: readability-identifier-naming.ConstantCase,           value: UPPER_CASE }
-  - { key: readability-identifier-naming.MacroDefinitionCase,    value: UPPER_CASE }
+  # Protected members: lower_case_
+  - { key: readability-identifier-naming.ProtectedMemberCase,   value: lower_case }
+  - { key: readability-identifier-naming.ProtectedMemberSuffix, value: _ }
 
-  # --- Your requested changes ---
+  # Private members: lower_case_
+  - { key: readability-identifier-naming.PrivateMemberCase,   value: lower_case }
+  - { key: readability-identifier-naming.PrivateMemberSuffix, value: _ }
 
-  # Private const member variables: UPPER_CASE_WITH_UNDERSCORES + trailing _
-  - { key: readability-identifier-naming.PrivateMemberCase,       value: UPPER_CASE }
-  - { key: readability-identifier-naming.PrivateMemberSuffix,     value: _ }
-  - { key: readability-identifier-naming.PrivateMemberConstCase,  value: UPPER_CASE }
-  - { key: readability-identifier-naming.PrivateMemberConstSuffix,value: _ }
+  # Constant member variables (const data members): UPPER_CASE_
+  - { key: readability-identifier-naming.ConstantMemberCase,   value: UPPER_CASE }
+  - { key: readability-identifier-naming.ConstantMemberSuffix, value: _ }
 
-  # Private methods: camelBack + trailing _
-  - { key: readability-identifier-naming.PrivateMethodCase,       value: camelBack }
-  - { key: readability-identifier-naming.PrivateMethodSuffix,     value: _ }
+  # Member fallback
+  - { key: readability-identifier-naming.MemberCase,   value: lower_case }
+  - { key: readability-identifier-naming.MemberSuffix, value: "" }
 
-# User defined types
-  # Types
-  - { key: readability-identifier-naming.ClassCase,  value: CamelCase }
-  - { key: readability-identifier-naming.StructCase, value: CamelCase }
-  - { key: readability-identifier-naming.UnionCase,  value: CamelCase }
-  - { key: readability-identifier-naming.EnumCase,   value: CamelCase }
-  - { key: readability-identifier-naming.TypedefCase,    value: CamelCase }
-  - { key: readability-identifier-naming.TypeAliasCase,  value: CamelCase }
+  # Constants / constexpr variables (non-members): UPPER_CASE
+  - { key: readability-identifier-naming.ConstantCase,          value: UPPER_CASE }
+  - { key: readability-identifier-naming.ConstexprVariableCase, value: UPPER_CASE }
+
+  # Macros
+  - { key: readability-identifier-naming.MacroDefinitionCase, value: UPPER_CASE }
+
+  # User-defined types
+  - { key: readability-identifier-naming.ClassCase,     value: CamelCase }
+  - { key: readability-identifier-naming.StructCase,    value: CamelCase }
+  - { key: readability-identifier-naming.UnionCase,     value: CamelCase }
+  - { key: readability-identifier-naming.EnumCase,      value: CamelCase }
+  - { key: readability-identifier-naming.TypedefCase,   value: CamelCase }
+  - { key: readability-identifier-naming.TypeAliasCase, value: CamelCase }

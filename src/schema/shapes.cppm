@@ -17,26 +17,26 @@ using namespace rdf;
 
 namespace schema {
 
-export Schema buildShapesSchema(runtime::RuntimeContainer &rt) {
-
-	const std::vector<std::string> possible_columns = {
+export Schema buildShapesSchema(runtime::RuntimeContainer& rtc) {
+	const std::vector<std::string> POSSIBLE_COLUMNS = {
 	    "shape_id", "shape_pt_lat", "shape_pt_lon", "shape_pt_sequence", "shape_dist_traveled"};
 
-	const std::unordered_map<std::string, std::string> prefixes = {
+	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"shapes", "https://gtfs.org/shapes/"},
 	    {"geo", "http://www.opengis.net/ont/geosparql#"},
 	};
 
 	// no row-based triples; we only store
-	const std::vector<Triple> triples = {};
+	const std::vector<Triple> TRIPLES = {};
 
-	const std::vector<std::string> storage_only = {
+	const std::vector<std::string> STORAGE_ONLY_INSTRUCTIONS = {
 	    // key = shape_id
 	    // value_inputs = shape_pt_sequence, shape_pt_lon, shape_pt_lat
 	    // transform output is stored as the multimap value
 	    "{ shape_id : shape_pt_sequence, shape_pt_lon, shape_pt_lat > shapes@shapes.txt }"};
 
-	return Schema("shapes.txt", possible_columns, prefixes, triples, storage_only, rt);
+	return Schema(
+	    "shapes.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, STORAGE_ONLY_INSTRUCTIONS, rtc);
 }
 
 } // namespace schema

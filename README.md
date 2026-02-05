@@ -38,10 +38,18 @@ cmake --build build-release-stats -j
 Run this command to enforce style and naming conventions for this project using clang-tidy.
 
 ```bash
-git ls-files 'src/**' \
-  | grep -Ev '^src/third_party/' \
-  | grep -E '\.(c|cc|cpp|cxx|cppm|ixx)$' \
-  | xargs -r clang-tidy-18 -p build --quiet -warnings-as-errors='*'
+find src -path 'src/third_party' -prune -o -type f \( \
+    -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.cxx' -o \
+    -name '*.h' -o -name '*.hh' -o -name '*.hpp' -o -name '*.hxx' -o \
+    -name '*.ixx' -o -name '*.cppm' \
+  \) -print0 \
+| xargs -0 -n 1 -P 1 \
+    clang-tidy-18 -p build-release \
+      --use-color=false \
+      --system-headers=false \
+      --header-filter='(^|.*/)src/(?!third_party/).*' \
+  2>&1 | tee clang-tidy.log
+
 ```
 
 ## Testing
