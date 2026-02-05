@@ -25,34 +25,36 @@ struct Error : std::runtime_error {
 };
 
 // helper function to wrap and rethrow exceptions with additional context
-// unused parameter 'e' to ensure function is only called with custom Error type
-inline void wrapAndRethrow([[maybe_unused]] const diagnostics::Error& err,
-                           std::string_view context_message) {
+inline void wrapAndRethrow(std::string_view context_message) {
 	std::throw_with_nested(Error(std::string(context_message)));
 }
 
 // helper function to print error chain in order 'innermost -> outermost'
-inline void printErrorChain(const diagnostics::Error& err) {
+inline void printErrorChain(const std::exception& excpt) {
 	bool printed_context = false;
 
-	auto recursion = [&](auto&& self, const diagnostics::Error& err) -> void {
+	auto recursion = [&](auto&& self, const std::exception& excpt) -> void {
 		try {
-			std::rethrow_if_nested(err);
-		} catch (const diagnostics::Error& inner) {
+			std::rethrow_if_nested(excpt);
+		} catch (const std::exception& inner) {
 			self(self, inner); // print leaf first
 
 			if (!printed_context) {
 				std::cerr << "Context stack:\n";
 				printed_context = true;
 			}
-			std::cerr << "  - " << err.what() << "\n";
+			std::cerr << "  - " << excpt.what() << "\n";
+			return;
+		} catch (...) {
+			// non-standard exception, which hopefully doesn't happen
+			std::cerr << "❌  NON-STD EXCEPTION: " << excpt.what() << "\n";
 			return;
 		}
 		// leaf
-		std::cerr << "❌  " << err.what() << "\n";
+		std::cerr << "❌  " << excpt.what() << "\n";
 	};
 
-	recursion(recursion, err);
+	recursion(recursion, excpt);
 }
 
 // _________________________________________________________________________________________________

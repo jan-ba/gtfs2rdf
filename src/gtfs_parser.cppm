@@ -138,9 +138,9 @@ export class GtfsParser {
 				// messages)
 				rtc_.getWarningCollector().addNode(
 				    "while parsing row number " + std::to_string(stats_.rows + 1), 5);
-			} catch (const diagnostics::Error& err) {
-				diagnostics::wrapAndRethrow(
-				    err, "while parsing row number " + std::to_string(stats_.rows + 2));
+			} catch (const std::exception& excpt) {
+				diagnostics::wrapAndRethrow("while parsing row number " +
+				                            std::to_string(stats_.rows + 2));
 			}
 		}
 
@@ -207,8 +207,8 @@ export class GtfsParser {
 				schema_.setHeader(row_);
 				rtc_.getWarningCollector().addNode("while setting header '" + row_ + "'",
 				                                   4); // NOLINT(readability-identifier-naming)
-			} catch (const diagnostics::Error& err) {
-				diagnostics::wrapAndRethrow(err, "while setting header '" + row_ + "'");
+			} catch (const std::exception& excpt) {
+				diagnostics::wrapAndRethrow("while setting header '" + row_ + "'");
 			}
 			num_cols_ = row_.size();
 

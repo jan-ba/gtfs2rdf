@@ -522,9 +522,9 @@ export class Schema {
 				raw_render_kinds_.push_back(templ.render_kinds);
 				rtc_.getWarningCollector().addNode(
 				    "while building instruction from triple number " + std::to_string(i + 1), 4);
-			} catch (const diagnostics::Error& err) {
-				diagnostics::wrapAndRethrow(
-				    err, "while building instruction from triple number " + std::to_string(i + 1));
+			} catch (const std::exception& excpt) {
+				diagnostics::wrapAndRethrow("while building instruction from triple number " +
+				                            std::to_string(i + 1));
 			}
 		}
 	}
@@ -637,9 +637,9 @@ export class Schema {
 
 						rtc_.getWarningCollector().addNode(
 						    "while parsing placeholder '" + placeholder + "'", 4);
-					} catch (const diagnostics::Error& err) {
-						diagnostics::wrapAndRethrow(
-						    err, "while parsing placeholder '" + placeholder + "'");
+					} catch (const std::exception& excpt) {
+						diagnostics::wrapAndRethrow("while parsing placeholder '" + placeholder +
+						                            "'");
 					}
 				}
 
@@ -647,9 +647,9 @@ export class Schema {
 				templates_.push_back(std::move(templ));
 				rtc_.getWarningCollector().addNode(
 				    "while parsing instruction '" + raw_instructions_[inst_i] + "'", 3);
-			} catch (const diagnostics::Error& err) {
-				diagnostics::wrapAndRethrow(
-				    err, "while parsing instruction '" + raw_instructions_[inst_i] + "'");
+			} catch (const std::exception& excpt) {
+				diagnostics::wrapAndRethrow("while parsing instruction '" +
+				                            raw_instructions_[inst_i] + "'");
 			}
 		}
 
@@ -698,9 +698,9 @@ export class Schema {
 
 				rtc_.getWarningCollector().addNode(
 				    "while building instruction from template '" + tmp.raw + "'", 3);
-			} catch (const diagnostics::Error& err) {
-				diagnostics::wrapAndRethrow(
-				    err, "while building instruction from template '" + tmp.raw + "'");
+			} catch (const std::exception& excpt) {
+				diagnostics::wrapAndRethrow("while building instruction from template '" + tmp.raw +
+				                            "'");
 			}
 		}
 	}

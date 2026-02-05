@@ -63,10 +63,9 @@ int main(int argc, char* argv[]) {
 					schema_name_to_index[used_schemas.back().getName()] = used_schemas.size() - 1;
 					rtc.getWarningCollector().addNode(
 					    "while building schema for file '" + file + "'", 1);
-				} catch (const diagnostics::Error& err) {
+				} catch (const std::exception& excpt) {
 					zip_close(z_arch);
-					diagnostics::wrapAndRethrow(err,
-					                            "while building schema for file '" + file + "'");
+					diagnostics::wrapAndRethrow("while building schema for file '" + file + "'");
 				}
 			}
 		}
@@ -85,9 +84,9 @@ int main(int argc, char* argv[]) {
 				sch.compile();
 				rtc.getWarningCollector().addNode("while compiling schema '" + sch.getName() + "'",
 				                                  2);
-			} catch (const diagnostics::Error& err) {
+			} catch (const std::exception& excpt) {
 				zip_close(z_arch);
-				diagnostics::wrapAndRethrow(err, "while compiling schema '" + sch.getName() + "'");
+				diagnostics::wrapAndRethrow("while compiling schema '" + sch.getName() + "'");
 			}
 		}
 
@@ -207,12 +206,12 @@ int main(int argc, char* argv[]) {
 
 				rtc.getWarningCollector().addNode(
 				    "while processing Gtfs file '" + files_in_dir[order[i]] + "'", 2);
-			} catch (const diagnostics::Error& err) {
+			} catch (const std::exception& excpt) {
 				zip_close(z_arch);
 				zip_fclose(z_file);
 				writer.deleteFile(); // output will be faulty
-				diagnostics::wrapAndRethrow(
-				    err, "while processing Gtfs file '" + files_in_dir[order[i]] + "'");
+				diagnostics::wrapAndRethrow("while processing Gtfs file '" +
+				                            files_in_dir[order[i]] + "'");
 			}
 		}
 		zip_close(z_arch);
@@ -311,12 +310,9 @@ int main(int argc, char* argv[]) {
 			std::cerr << "✅  No errors found during pre-run analysis of Gtfs feed "
 			          << settings.getInputPath() << ".\n";
 		}
-	} catch (const diagnostics::Error& err) {
-		diagnostics::printErrorChain(err);
+	} catch (const std::exception& excpt) {
+		diagnostics::printErrorChain(excpt);
 		std::cerr << "\nRun aborted due to errors. No output was generated or it may be faulty.\n";
-		return 1;
-	} catch (const std::exception& err) {
-		std::cerr << "❌  Unhandled exception: " << err.what() << "\n";
 		return 1;
 	}
 

@@ -104,11 +104,10 @@ export class Writer {
 					rendered = instr.render(row);
 				}
 				append_(rendered);
-			} catch (const diagnostics::Error& err) {
-				diagnostics::wrapAndRethrow(err,
-				                            "while rendering instruction '" +
-				                                instr.getRawInstruction() + "' in schema '" +
-				                                sch.getName() + "'");
+			} catch (const std::exception& excpt) {
+				diagnostics::wrapAndRethrow("while rendering instruction '" +
+				                            instr.getRawInstruction() + "' in schema '" +
+				                            sch.getName() + "'");
 			}
 		}
 	}
