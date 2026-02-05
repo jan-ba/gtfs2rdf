@@ -521,7 +521,7 @@ export class Schema {
 				raw_instructions_.push_back(templ.raw);
 				raw_render_kinds_.push_back(templ.render_kinds);
 				rtc_.getWarningCollector().addNode(
-				    "while building instruction from triple number " + std::to_string(i + 1), 4);
+				    "while building instruction from triple number " + std::to_string(i + 1), 5);
 			} catch (const std::exception& excpt) {
 				diagnostics::wrapAndRethrow("while building instruction from triple number " +
 				                            std::to_string(i + 1));
@@ -636,7 +636,7 @@ export class Schema {
 						start = end + 1;
 
 						rtc_.getWarningCollector().addNode(
-						    "while parsing placeholder '" + placeholder + "'", 4);
+						    "while parsing placeholder '" + placeholder + "'", 6);
 					} catch (const std::exception& excpt) {
 						diagnostics::wrapAndRethrow("while parsing placeholder '" + placeholder +
 						                            "'");
@@ -646,7 +646,7 @@ export class Schema {
 				templ.parts.push_back(raw_inst.substr(start));
 				templates_.push_back(std::move(templ));
 				rtc_.getWarningCollector().addNode(
-				    "while parsing instruction '" + raw_instructions_[inst_i] + "'", 3);
+				    "while parsing instruction '" + raw_instructions_[inst_i] + "'", 5);
 			} catch (const std::exception& excpt) {
 				diagnostics::wrapAndRethrow("while parsing instruction '" +
 				                            raw_instructions_[inst_i] + "'");
@@ -686,6 +686,11 @@ export class Schema {
 			const auto& tmp = templates_[i];
 			try {
 				Instruction instr(tmp, column_map_, rtc_, NAME_);
+
+				// for logging / warning context
+				rtc_.getWarningCollector().addNode(
+				    "while building instruction from template '" + tmp.raw + "'", 5);
+
 				if (!instr.isValid()) {
 					continue;
 				} // skip invalid instructions
@@ -696,8 +701,6 @@ export class Schema {
 				}
 				instructions_.push_back(std::move(instr));
 
-				rtc_.getWarningCollector().addNode(
-				    "while building instruction from template '" + tmp.raw + "'", 3);
 			} catch (const std::exception& excpt) {
 				diagnostics::wrapAndRethrow("while building instruction from template '" + tmp.raw +
 				                            "'");

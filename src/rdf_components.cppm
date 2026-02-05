@@ -8,7 +8,7 @@
 
 module;
 
-#include "diagnostics.h"
+#include "./util/diagnostics.h"
 
 #include <cstdint>
 #include <stdexcept>

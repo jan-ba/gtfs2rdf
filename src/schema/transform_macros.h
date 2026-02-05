@@ -19,21 +19,21 @@
 #define TRANSFORM_ERROR(MSG) throw diagnostics::Error("Custom user error: " + std::string(MSG));
 
 #define TRANSFORM2ONE(NAME, ARGS, OUT_VAL, STORAGE)                                                \
-  rtc.getTransformRegistry().registerTransform(                                       \
-    #NAME,                                                                           \
-    field_transforms::Transform2One{                                                 \
-      [&](field_transforms::Args (ARGS), field_transforms::Out1& (OUT_VAL)) -> void {     \
-        [[maybe_unused]] constexpr std::string_view __gtfs2rdf_transform_name = #NAME;         \
-        [[maybe_unused]] auto& (STORAGE) = rtc.getStorage();                                    \
-        try {
+	rtc.getTransformRegistry().registerTransform(                                               \
+        #NAME,                                                                                  \
+        field_transforms::Transform2One{                                                        \
+            [&](field_transforms::Args(ARGS), field_transforms::Out1& (OUT_VAL)) -> void {      \
+              [[maybe_unused]] constexpr std::string_view __gtfs2rdf_transform_name = #NAME;    \
+              [[maybe_unused]] auto& (STORAGE) = rtc.getStorage();                              \
+              try {
 #define TRANSFORM2MANY(NAME, ARGS, OUT_VALS, STORAGE)                                              \
-  rtc.getTransformRegistry().registerTransform(                                       \
-    #NAME,                                                                           \
-    field_transforms::Transform2Many{                                                   \
-      [&](field_transforms::Args (ARGS), field_transforms::OutN& (OUT_VALS)) -> void {     \
-        [[maybe_unused]] constexpr std::string_view __gtfs2rdf_transform_name = #NAME;         \
-        [[maybe_unused]] auto& (STORAGE) = rtc.getStorage();                                    \
-        try {
+	rtc.getTransformRegistry().registerTransform(                                               \
+        #NAME,                                                                                  \
+        field_transforms::Transform2Many{                                                       \
+            [&](field_transforms::Args(ARGS), field_transforms::OutN& (OUT_VALS)) -> void {     \
+              [[maybe_unused]] constexpr std::string_view __gtfs2rdf_transform_name = #NAME;    \
+              [[maybe_unused]] auto& (STORAGE) = rtc.getStorage();                              \
+              try {
 #define TRANSFORM_END                                                                              \
 	}                                                                                              \
 	catch (...) {                                                                                  \
@@ -42,4 +42,4 @@
 	}                                                                                              \
 	}                                                                                              \
 	}                                                                                              \
-  );
+	);

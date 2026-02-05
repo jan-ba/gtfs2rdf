@@ -137,7 +137,7 @@ export class GtfsParser {
 				// +1 in anyway to account for header row (not for stats, but for user-facing
 				// messages)
 				rtc_.getWarningCollector().addNode(
-				    "while parsing row number " + std::to_string(stats_.rows + 1), 5);
+				    "while parsing row number " + std::to_string(stats_.rows + 1), 7);
 			} catch (const std::exception& excpt) {
 				diagnostics::wrapAndRethrow("while parsing row number " +
 				                            std::to_string(stats_.rows + 2));
@@ -206,7 +206,7 @@ export class GtfsParser {
 			try {
 				schema_.setHeader(row_);
 				rtc_.getWarningCollector().addNode("while setting header '" + row_ + "'",
-				                                   4); // NOLINT(readability-identifier-naming)
+				                                   3); // NOLINT(readability-identifier-naming)
 			} catch (const std::exception& excpt) {
 				diagnostics::wrapAndRethrow("while setting header '" + row_ + "'");
 			}
