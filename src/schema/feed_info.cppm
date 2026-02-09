@@ -43,15 +43,14 @@ export Schema buildFeedInfoSchema(runtime::RuntimeContainer& rtc) {
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
 	    {"xs", "http://www.w3.org/2001/XMLSchema#"}};
 
-	const std::vector<std::string> STORAGE_ONLY_INSTRUCTIONS = {
+	const std::vector<std::string> NO_WRITE_INSTRUCTIONS = {
 	    "{ feed_lang > FEED_LANG }",
 	    "{ feed_start_date | convertDate2xs_unchecked > FEED_START_DATE }",
 	    "{ feed_end_date | convertDate2xs_unchecked > FEED_END_DATE }"};
 
 	const std::vector<Triple> TRIPLES = {};
 
-	Schema sch(
-	    "feed_info.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, STORAGE_ONLY_INSTRUCTIONS, rtc);
+	Schema sch("feed_info.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, NO_WRITE_INSTRUCTIONS, rtc);
 	return sch;
 }
 

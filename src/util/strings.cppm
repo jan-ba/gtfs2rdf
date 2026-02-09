@@ -49,22 +49,38 @@ std::chrono::sys_days parseYYYYMMDD(std::string_view svw) {
 }
 // NOLINTEND
 
-// splits a string by a given delimiter character
-std::vector<std::string> split(std::string_view svw, char delimiter) {
-	std::vector<std::string> tokens;
-	std::string current;
+// replace all occurences of 'before' with 'after' in 'svw'
+std::string replaceAll(std::string_view svw, std::string_view before, std::string_view after) {
+	std::string out;
+	size_t start = 0;
+	while (true) {
+		size_t pos = svw.find(before, start);
+		if (pos == std::string_view::npos) {
+			out.append(svw.substr(start));
+			break;
+		}
+		out.append(svw.substr(start, pos - start));
+		out.append(after);
+		start = pos + before.size();
+	}
+	return out;
+}
 
-	for (char c : svw) { // NOLINT(readability-identifier-length): very clear usage
-		if (c == delimiter) {
-			tokens.push_back(current);
-			current.clear();
-		} else {
-			current += c;
+// splits a string by a given delimiter character
+std::vector<std::string_view> split(std::string_view svw, char delimiter) {
+	std::vector<std::string_view> tokens;
+	size_t start = 0;
+
+	for (size_t i = 0; i < svw.size();
+	     ++i) { // NOLINT(readability-identifier-length): very clear usage
+		if (svw[i] == delimiter) {
+			tokens.push_back(svw.substr(start, i - start));
+			start = i + 1;
 		}
 	}
 
 	// add the last token (even if it's empty)
-	tokens.push_back(current);
+	tokens.push_back(svw.substr(start));
 
 	return tokens;
 }
@@ -142,6 +158,15 @@ std::pair<std::string_view, std::string_view> splitOnceAtTopLevel(std::string_vi
 	return {svw.substr(0, pos), svw.substr(pos + 1)};
 }
 
+// splits a string once at a given index into a pair at pos such that
+// the element at the given index is not included in either part
+std::pair<std::string_view, std::string_view> splitOnceAtIndex(std::string_view svw, size_t pos) {
+	if (pos >= svw.size()) {
+		return {svw, std::string_view{}};
+	}
+	return {svw.substr(0, pos), svw.substr(pos + 1)};
+}
+
 // removes surrounding quotes and unescapes minimal escape sequences, meaning \" and \\ will
 // be unescaped
 std::string unquote(std::string_view svw) {
@@ -174,6 +199,15 @@ std::string enclose(std::string_view svw, char char1, char char2) {
 	out.append(svw);
 	out.push_back(char2);
 	return out;
+}
+
+// splits a string at the first occurrence of a delimiter character
+std::pair<std::string_view, std::string_view> splitAt(std::string_view svw, char delimiter) {
+	size_t pos = svw.find(delimiter);
+	if (pos == std::string_view::npos) {
+		return {svw, {}};
+	}
+	return {svw.substr(0, pos), svw.substr(pos + 1)};
 }
 
 enum class UnitType : u_int8_t { COUNT, SIZE, TIME };
@@ -222,15 +256,15 @@ std::string formatValueWithPaddedUnits(uint64_t val, UnitType unit_type) {
 
 	const std::array<Unit, MAX_UNIT_I + 1>* units;
 	switch (unit_type) {
-	case UnitType::COUNT:
-		units = &COUNT_UNITS;
-		break;
-	case UnitType::SIZE:
-		units = &SIZE_UNITS;
-		break;
-	case UnitType::TIME:
-		units = &TIME_UNITS;
-		break;
+		case UnitType::COUNT:
+			units = &COUNT_UNITS;
+			break;
+		case UnitType::SIZE:
+			units = &SIZE_UNITS;
+			break;
+		case UnitType::TIME:
+			units = &TIME_UNITS;
+			break;
 	}
 
 	// pick largest unit where val >= lim
@@ -261,15 +295,6 @@ std::string formatValueWithPaddedUnits(uint64_t val, UnitType unit_type) {
 	}
 
 	return oss.str();
-}
-
-// splits a string at the first occurrence of a delimiter character
-std::pair<std::string_view, std::string_view> splitAt(std::string_view svw, char delimiter) {
-	size_t pos = svw.find(delimiter);
-	if (pos == std::string_view::npos) {
-		return {svw, {}};
-	}
-	return {svw.substr(0, pos), svw.substr(pos + 1)};
 }
 
 bool isValidGtfsChar(char c) { // NOLINT(readability-identifier-length)

@@ -93,19 +93,22 @@ export class Instruction {
 	// helper: resolve an ArgSource to a string_view for this row
 	std::string_view resolveARG_(const ArgSource& arg_src, std::span<const std::string> row) {
 		switch (arg_src.kind) {
-		case ArgSourceKind::COLUMN_INDEX: {
-			if (arg_src.column_index < 0) {
-				return EMPTY_SV_;
-			}
-			return row[arg_src.column_index];
-		}
-		case ArgSourceKind::LITERAL: {
-			return arg_src.literal;
-		}
-		case ArgSourceKind::STORAGE_VAR: {
-			const auto& var = rtc_.getStorage().getVariable(arg_src.ctx, arg_src.name);
-			return var;
-		}
+			case ArgSourceKind::COLUMN_INDEX:
+				{
+					if (arg_src.column_index < 0) {
+						return EMPTY_SV_;
+					}
+					return row[arg_src.column_index];
+				}
+			case ArgSourceKind::LITERAL:
+				{
+					return arg_src.literal;
+				}
+			case ArgSourceKind::STORAGE_VAR:
+				{
+					const auto& var = rtc_.getStorage().getVariable(arg_src.ctx, arg_src.name);
+					return var;
+				}
 		}
 		return EMPTY_SV_;
 	}
@@ -364,17 +367,18 @@ export class Instruction {
 						}
 					} else {
 						switch (dgp.storage.kind) {
-						case StorageKind::VARIABLE:
-							stor.storeVariable(
-							    dgp.storage.target_ctx, dgp.storage.target_name, cur_sv_);
-							break;
-						case StorageKind::MULTI_MAP: {
-							stor.storeValue(dgp.storage.target_ctx,
-							                dgp.storage.target_name,
-							                ArgSpan{arg_buf_.data(), dgp.storage.key_arity},
-							                cur_sv_);
-							break;
-						}
+							case StorageKind::VARIABLE:
+								stor.storeVariable(
+								    dgp.storage.target_ctx, dgp.storage.target_name, cur_sv_);
+								break;
+							case StorageKind::MULTI_MAP:
+								{
+									stor.storeValue(dgp.storage.target_ctx,
+									                dgp.storage.target_name,
+									                ArgSpan{arg_buf_.data(), dgp.storage.key_arity},
+									                cur_sv_);
+									break;
+								}
 						}
 					}
 				}
@@ -385,22 +389,22 @@ export class Instruction {
 			if (!SUPPRESS_OUTPUT_) {
 				if (!dgp.contains_transf2many) {
 					switch (dgp.render_kind) { // how to escape the placeholder
-					case RenderKind::IRI_REF:
-						percentEncodeIRIREF(out_, cur_sv_);
-						break;
-					case RenderKind::PREFIXED_LOCAL:
-						percentEncodePrefixedLocal(out_, cur_sv_);
-						break;
-					case RenderKind::LITERAL:
-						percentEncodeLiteral(out_, cur_sv_);
-						break;
-					case RenderKind::LANG_TAG:
-						out_.append(cur_sv_); // language tags do not need escaping
-						break;
-					case RenderKind::RAW: // TODO: think about this
-					default:
-						out_.append(cur_sv_);
-						break;
+						case RenderKind::IRI_REF:
+							percentEncodeIRIREF(out_, cur_sv_);
+							break;
+						case RenderKind::PREFIXED_LOCAL:
+							percentEncodePrefixedLocal(out_, cur_sv_);
+							break;
+						case RenderKind::LITERAL:
+							percentEncodeLiteral(out_, cur_sv_);
+							break;
+						case RenderKind::LANG_TAG:
+							out_.append(cur_sv_); // language tags do not need escaping
+							break;
+						case RenderKind::RAW: // TODO: think about this
+						default:
+							out_.append(cur_sv_);
+							break;
 					}
 				}
 				out_.append(parts_[k + 1]);
@@ -424,22 +428,22 @@ export class Instruction {
 				}
 				out_.append(prefix);
 				switch (transf2many_render_kind_) { // how to escape the placeholder
-				case RenderKind::IRI_REF:
-					percentEncodeIRIREF(out_, val);
-					break;
-				case RenderKind::PREFIXED_LOCAL:
-					percentEncodePrefixedLocal(out_, val);
-					break;
-				case RenderKind::LITERAL:
-					percentEncodeLiteral(out_, val);
-					break;
-				case RenderKind::LANG_TAG:
-					out_.append(val); // language tags do not need escaping
-					break;
-				case RenderKind::RAW: // TODO: think about this
-				default:
-					out_.append(val);
-					break;
+					case RenderKind::IRI_REF:
+						percentEncodeIRIREF(out_, val);
+						break;
+					case RenderKind::PREFIXED_LOCAL:
+						percentEncodePrefixedLocal(out_, val);
+						break;
+					case RenderKind::LITERAL:
+						percentEncodeLiteral(out_, val);
+						break;
+					case RenderKind::LANG_TAG:
+						out_.append(val); // language tags do not need escaping
+						break;
+					case RenderKind::RAW: // TODO: think about this
+					default:
+						out_.append(val);
+						break;
 				}
 				out_.append(suffix);
 				counter_++;
@@ -534,14 +538,13 @@ export class Schema {
 	       const std::vector<std::string>& POSSIBLE_COLUMNS,
 	       std::unordered_map<std::string, std::string> prefixes,
 	       const std::vector<Triple>& TRIPLES,
-	       const std::vector<std::string>& STORAGE_ONLY_INSTRUCTIONS,
+	       const std::vector<std::string>& NO_WRITE_INSTRUCTIONS,
 	       runtime::RuntimeContainer& rtc)
 	    : Schema(std::move(name), POSSIBLE_COLUMNS, std::move(prefixes), TRIPLES, rtc) {
 		// add side effect instructions in front (so that triples could depend on them)
-		num_storage_only_instructions_ = STORAGE_ONLY_INSTRUCTIONS.size();
-		raw_instructions_.insert(raw_instructions_.begin(),
-		                         STORAGE_ONLY_INSTRUCTIONS.begin(),
-		                         STORAGE_ONLY_INSTRUCTIONS.end());
+		num_storage_only_instructions_ = NO_WRITE_INSTRUCTIONS.size();
+		raw_instructions_.insert(
+		    raw_instructions_.begin(), NO_WRITE_INSTRUCTIONS.begin(), NO_WRITE_INSTRUCTIONS.end());
 		raw_render_kinds_.insert(raw_render_kinds_.begin(), num_storage_only_instructions_, {});
 	}
 

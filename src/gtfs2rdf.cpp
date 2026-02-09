@@ -143,7 +143,10 @@ int main(int argc, char* argv[]) {
 			                                       diagnostics::WarningLevel::INFO);
 		}
 
-		writer::Writer writer(settings.getOutputPath(), rtc, !settings.isPreRun());
+		writer::Writer writer =
+		    settings.isOutputToStdout()
+		        ? writer::Writer(std::cout, rtc, !settings.isPreRun())
+		        : writer::Writer(settings.getOutputPath(), rtc, !settings.isPreRun());
 		gtfs::GtfsParserWorkspace wsp(rtc, writer);
 		auto merged_prefixes = schema::mergePrefixes(used_schemas, rtc.getWarningCollector(), true);
 		std::vector<diagnostics::Statistics> per_file_stats(files_in_dir.size());
@@ -256,8 +259,7 @@ int main(int argc, char* argv[]) {
 					}
 					std::cerr << "• " << f_stats.name << "  rows=" << f_stats.rows << "  est≈"
 					          << formatValueWithPaddedUnits(f_stats.triples, UnitType::COUNT)
-					          << " triples"
-					          << "  output size≈"
+					          << " triples" << "  output size≈"
 					          << formatValueWithPaddedUnits(f_stats.num_chars, UnitType::SIZE)
 					          << "\n"
 					          << "  header: " << f_stats.header << "\n\n";
@@ -304,8 +306,7 @@ int main(int argc, char* argv[]) {
 			std::cerr << total_stats.fancyPrint() << "\n";
 		}
 		if (!settings.isPreRun()) {
-			std::cerr << "✅  Successful conversion to output file " << settings.getOutputPath()
-			          << ".\n";
+			std::cerr << "✅  Successful conversion to " << settings.getOutputPath() << ".\n";
 		} else {
 			std::cerr << "✅  No errors found during pre-run analysis of Gtfs feed "
 			          << settings.getInputPath() << ".\n";

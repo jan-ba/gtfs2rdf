@@ -36,6 +36,7 @@ class TopologicalSort {
 		S_.reserve(num_nodes);
 	}
 
+	// this means from_node must come before / to_node depends on from_node
 	void addEdge(size_t from_node, size_t to_node, bool allow_self_loops = false) {
 		auto [itr, res] = node_index_.emplace(from_node, node_index_.size());
 		if (res) {

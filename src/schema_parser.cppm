@@ -10,6 +10,7 @@ module;
 
 #include "util/diagnostics.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdint>
 #include <iostream>
@@ -26,6 +27,9 @@ using namespace util;
 
 namespace schema {
 
+const std::string PLACEHOLDER_FORMAT =
+    "Order of fields in placeholder spec: { arg1, arg2, ... | transform1 | transform2 > STORAGE }";
+
 // type of argument in a placeholder {arg1, arg2, ... | transform1 | transform2 > STORAGE}
 export enum class ArgKind : uint8_t {
 	COLUMN,      // e.g. stop_id
@@ -38,7 +42,7 @@ export enum class ArgKind : uint8_t {
 export struct ArgSpec {
 	ArgKind kind;
 	std::string name; // column name or variable name; for Literal: the literal text
-	std::string ctx;  // only for STORAGE_VAR (and later maybe other storage reads)l
+	std::string ctx;  // only for STORAGE_VAR (and later maybe other storage reads)
 };
 
 export enum class StoreMode : uint8_t {
@@ -149,6 +153,10 @@ void parseTarget(std::string_view svw, StorageWriteSpec& stg) {
 	if (name.empty()) {
 		throw diagnostics::Error("Syntax error: Empty storage target after '>'");
 	}
+	if (std::find(name.begin(), name.end(), '|') != name.end()) {
+		throw diagnostics::Error("Syntax error: Misplaced '|' character found. " +
+		                         PLACEHOLDER_FORMAT);
+	}
 	stg.target_name = std::string(name);
 	if (!ctx.empty()) {
 		if (!isValidCTXName(ctx)) {
@@ -172,18 +180,24 @@ export PlaceholderSpec parsePlaceholder(std::string_view raw,
 
 	// split off storage target: "... > target"
 	// only at most one '>' supported at top level
+	auto pos_gt = util::findAtTopLevel(cleaned_svw, '>');
 	auto [before_gt, after_gt] = util::splitOnceAtTopLevel(cleaned_svw, '>');
-	if (!after_gt.empty()) {
+
+	if (pos_gt != std::string_view::npos) {
 		// storage is enabled, kind/mode decided below
 		parseTarget(after_gt, spec.storage);
 	}
 
 	// split remainder into fields part and transforms part: "fields | t1 | t2"
+	auto pos_pipe = util::findAtTopLevel(before_gt, '|');
 	auto [fields_part, trans_part] = util::splitOnceAtTopLevel(before_gt, '|');
 
 	// transforms
-	if (!trans_part.empty()) {
+	if (pos_pipe != std::string_view::npos) {
 		auto transforms = util::splitAtTopLevel(trans_part, '|');
+		if (transforms.empty()) {
+			throw diagnostics::Error("Syntax error: Empty transform field after '|'");
+		}
 		for (auto transform : transforms) {
 			spec.transforms.push_back(parseTransform(transform, reg));
 		}

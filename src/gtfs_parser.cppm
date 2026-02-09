@@ -47,12 +47,6 @@ void stripUTF8Bom(std::string& str) {
 }
 // NOLINTEND
 
-enum class CSVState : uint8_t {
-	UNQUOTED_FIELD,
-	IN_QUOTED_FIELD,
-	QUOTE_IN_QUOTED_FIELD // just saw a " inside a quoted field
-};
-
 export class GtfsParserWorkspace {
   public:
 	GtfsParserWorkspace(runtime::RuntimeContainer& rtc, writer::Writer& writer)
@@ -250,55 +244,54 @@ export class GtfsParser {
 		}
 	}
 
+	enum class CSVState : uint8_t {
+		UNQUOTED_FIELD,
+		IN_QUOTED_FIELD,
+		QUOTE_IN_QUOTED_FIELD // just saw a " inside a quoted field
+	};
+
 	void consumeByte_(char c) {
 		switch (state_) {
-		case CSVState::UNQUOTED_FIELD:
-			if (c == ',') {
-				finishField_();
-			} else if (c == '"') {
-				state_ = CSVState::IN_QUOTED_FIELD;
-			} else if (c == '\n') {
-				finishRow_();
-			} else if (c == '\r') {
-				// ignore CR in CRLF
-			} else {
-				cache_.push_back(c);
-			}
-			break;
+			case CSVState::UNQUOTED_FIELD:
+				if (c == ',') {
+					finishField_();
+				} else if (c == '"') {
+					state_ = CSVState::IN_QUOTED_FIELD;
+				} else if (c == '\n') {
+					finishRow_();
+				} else if (c == '\r') {
+					// ignore CR in CRLF
+				} else {
+					cache_.push_back(c);
+				}
+				break;
 
-		case CSVState::IN_QUOTED_FIELD:
-			if (c == '"') {
-				state_ = CSVState::QUOTE_IN_QUOTED_FIELD;
-			} else {
-				cache_.push_back(c);
-			}
-			break;
+			case CSVState::IN_QUOTED_FIELD:
+				if (c == '"') {
+					state_ = CSVState::QUOTE_IN_QUOTED_FIELD;
+				} else {
+					cache_.push_back(c);
+				}
+				break;
 
-		case CSVState::QUOTE_IN_QUOTED_FIELD:
-			if (c == '"') {
-				cache_.push_back('"');
-				state_ = CSVState::IN_QUOTED_FIELD;
-			} else if (c == ',') {
-				finishField_();
-				state_ = CSVState::UNQUOTED_FIELD;
-			} else if (c == '\n') {
-				state_ = CSVState::UNQUOTED_FIELD;
-				finishRow_();
-			} else if (c == '\r') {
-				// ignore; wait for '\n'
-			} else {
-				// rtc_.getWarningCollector().addLeaf("Parsing warning: unexpected character '" +
-				//                                       std::string(1, c) +
-				//                                       "' after closing quote in quoted field
-				//                                       ignored",
-				//                                   diagnostics::WarningLevel::WARNING);
-				throw diagnostics::Error("Parsing error: unexpected character '" +
-				                         std::string(1, c) +
-				                         "' after closing quote in quoted field");
-				// cache_.push_back(c);  // this would add the unexpected character to the field
-				// value, which seems undesirable state_ = CSVState::UNQUOTED_FIELD;
-			}
-			break;
+			case CSVState::QUOTE_IN_QUOTED_FIELD:
+				if (c == '"') {
+					cache_.push_back('"');
+					state_ = CSVState::IN_QUOTED_FIELD;
+				} else if (c == ',') {
+					finishField_();
+					state_ = CSVState::UNQUOTED_FIELD;
+				} else if (c == '\n') {
+					state_ = CSVState::UNQUOTED_FIELD;
+					finishRow_();
+				} else if (c == '\r') {
+					// ignore; wait for '\n'
+				} else {
+					throw diagnostics::Error("Parsing error: unexpected character '" +
+					                         std::string(1, c) +
+					                         "' after closing quote in quoted field");
+				}
+				break;
 		}
 	}
 

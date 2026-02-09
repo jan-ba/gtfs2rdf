@@ -105,7 +105,9 @@ constexpr std::array<bool, 256> LT_SAFE_PREFIXED_LOCAL = [] {
 }();
 // NOLINTEND
 
-// percent-encode bytes not in PN_LOCAL per Turtle spec (letters, digits, '_', '-'),
+// percent-encode bytes not in (letters, digits, '_', '-'),
+// rdf1.2 allows more characters (e.g. non trailing periods / non leading colons), but we're being
+// more rigorous here for simplicity
 // e.g. for prefixed names such as gtfs:{Local Name} where space must be encoded
 // NOLINTBEGIN: very specific usage, packaged in single function -> comprehensible as is
 export void percentEncodePrefixedLocal(std::string& out, std::string_view value) {
@@ -142,38 +144,38 @@ export void percentEncodeLiteral(std::string& out, std::string_view value) {
 
 	for (unsigned char c : value) {
 		switch (c) {
-		case '\\':
-			out.append("\\\\");
-			break;
-		case '"':
-			out.append("\\\"");
-			break;
-		case '\n':
-			out.append("\\n");
-			break;
-		case '\r':
-			out.append("\\r");
-			break;
-		case '\t':
-			out.append("\\t");
-			break;
-		case '\b':
-			out.append("\\b");
-			break;
-		case '\f':
-			out.append("\\f");
-			break;
-		default:
-			if (c < 0x20 || c == 0x7F) {
-				out.push_back('\\');
-				out.push_back('u');
-				out.push_back('0');
-				out.push_back('0');
-				out.push_back(H[(c >> 4) & 0xF]);
-				out.push_back(H[c & 0xF]);
-			} else {
-				out.push_back(static_cast<char>(c));
-			}
+			case '\\':
+				out.append("\\\\");
+				break;
+			case '"':
+				out.append("\\\"");
+				break;
+			case '\n':
+				out.append("\\n");
+				break;
+			case '\r':
+				out.append("\\r");
+				break;
+			case '\t':
+				out.append("\\t");
+				break;
+			case '\b':
+				out.append("\\b");
+				break;
+			case '\f':
+				out.append("\\f");
+				break;
+			default:
+				if (c < 0x20 || c == 0x7F) {
+					out.push_back('\\');
+					out.push_back('u');
+					out.push_back('0');
+					out.push_back('0');
+					out.push_back(H[(c >> 4) & 0xF]);
+					out.push_back(H[c & 0xF]);
+				} else {
+					out.push_back(static_cast<char>(c));
+				}
 		}
 	}
 }
@@ -191,6 +193,10 @@ export class IRI {
 		// empty IRIs not allowed
 		if (LOCAL_NAME_.empty()) {
 			throw diagnostics::Error("Schema error: IRI must always have a non-empty local name");
+		}
+		if (PREFIX_ == "_") {
+			throw diagnostics::Error(
+			    "Schema error: this converter doesn't support blank nodes yet");
 		}
 	}
 
@@ -257,7 +263,7 @@ export class IRI {
 
 export class Object {
   private:
-	const enum class Type : uint8_t { IRI, LITERAL, BLANK_NODE } TYPE_;
+	const enum class Type : uint8_t { IRI, LITERAL /*, BLANK_NODE */ } TYPE_;
 	const IRI VALUE_;
 	const IRI DATATYPE_;
 	const std::string LANG_;
@@ -291,52 +297,54 @@ export class Object {
 		TemplateString tmpl;
 
 		switch (TYPE_) {
-		case Type::IRI: {
-			return VALUE_.toTemplate(prefixes, rtc);
-		}
-		case Type::LITERAL: {
-			const auto LIT_TMPL = VALUE_.toTemplate(prefixes, rtc);
-
-			tmpl.raw.reserve(LIT_TMPL.raw.size());
-			tmpl.raw.push_back('"');
-			tmpl.raw.append(LIT_TMPL.raw);
-			tmpl.raw.push_back('"');
-
-			// mark placeholders in lexical form as Literal
-			const size_t NUM_LIT_PHLS = countPlaceholders(LIT_TMPL.raw);
-			if (NUM_LIT_PHLS) {
-				tmpl.render_kinds.assign(NUM_LIT_PHLS, RenderKind::LITERAL);
-			}
-
-			if (!LANG_.empty()) {
-				tmpl.raw += "@";
-				tmpl.raw += LANG_;
-
-				// allow placeholders in language tag (e.g. @{FEED_LANG@feed_info.txt})
-				const size_t NUM_LANG_PHLS = countPlaceholders(LANG_);
-				if (NUM_LANG_PHLS) {
-					tmpl.render_kinds.insert(
-					    tmpl.render_kinds.end(), NUM_LANG_PHLS, RenderKind::LANG_TAG);
+			case Type::IRI:
+				{
+					return VALUE_.toTemplate(prefixes, rtc);
 				}
-			} else {
-				const auto DT_TEMPL = DATATYPE_.toTemplate(prefixes, rtc);
-				if (!DT_TEMPL.raw.empty()) {
-					tmpl.raw += "^^" + DT_TEMPL.raw;
-					tmpl.render_kinds.insert(tmpl.render_kinds.end(),
-					                         DT_TEMPL.render_kinds.begin(),
-					                         DT_TEMPL.render_kinds.end());
+			case Type::LITERAL:
+				{
+					const auto LIT_TMPL = VALUE_.toTemplate(prefixes, rtc);
+
+					tmpl.raw.reserve(LIT_TMPL.raw.size());
+					tmpl.raw.push_back('"');
+					tmpl.raw.append(LIT_TMPL.raw);
+					tmpl.raw.push_back('"');
+
+					// mark placeholders in lexical form as Literal
+					const size_t NUM_LIT_PHLS = countPlaceholders(LIT_TMPL.raw);
+					if (NUM_LIT_PHLS) {
+						tmpl.render_kinds.assign(NUM_LIT_PHLS, RenderKind::LITERAL);
+					}
+
+					if (!LANG_.empty()) {
+						tmpl.raw += "@";
+						tmpl.raw += LANG_;
+
+						// allow placeholders in language tag (e.g. @{FEED_LANG@feed_info.txt})
+						const size_t NUM_LANG_PHLS = countPlaceholders(LANG_);
+						if (NUM_LANG_PHLS) {
+							tmpl.render_kinds.insert(
+							    tmpl.render_kinds.end(), NUM_LANG_PHLS, RenderKind::LANG_TAG);
+						}
+					} else {
+						const auto DT_TEMPL = DATATYPE_.toTemplate(prefixes, rtc);
+						if (!DT_TEMPL.raw.empty()) {
+							tmpl.raw += "^^" + DT_TEMPL.raw;
+							tmpl.render_kinds.insert(tmpl.render_kinds.end(),
+							                         DT_TEMPL.render_kinds.begin(),
+							                         DT_TEMPL.render_kinds.end());
+						}
+					}
+					return tmpl;
 				}
-			}
-			return tmpl;
-		}
-		case Type::BLANK_NODE: {
-			tmpl.raw = "_:" + VALUE_.toString(prefixes, rtc);
-			const size_t NUM_PHLS = countPlaceholders(tmpl.raw);
-			if (NUM_PHLS) {
-				tmpl.render_kinds.assign(NUM_PHLS, RenderKind::RAW);
-			}
-			return tmpl;
-		}
+				// case Type::BLANK_NODE: {
+				// 	tmpl.raw = "_:" + VALUE_.toString(prefixes, rtc);
+				// 	const size_t NUM_PHLS = countPlaceholders(tmpl.raw);
+				// 	if (NUM_PHLS) {
+				// 		tmpl.render_kinds.assign(NUM_PHLS, RenderKind::RAW);
+				// 	}
+				// 	return tmpl;
+				// }
 		}
 		return tmpl;
 	}

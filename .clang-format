@@ -40,3 +40,6 @@ MaxEmptyLinesToKeep: 1
 KeepEmptyLinesAtTheStartOfBlocks: false
 AllowShortFunctionsOnASingleLine: None
 AllowShortBlocksOnASingleLine: Never
+IndentCaseLabels: true
+IndentCaseBlocks: true
+

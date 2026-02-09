@@ -13,6 +13,13 @@ cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMP
 cmake --build build-release -j
 ```
 
+### Profiling  build
+
+```bash
+cmake -S . -B build-prof -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++-18
+cmake --build build-prof -j
+```
+
 ### Debub build
 
 ```bash
@@ -33,12 +40,27 @@ cmake --build build-release-stats -j
 
 *Note:* Add build option ```-DCMAKE_EXPORT_COMPILE_COMMANDS=ON``` in order to use clang-tidy afterwards.
 
+### Build with tests
+
+```bash
+cmake -S . -B build-tests -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=ON -DCMAKE_CXX_COMPILER=clang++-18
+cmake --build build-tests -j
+ctest --test-dir build-tests --output-on-failure
+# unit tests only:
+ctest --test-dir build-tests -L unit --output-on-failure
+# end-to-end tests only:
+ctest --test-dir build-tests -L e2e --output-on-failure
+```
+
+
 ## Style checking
 
 Run this command to enforce style and naming conventions for this project using clang-tidy.
 
 ```bash
-find src -path 'src/third_party' -prune -o -type f \( \
+find src tests \
+  -path 'src/third_party' -prune -o \
+  -type f \( \
     -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.cxx' -o \
     -name '*.h' -o -name '*.hh' -o -name '*.hpp' -o -name '*.hxx' -o \
     -name '*.ixx' -o -name '*.cppm' \
@@ -47,9 +69,8 @@ find src -path 'src/third_party' -prune -o -type f \( \
     clang-tidy-18 -p build-release \
       --use-color=false \
       --system-headers=false \
-      --header-filter='(^|.*/)src/(?!third_party/).*' \
+      --header-filter='(^|.*/)(src|tests)/(?!third_party/).*' \
   2>&1 | tee clang-tidy.log
-
 ```
 
 ## Testing
@@ -94,7 +115,7 @@ sudo free && sync && sudo sh -c 'echo 3 >/proc/sys/vm/drop_caches' && free
 
 Plot RAM-Usage using (example dataset, modify as desired)
 ```bash
-psrecord "build/gtfs2rdf ../data/öv_de_shapes.zip" --interval 0.5 --include-children --plot ram.png --log ram.log
+psrecord "build-release/gtfs2rdf ../data/öv_de_shapes.zip --stats verbose" --interval 0.5 --include-children --plot ram.png --log ram.log
 ```
 
 ## Third-party code

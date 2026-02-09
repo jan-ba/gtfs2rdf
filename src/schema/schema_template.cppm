@@ -174,9 +174,9 @@ Reminder: empty output can also skip triple writing entirely (see §1). Storage-
 instructions are the usual way to do “pure storage setup” (see §6).
 
 ------------------------------------------------------------------------------
-6) STORAGE_ONLY_INSTRUCTIONS run first
+6) NO_WRITE_INSTRUCTIONS run first
 ------------------------------------------------------------------------------
-If you pass STORAGE_ONLY_INSTRUCTIONS to Schema(...), they are executed BEFORE all
+If you pass NO_WRITE_INSTRUCTIONS to Schema(...), they are executed BEFORE all
 triple-generation instructions for that schema.
 
 Use this for initializing variables/maps used later in triples (in this or other schemas).
@@ -187,7 +187,7 @@ the shapes available later, but we don't want to emit any triple directly from s
 7) Using storage in transforms (get / contains)
 ------------------------------------------------------------------------------
 You typically:
-  1) write to storage via STORAGE_ONLY_INSTRUCTIONS (or placeholders with `>`), and then
+  1) write to storage via NO_WRITE_INSTRUCTIONS (or placeholders with `>`), and then
   2) read/check that storage from inside transforms via the `STORAGE` object.
 
 Always use explicit contexts:
@@ -346,7 +346,7 @@ export Schema buildSchemaTemplateSchema(runtime::RuntimeContainer& rtc) {
 	// Other schemas can consume them via @schema_template.txt (as a placeholder arg)
 	// or via STORAGE.get... inside transforms.
 
-	const std::vector<std::string> STORAGE_ONLY_INSTRUCTIONS = {
+	const std::vector<std::string> NO_WRITE_INSTRUCTIONS = {
 	    // Global metadata (VARIABLE): useful across the whole dataset.
 	    // Consumer (any schema): {FEED_LANG@schema_template.txt}
 	    "{ feed_lang | exToUpperAscii > FEED_LANG@schema_template.txt }",
@@ -357,7 +357,11 @@ export Schema buildSchemaTemplateSchema(runtime::RuntimeContainer& rtc) {
 	};
 
 	return Schema(
-	    "schema_template.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, STORAGE_ONLY_INSTRUCTIONS, rtc);
+	    "schema_template.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, NO_WRITE_INSTRUCTIONS, rtc);
 }
 
 } // namespace schema
+
+// storage writes sind ebenfalls zeilenweise bloß eben vor den triple writes.
+// engine takes care of escaping depending on type (literal, IRI etc.)
+// users may also want to make use of functions for string operations in util/strings.cppm

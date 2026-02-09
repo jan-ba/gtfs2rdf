@@ -18,13 +18,24 @@ if(NOT (CMAKE_GENERATOR STREQUAL "Ninja"
   )
 endif()
 
-# Custom options
-option(GTFS2RDF_FULL_STATS "Enable storage timing even in Release" OFF)
-
 
 # Default build type for single-config generators (Ninja)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+# Default: don't build tests in Release unless explicitly requested.
+# Important: must happen BEFORE include(CTest)/add_subdirectory(tests).
+if(NOT CMAKE_CONFIGURATION_TYPES) # single-config only
+  if(CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT DEFINED BUILD_TESTING)
+    set(BUILD_TESTING OFF CACHE BOOL "Build tests" FORCE)
+  endif()
+endif()
+
+# Testing
+include(CTest)
+if(BUILD_TESTING)
+  add_subdirectory(tests)
 endif()
 
 # warnings only; don't hardcode -O/-g, let build type/toolchain decide
@@ -35,6 +46,9 @@ function(setup_warnings target)
     target_compile_options(${target} PRIVATE -Wall -Wextra -pedantic)
   endif()
 endfunction()
+
+# Custom options
+option(GTFS2RDF_FULL_STATS "Enable storage timing even in Release" OFF)
 
 # Find libzip (provided by libzip-dev)
 find_package(libzip REQUIRED)
@@ -228,7 +242,7 @@ target_compile_definitions(gtfs_modules PUBLIC
 function(enable_release_native target)
   # GCC/Clang: -march=native nur in Release
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(${target} PRIVATE
+    target_compile_options(${target} PUBLIC
       $<$<CONFIG:Release>:-march=native>
     )
   endif()

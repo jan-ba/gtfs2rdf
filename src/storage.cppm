@@ -54,12 +54,12 @@ export class PersistentStorageSqlite {
 	static constexpr double CACHE_FRAC_ = 0.7;         // fraction of heap to devote to cache
 	static constexpr double SOFT_FRAC_ = 0.9;          // soft heap = soft_frac * hard heap
 	static constexpr uint32_t FLUSH_OPS_ = 100'000;    // commit after N write ops
-	static constexpr uint32_t PAGE_SIZE_ = 32768;      // 32KB pages for larger cache efficiency
-	static constexpr uint32_t BUSY_TIMEOUT_MS_ = 1000; // wait up to 1s if DB is locked
+	static constexpr uint32_t PAGE_SIZE_ = 32768;      // 32KB pages for better cache efficiency
+	static constexpr uint32_t BUSY_TIMEOUT_MS_ = 1000; // wait up to 1s if DB is locked (robustness)
 	static constexpr bool TEMP_STORE_FILE_ = true;     // predictable RAM
 	static constexpr bool EXCLUSIVE_LOCK_ = true;      // speed, single-process
 	static constexpr bool JOURNAL_OFF_ = true;         // speed, temp DB (unsafe on crash)
-	const std::string DB_DIR_ = "./.tmp";              // path to temporary DB file directory
+	const std::string DB_DIR_ = "./.gtfs2rdf_tmp";     // path to temporary DB file directory
 
   public:
 	explicit PersistentStorageSqlite(diagnostics::WarningCollector& wcol,
@@ -163,6 +163,15 @@ export class PersistentStorageSqlite {
 
 	void storeVariable(std::string_view ctx, std::string_view name, std::string_view value) {
 		SCOPED_TIMER_NS(store_ns_);
+		if (!isValidCTXName(ctx)) {
+			throw diagnostics::Error("Storage error: invalid context name '" + std::string(ctx) +
+			                         "' for variable");
+		}
+		if (name.empty()) {
+			throw diagnostics::Error(
+			    "Storage error: empty variable name for variable in context '" + std::string(ctx) +
+			    "'");
+		}
 		variables_[std::string(ctx)][std::string(name)] = std::string(value);
 	}
 
@@ -187,6 +196,10 @@ export class PersistentStorageSqlite {
 	                std::string_view key,
 	                std::string_view value) {
 		SCOPED_TIMER_NS(store_ns_);
+		if (key.empty()) {
+			throw diagnostics::Error("Storage error: empty key for multimap '" + std::string(name) +
+			                         "'");
+		}
 		ensureTransaction_();
 		auto& mm_tab = ensureMMTable_(ctx, name);
 		bindText_(mm_tab.insert, 1, key);
@@ -307,6 +320,10 @@ export class PersistentStorageSqlite {
 	                std::string_view key,
 	                std::span<const std::string_view> tuple) {
 		SCOPED_TIMER_NS(store_ns_);
+		if (key.empty()) {
+			throw diagnostics::Error("Storage error: empty key for tuplemap '" + std::string(name) +
+			                         "'");
+		}
 		ensureTransaction_();
 		auto& tm_tab = ensureTMTable_(ctx, name, tuple.size());
 		bindText_(tm_tab.insert, 1, key);
@@ -570,7 +587,8 @@ export class PersistentStorageSqlite {
 		const auto DB_SIZE = std::filesystem::file_size(db_path_, err_code);
 		if (!err_code) {
 			std::cerr << "Summary\n"
-			          << "  approx DB size: " << DB_SIZE << " bytes\n\n";
+			          << "  approx DB size: " << formatValueWithPaddedUnits(DB_SIZE, UnitType::SIZE)
+			          << "\n\n";
 		}
 
 #if GTFS2RDF_FULL_STATS
@@ -597,6 +615,10 @@ export class PersistentStorageSqlite {
 	// creates descriptive table name for every (ctx, name) pair used in multimap/tuplemap
 	static std::string
 	makeTableName_(std::string_view prefix, std::string_view ctx, std::string_view name) {
+		if (name.empty()) {
+			throw diagnostics::Error(
+			    "Storage error: empty multimap/tuplemap name for sqlite table");
+		}
 		if (!isValidCTXName(ctx)) {
 			throw diagnostics::Error("Storage error: invalid context name '" + std::string(ctx) +
 			                         "' for sqlite table");

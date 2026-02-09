@@ -13,10 +13,10 @@ if ! have "$CF"; then
   exit 0
 fi
 
-# format only staged source files under src/, excluding third_party.
+# format only staged source files under src/ and tests/, excluding src/third_party.
 files=$(
   git diff --cached --name-only --diff-filter=ACMR \
-    | grep -E '^src/' \
+    | grep -E '^(src|tests)/' \
     | grep -Ev '^src/third_party/' \
     | grep -E '\.(c|cc|cpp|cxx|h|hh|hpp|hxx|ipp|inl|ixx|cppm)$' \
     || true

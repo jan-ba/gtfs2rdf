@@ -49,7 +49,7 @@ export class Writer {
 	    // NOLINT(readability-magic-numbers, bugprone-narrowing-conversions)
 	    , THRESHOLD_(buffer_size_mb * 1024 * 1024)
 	    , ACTIVE_(active) {
-		if (std::filesystem::exists(path)) {
+		if (ACTIVE_ && std::filesystem::exists(path)) {
 			if (!rtc_.getSettings().isOverwriteOutput()) {
 				throw diagnostics::Error(
 				    "IO error: output file '" + path.string() +
@@ -68,6 +68,17 @@ export class Writer {
 		buffer_.reserve(THRESHOLD_);
 	}
 
+	// overload for writing to an already open stream (e.g. stdout)
+	Writer(std::ostream& out_stream, runtime::RuntimeContainer& rtc, double buffer_size_mb)
+	    : out_stream_(&out_stream)
+	    , rtc_(rtc)
+	    , THRESHOLD_(buffer_size_mb * 1024 * 1024)
+	    , ACTIVE_(true) {
+		file_ = nullptr; // not used in this mode
+		buffer_.reserve(THRESHOLD_);
+	}
+
+	// convenience overload with default buffer size
 	Writer(const std::filesystem::path& path, runtime::RuntimeContainer& rtc, bool active = true)
 	    : Writer(path, rtc, rtc.getSettings().getWriteBufferSize_MB(), active) {
 	}
@@ -87,7 +98,7 @@ export class Writer {
 	void writeRaw(std::string_view svw) {
 		SCOPED_TIMER_NS(write_ns_tmp_);
 
-		append_(std::string(svw));
+		append_(svw);
 	}
 
 	// converts gtfs row according to given schema and appends to buffer
@@ -155,17 +166,27 @@ export class Writer {
 		if (!ACTIVE_ || buffer_.empty()) {
 			return;
 		}
-		size_t len = buffer_.size();
-		const char* data = buffer_.data();
-		while (len) {
-			size_t len_written = std::fwrite(data, 1, len, file_);
-			if (len_written == 0) {
-				throw diagnostics::Error("IO error: Could not flush to disk.");
+
+		if (file_) {
+			size_t len = buffer_.size();
+			const char* data = buffer_.data();
+			while (len) {
+				size_t len_written = std::fwrite(data, 1, len, file_);
+				if (len_written == 0) {
+					throw diagnostics::Error("IO error: Could not flush to disk.");
+				}
+				data += len_written;
+				len -= len_written;
 			}
-			data += len_written;
-			len -= len_written;
+			buffer_.clear();
+		} else if (out_stream_) {
+			out_stream_->write(buffer_.data(), buffer_.size());
+			if (!out_stream_->good()) {
+				throw diagnostics::Error("IO error: Could not write to output stream.");
+			}
+		} else {
+			throw diagnostics::Error("Internal error: No valid output target for Writer.");
 		}
-		buffer_.clear();
 	}
 
 	void append_(std::string_view svw) {
@@ -181,6 +202,7 @@ export class Writer {
 
 	std::filesystem::path file_path_;
 	std::FILE* file_;
+	std::ostream* out_stream_ = nullptr; // if set, write to this stream instead of file
 	std::string buffer_;
 	const runtime::RuntimeContainer& rtc_;
 	const size_t THRESHOLD_;

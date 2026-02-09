@@ -44,21 +44,21 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 			TRANSFORM_ERROR("Unknown location_type code: " + std::string(ARGS[0]));
 		}
 		switch (type_id) {
-		case '0':
-			OUT_VAL = "stop";
-			break;
-		case '1':
-			OUT_VAL = "station";
-			break;
-		case '2':
-			OUT_VAL = "entrance_exit";
-			break;
-		case '3':
-			OUT_VAL = "generic_node";
-			break;
-		case '4':
-			OUT_VAL = "boarding_area";
-			break;
+			case '0':
+				OUT_VAL = "stop";
+				break;
+			case '1':
+				OUT_VAL = "station";
+				break;
+			case '2':
+				OUT_VAL = "entrance_exit";
+				break;
+			case '3':
+				OUT_VAL = "generic_node";
+				break;
+			case '4':
+				OUT_VAL = "boarding_area";
+				break;
 		}
 	}
 	TRANSFORM_END
@@ -97,7 +97,6 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 
 	    // Type
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Stop")}},
-
 	    {SUBJ, {"gtfs", "stopName"}, {"{stop_name}", "{FEED_LANG@feed_info.txt}"}},
 
 	    // Using translation transform to get translated stop names

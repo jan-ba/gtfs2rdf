@@ -29,14 +29,13 @@ export Schema buildShapesSchema(runtime::RuntimeContainer& rtc) {
 	// no row-based triples; we only store
 	const std::vector<Triple> TRIPLES = {};
 
-	const std::vector<std::string> STORAGE_ONLY_INSTRUCTIONS = {
+	const std::vector<std::string> NO_WRITE_INSTRUCTIONS = {
 	    // key = shape_id
 	    // value_inputs = shape_pt_sequence, shape_pt_lon, shape_pt_lat
 	    // transform output is stored as the multimap value
 	    "{ shape_id : shape_pt_sequence, shape_pt_lon, shape_pt_lat > shapes@shapes.txt }"};
 
-	return Schema(
-	    "shapes.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, STORAGE_ONLY_INSTRUCTIONS, rtc);
+	return Schema("shapes.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, NO_WRITE_INSTRUCTIONS, rtc);
 }
 
 } // namespace schema

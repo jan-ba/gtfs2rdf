@@ -54,7 +54,9 @@ export class Settings {
 
 		opts.add_options("Standard")(
 		    "f,feed", "Path to Gtfs .zip archive", cxxopts::value<std::string>())(
-		    "o,output", "Output directory", cxxopts::value<std::string>()->default_value("."))(
+		    "o,output",
+		    "Output directory or 'stdout'",
+		    cxxopts::value<std::string>()->default_value("."))(
 		    "p,pre-run",
 		    "Validate schemas, print file headers, and roughly estimate output size and estimated "
 		    "peak RAM usage without writing output. The level of statistics output determines how "
@@ -152,9 +154,14 @@ export class Settings {
 		}
 
 		// output path
-		std::string file_ext = ntriples_output_ ? ".nt" : ".ttl";
-		output_path_ =
-		    result["output"].as<std::string>() + "/" + input_path_.stem().string() + file_ext;
+		const std::string output_target = result["output"].as<std::string>();
+		if (output_target == "stdout") {
+			output_stdout_ = true;
+			output_path_ = "stdout";
+		} else {
+			std::string file_ext = ntriples_output_ ? ".nt" : ".ttl";
+			output_path_ = output_target + "/" + input_path_.stem().string() + file_ext;
+		}
 
 		overwrite_output_ = result["overwrite"].as<bool>();
 
@@ -186,6 +193,33 @@ export class Settings {
 		}
 	}
 
+	// for testing purposes
+	Settings(
+	    bool ntriples_output_ = false,
+	    bool spec_dump_ = false,
+	    double read_buffer_size_mb_ = 80.0,
+	    double write_buffer_size_mb_ = 80.0,
+	    double storage_buffer_size_mb_ = 500.0,
+	    bool overwrite_output_ = false,
+	    bool pre_run_ = false,
+	    std::filesystem::path input_path_ = "input.zip",
+	    std::filesystem::path output_path_ = "output.ttl",
+	    diagnostics::VerbosityLevelWarnings warning_verbosity_ =
+	        diagnostics::VerbosityLevelWarnings::QUIET,
+	    diagnostics::VerbosityLevelStats stats_verbosity_ = diagnostics::VerbosityLevelStats::QUIET)
+	    : ntriples_output_(ntriples_output_)
+	    , spec_dump_(spec_dump_)
+	    , read_buffer_size_mb_(read_buffer_size_mb_)
+	    , write_buffer_size_mb_(write_buffer_size_mb_)
+	    , storage_buffer_size_mb_(storage_buffer_size_mb_)
+	    , overwrite_output_(overwrite_output_)
+	    , pre_run_(pre_run_)
+	    , input_path_(input_path_)
+	    , output_path_(output_path_)
+	    , warning_verbosity_(warning_verbosity_)
+	    , stats_verbosity_(stats_verbosity_) {
+	}
+
 	// GETTERs
 	[[nodiscard]] bool isPreRun() const {
 		return pre_run_;
@@ -214,6 +248,9 @@ export class Settings {
 	[[nodiscard]] const std::filesystem::path& getInputPath() const {
 		return input_path_;
 	}
+	[[nodiscard]] bool isOutputToStdout() const {
+		return output_stdout_;
+	}
 	[[nodiscard]] const std::filesystem::path& getOutputPath() const {
 		return output_path_;
 	}
@@ -236,6 +273,7 @@ export class Settings {
 	bool overwrite_output_;
 	bool pre_run_;
 	std::filesystem::path input_path_;
+	bool output_stdout_ = false;
 	std::filesystem::path output_path_;
 	diagnostics::VerbosityLevelWarnings warning_verbosity_;
 	diagnostics::VerbosityLevelStats stats_verbosity_;

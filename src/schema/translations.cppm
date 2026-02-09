@@ -63,7 +63,7 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer& rtc) {
 		auto parts = util::split(ARGS[0], '_');
 
 		bool first_part = true;
-		for (auto& part : parts) {
+		for (auto part : parts) {
 			auto c0 = static_cast<unsigned char>(part[0]);
 
 			// first chunk: lowerCamel (lowercase first letter), later chunks: UpperCamel (uppercase
@@ -108,7 +108,7 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer& rtc) {
 	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
-	const std::vector<std::string> STORAGE_ONLY_INSTRUCTIONS = {
+	const std::vector<std::string> NO_WRITE_INSTRUCTIONS = {
 	    // store whether record_id is defined in variable
 	    "{ record_id > is_record_id_defined}",
 
@@ -122,8 +122,7 @@ export Schema buildTranslationsSchema(runtime::RuntimeContainer& rtc) {
 
 	const std::vector<Triple> TRIPLES = {};
 
-	Schema sch(
-	    "translations.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, STORAGE_ONLY_INSTRUCTIONS, rtc);
+	Schema sch("translations.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, NO_WRITE_INSTRUCTIONS, rtc);
 	return sch;
 }
 

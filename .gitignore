@@ -55,5 +55,5 @@ gcm.cache/*
 *.log
 *.png
 
-RAM_monitor/
+evaluation/**
 .tmp*/*
