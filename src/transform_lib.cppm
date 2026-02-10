@@ -31,7 +31,7 @@ namespace t_lib {
 // if no value is given no output will be generated (empty string)
 // if the value is invalid, a custom error 'Error' will be thrown
 
-// checks if the input is a valid integer and returns it unchanged if valid, otherwise throws
+// checks if the input is a valid xs:integer and returns it unchanged if valid, otherwise throws
 // valid integers consist of an optional leading '-' followed by one or more digits, and must not
 // have leading zeros (except for the number '0' itself)
 export void isValidInt(Args args, Out1& out) {
@@ -64,9 +64,10 @@ export void isValidInt(Args args, Out1& out) {
 	out = svw;
 }
 
-// checks if the input is a valid decimal number and returns it unchanged if valid, otherwise throws
+// checks if the input is a valid xs:decimal and returns it unchanged if valid, otherwise throws
 // valid decimals consist of an optional leading '-' followed by digits, with at most one decimal
-// point, and must not have leading zeros (except for the number '0' itself or '0.x')
+// point, and must not have leading zeros (except for the number '0' itself or '0.x'). Decimal point
+// must be followed by at least one digit if present.
 export void isValidDecimal(Args args, Out1& out) {
 	if (args.size() != 1) {
 		throw diagnostics::Error(
@@ -76,6 +77,12 @@ export void isValidDecimal(Args args, Out1& out) {
 	std::string_view svw = args[0];
 	if (svw.empty()) {
 		return; // leave empty
+	}
+
+	if (svw.back() == '.') {
+		throw diagnostics::Error(
+		    "Transform error in 'isValidDecimal': expected decimal value, got '" +
+		    std::string(svw) + "'");
 	}
 
 	bool negative = svw[0] == '-';
@@ -184,6 +191,11 @@ export void isInRange(Args args, Out1& out) {
 
 // convert Gtfs date "YYYYMMDD" to xs:date "YYYY-MM-DD"
 export void convertDate2xs_unchecked(Args args, Out1& out) {
+	if (args.size() != 1) {
+		throw diagnostics::Error(
+		    "Transform error in 'convertDate2xs_unchecked': expected exactly 1 argument, got " +
+		    std::to_string(args.size()));
+	}
 	std::string_view svw = args[0];
 	if (svw.empty()) {
 		return; // leave empty
@@ -206,11 +218,20 @@ export void convertDate2xs_unchecked(Args args, Out1& out) {
 // GIGO: no validation of minutes/seconds
 // NOLINTBEGIN : magic numbers and variable names in this function are clear in this context
 export void convertTime2xs_unchecked(Args args, Out1& out) {
+	if (args.size() != 1) {
+		throw diagnostics::Error(
+		    "Transform error in 'convertTime2xs_unchecked': expected exactly 1 argument, got " +
+		    std::to_string(args.size()));
+	}
 	std::string_view svw = args[0];
 	if (svw.empty()) {
 		return; // no input, no output
 	}
-
+	if (svw.size() < 7 || svw.size() > 8) {
+		throw diagnostics::Error("Transform error in 'convertTime2xs_unchecked': expected time in "
+		                         "format H+:MM:SS, got '" +
+		                         std::string(svw) + "'");
+	}
 	// find first ':'
 	size_t pos_colon = svw.find(':');
 	if (pos_colon == std::string::npos) {

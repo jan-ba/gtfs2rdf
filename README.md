@@ -52,6 +52,44 @@ ctest --test-dir build-tests -L unit --output-on-failure
 ctest --test-dir build-tests -L e2e --output-on-failure
 ```
 
+### Build for analysing test coverage
+
+```bash
+cmake -S . -B build-coverage -G Ninja \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DBUILD_TESTING=ON \
+  -DCMAKE_CXX_COMPILER=clang++-18 \
+  -DCMAKE_C_COMPILER=clang-18 \
+  -DCMAKE_CXX_FLAGS="-fprofile-instr-generate -fcoverage-mapping" \
+  -DCMAKE_C_FLAGS="-fprofile-instr-generate -fcoverage-mapping" \
+  -DCMAKE_EXE_LINKER_FLAGS="-fprofile-instr-generate" \
+  -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-instr-generate"
+
+cmake --build build-coverage -j
+
+rm -rf build-coverage/tests/profiles
+mkdir -p build-coverage/tests/profiles
+
+# (Option A) exactly your behavior (relative "profiles/" ends up under build-coverage/tests/)
+LLVM_PROFILE_FILE="profiles/%p.profraw" \
+  ctest --test-dir build-coverage --output-on-failure
+
+# optional later
+# LLVM_PROFILE_FILE="build-coverage/tests/profiles/cli_%p.profraw" \
+#   build-coverage/gtfs2rdf /path/to/feed.zip
+
+llvm-profdata merge -sparse build-coverage/tests/profiles/*.profraw \
+  -o build-coverage/tests/coverage.profdata
+
+llvm-cov show build-coverage/gtfs2rdf \
+  -object=build-coverage/tests/unit_tests \
+  -object=build-coverage/tests/e2e_tests \
+  -instr-profile=build-coverage/tests/coverage.profdata \
+  -format=html -output-dir=build-coverage/tests/coverage-html \
+  -ignore-filename-regex='(^|/)(third_party|_deps|build-coverage|tests)(/|$)'
+```
+
+
 
 ## Style checking
 
