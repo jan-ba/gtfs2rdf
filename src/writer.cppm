@@ -69,11 +69,14 @@ export class Writer {
 	}
 
 	// overload for writing to an already open stream (e.g. stdout)
-	Writer(std::ostream& out_stream, runtime::RuntimeContainer& rtc, double buffer_size_mb)
+	Writer(std::ostream& out_stream,
+	       runtime::RuntimeContainer& rtc,
+	       double buffer_size_mb,
+	       bool active = true)
 	    : out_stream_(&out_stream)
 	    , rtc_(rtc)
 	    , THRESHOLD_(buffer_size_mb * 1024 * 1024)
-	    , ACTIVE_(true) {
+	    , ACTIVE_(active) {
 		file_ = nullptr; // not used in this mode
 		buffer_.reserve(THRESHOLD_);
 	}
@@ -81,6 +84,11 @@ export class Writer {
 	// convenience overload with default buffer size
 	Writer(const std::filesystem::path& path, runtime::RuntimeContainer& rtc, bool active = true)
 	    : Writer(path, rtc, rtc.getSettings().getWriteBufferSize_MB(), active) {
+	}
+
+	// convenience overload with default buffer size for stream output
+	Writer(std::ostream& out_stream, runtime::RuntimeContainer& rtc, bool active = true)
+	    : Writer(out_stream, rtc, rtc.getSettings().getWriteBufferSize_MB(), active) {
 	}
 
 	void writePrefixes(const std::unordered_map<std::string, std::string>& map) {

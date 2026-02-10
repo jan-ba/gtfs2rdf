@@ -144,9 +144,16 @@ int main(int argc, char* argv[]) {
 		}
 
 		writer::Writer writer =
-		    settings.isOutputToStdout()
-		        ? writer::Writer(std::cout, rtc, !settings.isPreRun())
-		        : writer::Writer(settings.getOutputPath(), rtc, !settings.isPreRun());
+		    settings.isPreRun()
+		        ? writer::Writer(
+		              std::cout,
+		              rtc,
+		              1.0,
+		              false) // pre-run: don't write actual output, only small alibi buffer
+		    : settings.isOutputToStdout()
+		        ? writer::Writer(std::cout, rtc, true)                 // normal run to stdout
+		        : writer::Writer(settings.getOutputPath(), rtc, true); // file output
+
 		gtfs::GtfsParserWorkspace wsp(rtc, writer);
 		auto merged_prefixes = schema::mergePrefixes(used_schemas, rtc.getWarningCollector(), true);
 		std::vector<diagnostics::Statistics> per_file_stats(files_in_dir.size());

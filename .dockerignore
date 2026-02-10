@@ -1,0 +1,61 @@
+# this is a copy of .gitignore
+
+# Prerequisites
+*.d
+
+build*/*
+gcm.cache/*
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Linker files
+*.ilk
+
+# Debugger Files
+*.pdb
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# debug information files
+*.dwo
+
+# vscode settings
+.vscode/*
+
+# ignore data files
+*.ttl
+*.nt
+*.spec.txt
+*.zip
+
+*.log
+*.png
+
+evaluation/**
+.tmp*/*
