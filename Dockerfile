@@ -5,6 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     ca-certificates git \
     clang-18 clang-tools-18 lld-18 \
     llvm-18 \
@@ -37,9 +38,6 @@ RUN cmake -S . -B build-tests -G Ninja \
       -DCMAKE_CXX_COMPILER_CLANG_SCAN_DEPS=/usr/bin/clang-scan-deps-18 \
   && cmake --build build-tests -j
 
-# CLI entrypoint
-ENTRYPOINT ["/opt/gtfs2rdf/build-release/gtfs2rdf"]
-CMD ["--help"]
 
 # -----------------------------------------------------------------------------
 # repro commands (Docker):

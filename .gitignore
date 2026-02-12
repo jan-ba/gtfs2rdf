@@ -56,4 +56,4 @@ gcm.cache/*
 *.png
 
 evaluation/**
-.tmp*/*
+.gtfs2rdf_tmp*/**

@@ -258,13 +258,10 @@ enable_release_native(gtfs2rdf)
 target_link_libraries(gtfs_modules
   PUBLIC
     sqlite3_amalgamation
-)
-
-target_link_libraries(gtfs2rdf
-  PRIVATE
-    gtfs_modules
     libzip::zip
 )
+
+target_link_libraries(gtfs2rdf PRIVATE gtfs_modules)
 
 target_include_directories(gtfs2rdf
   PRIVATE

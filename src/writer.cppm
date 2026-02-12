@@ -189,6 +189,7 @@ export class Writer {
 			buffer_.clear();
 		} else if (out_stream_) {
 			out_stream_->write(buffer_.data(), buffer_.size());
+			buffer_.clear();
 			if (!out_stream_->good()) {
 				throw diagnostics::Error("IO error: Could not write to output stream.");
 			}

@@ -362,6 +362,11 @@ export Schema buildSchemaTemplateSchema(runtime::RuntimeContainer& rtc) {
 
 } // namespace schema
 
+// TODO:
 // storage writes sind ebenfalls zeilenweise bloß eben vor den triple writes.
 // engine takes care of escaping depending on type (literal, IRI etc.)
 // users may also want to make use of functions for string operations in util/strings.cppm
+
+// add how the exact triple syntax is, that is, how to write IRIs, literals, language tags,
+// datatypes, and combinations thereof (e.g. "{col|trf|trf2@ctx}^^{xs:string}" or
+// "{col|trf|trf2@ctx}@en") with my engine

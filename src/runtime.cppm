@@ -203,6 +203,7 @@ export class Settings {
 	    bool overwrite_output_ = false,
 	    bool pre_run_ = false,
 	    std::filesystem::path input_path_ = "input.zip",
+	    bool output_to_stdout = false,
 	    std::filesystem::path output_path_ = "output.ttl",
 	    diagnostics::VerbosityLevelWarnings warning_verbosity_ =
 	        diagnostics::VerbosityLevelWarnings::QUIET,
@@ -215,6 +216,7 @@ export class Settings {
 	    , overwrite_output_(overwrite_output_)
 	    , pre_run_(pre_run_)
 	    , input_path_(input_path_)
+	    , output_stdout_(output_to_stdout)
 	    , output_path_(output_path_)
 	    , warning_verbosity_(warning_verbosity_)
 	    , stats_verbosity_(stats_verbosity_) {
@@ -282,10 +284,12 @@ export class Settings {
 // container for runtime settings, transform registry, and persistent storage across Gtfs files
 export class RuntimeContainer {
   public:
-	RuntimeContainer(const Settings& settings, field_transforms::TransformRegistry& registry)
+	RuntimeContainer(const Settings& settings,
+	                 diagnostics::WarningCollector& wcol,
+	                 field_transforms::TransformRegistry& registry)
 	    : settings_(settings)
 	    , registry_(registry)
-	    , warning_collector_(settings.getWarningsVerbosity())
+	    , warning_collector_(wcol)
 	    , storage_(warning_collector_,
 	               settings.getStatsVerbosity(),
 	               settings.getStorageBufferSize_MB()) {
@@ -310,7 +314,7 @@ export class RuntimeContainer {
   private:
 	const Settings& settings_;
 	field_transforms::TransformRegistry& registry_;
-	diagnostics::WarningCollector warning_collector_;
+	diagnostics::WarningCollector& warning_collector_;
 	storage::PersistentStorageSqlite storage_;
 };
 } // namespace runtime

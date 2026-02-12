@@ -1,0 +1,2 @@
+feed_publisher_name,feed_publisher_url,feed_lang,default_lang,feed_start_date,feed_end_date,feed_version,feed_contact_email,feed_contact_url
+"Tiny Transit ""Co""",https://example.com/publisher?x=1&y=2,de-CH-1901,en,20250101,20251231,"v1.0test",support+gtfs@example.com,"https://example.com/contact us"

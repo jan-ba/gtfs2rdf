@@ -70,7 +70,6 @@ cmake --build build-coverage -j
 rm -rf build-coverage/tests/profiles
 mkdir -p build-coverage/tests/profiles
 
-# (Option A) exactly your behavior (relative "profiles/" ends up under build-coverage/tests/)
 LLVM_PROFILE_FILE="profiles/%p.profraw" \
   ctest --test-dir build-coverage --output-on-failure
 
@@ -86,7 +85,8 @@ llvm-cov show build-coverage/gtfs2rdf \
   -object=build-coverage/tests/e2e_tests \
   -instr-profile=build-coverage/tests/coverage.profdata \
   -format=html -output-dir=build-coverage/tests/coverage-html \
-  -ignore-filename-regex='(^|/)(third_party|_deps|build-coverage|tests)(/|$)'
+  -ignore-filename-regex='(^|/)(third_party|_deps|build-coverage|tests)(/|$)|(^|/)src/schema(/|$)'
+
 ```
 
 

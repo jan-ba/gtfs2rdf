@@ -1,0 +1,7 @@
+stop_id,stop_name,stop_desc,stop_lat,stop_lon,stop_url,location_type,parent_station,platform_code,wheelchair_boarding,stop_timezone,test_tags
+STATION_1,"Central Station","Main hub; has ""quotes"" and, comma",48.000000,7.000000,https://example.com/station/central,1,,,1,Europe/Berlin,"alpha|beta|gamma"
+"STATION_1:Platform A","Central Station, Platform ""A""","Backslash \\ and unicode ✓",48.000100,7.000100,"https://example.com/station/central platform?x=1&y=2",0,STATION_1,A,2,Europe/Berlin,"x%y|😀|"
+"Münsterplatz","Münsterplatz - Süd","Accented chars: é, ö, ß",48.001234,7.001234,https://example.com/äöü?city=Freiburg,0,,,0,Europe/Berlin,""
+"100% stop","Percent & spaces","Needs encoding: % and space",48.002000,7.002000,"https://example.com/stop info?q=a b&x=<y>",0,,,1,Europe/Berlin,"one|two|three"
+"SafeChars-_.123","SafeChars-_.123","Period in ID should be encoded if you use prefixed-local",48.003000,7.003000,https://example.com/safe,0,,,0,Europe/Berlin,"k1|k2"
+TRIM_TEST,"  Leading and trailing spaces  ","   desc with surrounding spaces   ",48.000000,7.000000,https://example.com/trim,0,,,0,Europe/Berlin,"a|b|c|"

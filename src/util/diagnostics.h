@@ -111,10 +111,10 @@ class Warning {
 	// populate as more WarningLevels are added
 	static const char* getEmoji_(WarningLevel level) {
 		switch (level) {
-		case WarningLevel::WARNING:
-			return "⚠️  ";
-		case WarningLevel::INFO:
-			return "ℹ️  ";
+			case WarningLevel::WARNING:
+				return "⚠️  ";
+			case WarningLevel::INFO:
+				return "ℹ️  ";
 		}
 		return "";
 	}
@@ -151,7 +151,7 @@ class WarningCollector {
 		}
 		warnings_.back().appendWarningMessage(message);
 	}
-
+	// TODO: check why sometimes the processed file is not added here
 	void addNode(std::string_view message, size_t depth) {
 		for (const auto& idx : unclosed_warning_indices_) {
 			warnings_[idx].addContext(message, depth);
@@ -163,11 +163,14 @@ class WarningCollector {
 			warn.print();
 			std::cerr << "\n";
 		}
+		// ensure each warning is only printed once
+		warnings_.clear();
+		unclosed_warning_indices_.clear();
 	}
 
   private:
-	std::vector<Warning> warnings_;
-	std::unordered_set<size_t> unclosed_warning_indices_;
+	mutable std::vector<Warning> warnings_;
+	mutable std::unordered_set<size_t> unclosed_warning_indices_;
 	VerbosityLevelWarnings verbosity_level_;
 };
 

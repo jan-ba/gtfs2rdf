@@ -14,5 +14,5 @@ test:
 run:
 	@test -n "$(FEED)" || (echo "ERROR: FEED is not set"; exit 1)
 	@test -n "$(OUT)"  || (echo "ERROR: OUT is not set"; exit 1)
-	/opt/gtfs2rdf/build-release/gtfs2rdf "$(FEED)" --output "$(OUT)" --overwrite
+	/opt/gtfs2rdf/build-release/gtfs2rdf "$(FEED)" --output "$(OUT)"
 
