@@ -57,3 +57,6 @@ gcm.cache/*
 
 evaluation/**
 .gtfs2rdf_tmp*/**
+
+# allow test data
+!tests/end-to-end/**

@@ -31,13 +31,9 @@ import test_full_stop_times;
 import test_full_stops;
 import test_full_trips;
 
-// TODO: remove later
-import util;
-using namespace util::misc;
-
 namespace {
 // helper function to get settings for the end-to-end test
-// notice the very small buffers to force overcarry between chunks and multiple flushes even on
+// notice the very small buffers to force carryover between chunks and multiple flushes even on
 // small feeds
 runtime::Settings getSettingsForTest(const std::filesystem::path& base, bool ntriples = false) {
 	return runtime::Settings(ntriples,                                // ntriples output
@@ -117,15 +113,16 @@ TEST_CASE("End-to-end test on tiny feed with ntriples output") {
 	std::filesystem::remove(base / "got.nt");
 }
 
-// To avoid heavy computation and large data files for testing, this is count-based. The input feed
+// To avoid heavy computations and large data files for testing, this is count-based. The input feed
 // has no missing columns and we only allow fully predictable triple generation (i.e. no
 // Transform2Many or geometry deduplication for example, both were tested with the tiny feed), such
 // that we can easily calculate the expected number of triples by hand and compare it to the actual
-// output triple count (hence, using ntriple format). Still, this test will cover the entire
+// output triple count (hence, ntriples format used). Still, this test will cover the entire
 // processing pipeline on a real feed, including shapes.txt, therefore testing the integration of
 // all components and the handling of more complex geometries. Test feed source: SMTT (Societatea
 // Metropolitană de Transport Timișoara) GTFS — publisher “SMTT”, https://smtt.ro (contact:
 // relatii.publice@smtt.ro).
+
 /* Row counts (excluding header row) for input files and calculation of expected triple count:
 
    -- file row counts --         -- triple per row --       -- expected triples --
@@ -153,7 +150,7 @@ TEST_CASE("End-to-end test on real feed") {
 	    {"test_full_stops.txt", test::buildTestFullStopsSchema},
 	    {"test_full_trips.txt", test::buildTestFullTripsSchema}};
 	auto base = std::filesystem::path(GTFS2RDF_E2E_DIR) / "test_feed_full";
-	auto settings = getSettingsForTest(base, true);
+	auto settings = getSettingsForTest(base, true); // enabling ntriples output
 	auto wcol = diagnostics::WarningCollector(settings.getWarningsVerbosity());
 	int result = gtfs2rdf_runner::gtfs2rdf(settings, wcol, factories);
 	REQUIRE(result == 0); // successful run

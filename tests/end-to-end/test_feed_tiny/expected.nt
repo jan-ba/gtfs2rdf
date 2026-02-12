@@ -1,0 +1,90 @@
+<https://gtfs.org/feed/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://w3id.org/gtfs2rdf#Feed> .
+<https://gtfs.org/feed/1> <https://w3id.org/gtfs2rdf#feedPublisherName> "Tiny Transit \"Co\"" .
+<https://gtfs.org/feed/1> <https://w3id.org/gtfs2rdf#feedPublisherUrl> "https://example.com/publisher?x=1&y=2" .
+<https://gtfs.org/feed/1> <https://w3id.org/gtfs2rdf#feedLanguage> "de-CH-1901" .
+<https://gtfs.org/feed/1> <https://w3id.org/gtfs2rdf#defaultLanguage> "en" .
+<https://gtfs.org/feed/1> <https://w3id.org/gtfs2rdf#feedStartDate> "2025-01-01"^^<http://www.w3.org/2001/XMLSchema#date> .
+<https://gtfs.org/feed/1> <https://w3id.org/gtfs2rdf#feedEndDate> "2025-12-31"^^<http://www.w3.org/2001/XMLSchema#date> .
+<https://gtfs.org/feed/1> <https://w3id.org/gtfs2rdf#feedVersion> "v1.0test" .
+<https://gtfs.org/feed/1> <https://w3id.org/gtfs2rdf#feedContactEmail> "support+gtfs@example.com" .
+<https://gtfs.org/feed/1> <https://w3id.org/gtfs2rdf#feedContactUrl> "https://example.com/contact us" .
+<https://gtfs.org/stops/STATION_1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://w3id.org/gtfs2rdf#Stop> .
+<https://gtfs.org/stops/STATION_1> <https://w3id.org/gtfs2rdf#stopName> "Central Station"@de-CH-1901 .
+<https://gtfs.org/stops/STATION_1> <https://w3id.org/gtfs2rdf#stopDesc> "Main hub; has \"quotes\" and, comma"@de-CH-1901 .
+<https://gtfs.org/stops/STATION_1> <http://www.w3.org/2003/01/geo/wgs84_pos#lat> "48.000000"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://gtfs.org/stops/STATION_1> <http://www.w3.org/2003/01/geo/wgs84_pos#long> "7.000000"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://w3id.org/gtfs2rdf/geometry#stop_STATION_1> <http://www.opengis.net/ont/geosparql#asWKT> "POINT(7.000000 48.000000)"^^<http://www.opengis.net/ont/geosparql#wktLiteral> .
+<https://gtfs.org/stops/STATION_1> <http://www.opengis.net/ont/geosparql#hasGeometry> <https://w3id.org/gtfs2rdf/geometry#stop_STATION_1> .
+<https://gtfs.org/stops/STATION_1> <https://w3id.org/gtfs2rdf#stopUrl> "https://example.com/station/central"^^<http://www.w3.org/2001/XMLSchema#anyURI> .
+<https://gtfs.org/stops/STATION_1> <https://w3id.org/gtfs2rdf#locationTypeEnum> "station" .
+<https://gtfs.org/stops/STATION_1> <https://w3id.org/gtfs2rdf#wheelchairBoarding> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://gtfs.org/stops/STATION_1> <https://w3id.org/gtfs2rdf#stopTimezone> "Europe/Berlin" .
+<https://gtfs.org/stops/STATION_1> <https://w3id.org/gtfs2rdf#tag> "alpha" .
+<https://gtfs.org/stops/STATION_1> <https://w3id.org/gtfs2rdf#tag> "beta" .
+<https://gtfs.org/stops/STATION_1> <https://w3id.org/gtfs2rdf#tag> "gamma" .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://w3id.org/gtfs2rdf#Stop> .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <https://w3id.org/gtfs2rdf#stopName> "Central Station, Platform \"A\""@de-CH-1901 .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <https://w3id.org/gtfs2rdf#stopDesc> "Backslash \\\\ and unicode ✓"@de-CH-1901 .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <http://www.w3.org/2003/01/geo/wgs84_pos#lat> "48.000100"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <http://www.w3.org/2003/01/geo/wgs84_pos#long> "7.000100"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://w3id.org/gtfs2rdf/geometry#stop_STATION_1%3APlatform%20A> <http://www.opengis.net/ont/geosparql#asWKT> "POINT(7.000100 48.000100)"^^<http://www.opengis.net/ont/geosparql#wktLiteral> .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <http://www.opengis.net/ont/geosparql#hasGeometry> <https://w3id.org/gtfs2rdf/geometry#stop_STATION_1%3APlatform%20A> .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <https://w3id.org/gtfs2rdf#stopUrl> "https://example.com/station/central platform?x=1&y=2"^^<http://www.w3.org/2001/XMLSchema#anyURI> .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <https://w3id.org/gtfs2rdf#locationTypeEnum> "stop" .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <https://w3id.org/gtfs2rdf#parent_station> <https://gtfs.org/stops/STATION_1> .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <https://w3id.org/gtfs2rdf#platformCode> "A" .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <https://w3id.org/gtfs2rdf#wheelchairBoarding> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <https://w3id.org/gtfs2rdf#stopTimezone> "Europe/Berlin" .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <https://w3id.org/gtfs2rdf#tag> "x%y" .
+<https://gtfs.org/stops/STATION_1%3APlatform%20A> <https://w3id.org/gtfs2rdf#tag> "😀" .
+<https://gtfs.org/stops/M%C3%BCnsterplatz> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://w3id.org/gtfs2rdf#Stop> .
+<https://gtfs.org/stops/M%C3%BCnsterplatz> <https://w3id.org/gtfs2rdf#stopName> "Münsterplatz - Süd"@de-CH-1901 .
+<https://gtfs.org/stops/M%C3%BCnsterplatz> <https://w3id.org/gtfs2rdf#stopDesc> "Accented chars: é, ö, ß"@de-CH-1901 .
+<https://gtfs.org/stops/M%C3%BCnsterplatz> <http://www.w3.org/2003/01/geo/wgs84_pos#lat> "48.001234"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://gtfs.org/stops/M%C3%BCnsterplatz> <http://www.w3.org/2003/01/geo/wgs84_pos#long> "7.001234"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://w3id.org/gtfs2rdf/geometry#stop_M%C3%BCnsterplatz> <http://www.opengis.net/ont/geosparql#asWKT> "POINT(7.001234 48.001234)"^^<http://www.opengis.net/ont/geosparql#wktLiteral> .
+<https://gtfs.org/stops/M%C3%BCnsterplatz> <http://www.opengis.net/ont/geosparql#hasGeometry> <https://w3id.org/gtfs2rdf/geometry#stop_M%C3%BCnsterplatz> .
+<https://gtfs.org/stops/M%C3%BCnsterplatz> <https://w3id.org/gtfs2rdf#stopUrl> "https://example.com/äöü?city=Freiburg"^^<http://www.w3.org/2001/XMLSchema#anyURI> .
+<https://gtfs.org/stops/M%C3%BCnsterplatz> <https://w3id.org/gtfs2rdf#locationTypeEnum> "stop" .
+<https://gtfs.org/stops/M%C3%BCnsterplatz> <https://w3id.org/gtfs2rdf#wheelchairBoarding> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://gtfs.org/stops/M%C3%BCnsterplatz> <https://w3id.org/gtfs2rdf#stopTimezone> "Europe/Berlin" .
+<https://gtfs.org/stops/100%25%20stop> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://w3id.org/gtfs2rdf#Stop> .
+<https://gtfs.org/stops/100%25%20stop> <https://w3id.org/gtfs2rdf#stopName> "Percent & spaces"@de-CH-1901 .
+<https://gtfs.org/stops/100%25%20stop> <https://w3id.org/gtfs2rdf#stopDesc> "Needs encoding: % and space"@de-CH-1901 .
+<https://gtfs.org/stops/100%25%20stop> <http://www.w3.org/2003/01/geo/wgs84_pos#lat> "48.002000"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://gtfs.org/stops/100%25%20stop> <http://www.w3.org/2003/01/geo/wgs84_pos#long> "7.002000"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://w3id.org/gtfs2rdf/geometry#stop_100%25%20stop> <http://www.opengis.net/ont/geosparql#asWKT> "POINT(7.002000 48.002000)"^^<http://www.opengis.net/ont/geosparql#wktLiteral> .
+<https://gtfs.org/stops/100%25%20stop> <http://www.opengis.net/ont/geosparql#hasGeometry> <https://w3id.org/gtfs2rdf/geometry#stop_100%25%20stop> .
+<https://gtfs.org/stops/100%25%20stop> <https://w3id.org/gtfs2rdf#stopUrl> "https://example.com/stop info?q=a b&x=<y>"^^<http://www.w3.org/2001/XMLSchema#anyURI> .
+<https://gtfs.org/stops/100%25%20stop> <https://w3id.org/gtfs2rdf#locationTypeEnum> "stop" .
+<https://gtfs.org/stops/100%25%20stop> <https://w3id.org/gtfs2rdf#wheelchairBoarding> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://gtfs.org/stops/100%25%20stop> <https://w3id.org/gtfs2rdf#stopTimezone> "Europe/Berlin" .
+<https://gtfs.org/stops/100%25%20stop> <https://w3id.org/gtfs2rdf#tag> "one" .
+<https://gtfs.org/stops/100%25%20stop> <https://w3id.org/gtfs2rdf#tag> "two" .
+<https://gtfs.org/stops/100%25%20stop> <https://w3id.org/gtfs2rdf#tag> "three" .
+<https://gtfs.org/stops/SafeChars-_.123> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://w3id.org/gtfs2rdf#Stop> .
+<https://gtfs.org/stops/SafeChars-_.123> <https://w3id.org/gtfs2rdf#stopName> "SafeChars-_.123"@de-CH-1901 .
+<https://gtfs.org/stops/SafeChars-_.123> <https://w3id.org/gtfs2rdf#stopDesc> "Period in ID should be encoded if you use prefixed-local"@de-CH-1901 .
+<https://gtfs.org/stops/SafeChars-_.123> <http://www.w3.org/2003/01/geo/wgs84_pos#lat> "48.003000"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://gtfs.org/stops/SafeChars-_.123> <http://www.w3.org/2003/01/geo/wgs84_pos#long> "7.003000"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://w3id.org/gtfs2rdf/geometry#stop_SafeChars-_.123> <http://www.opengis.net/ont/geosparql#asWKT> "POINT(7.003000 48.003000)"^^<http://www.opengis.net/ont/geosparql#wktLiteral> .
+<https://gtfs.org/stops/SafeChars-_.123> <http://www.opengis.net/ont/geosparql#hasGeometry> <https://w3id.org/gtfs2rdf/geometry#stop_SafeChars-_.123> .
+<https://gtfs.org/stops/SafeChars-_.123> <https://w3id.org/gtfs2rdf#stopUrl> "https://example.com/safe"^^<http://www.w3.org/2001/XMLSchema#anyURI> .
+<https://gtfs.org/stops/SafeChars-_.123> <https://w3id.org/gtfs2rdf#locationTypeEnum> "stop" .
+<https://gtfs.org/stops/SafeChars-_.123> <https://w3id.org/gtfs2rdf#wheelchairBoarding> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://gtfs.org/stops/SafeChars-_.123> <https://w3id.org/gtfs2rdf#stopTimezone> "Europe/Berlin" .
+<https://gtfs.org/stops/SafeChars-_.123> <https://w3id.org/gtfs2rdf#tag> "k1" .
+<https://gtfs.org/stops/SafeChars-_.123> <https://w3id.org/gtfs2rdf#tag> "k2" .
+<https://gtfs.org/stops/TRIM_TEST> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://w3id.org/gtfs2rdf#Stop> .
+<https://gtfs.org/stops/TRIM_TEST> <https://w3id.org/gtfs2rdf#stopName> "  Leading and trailing spaces  "@de-CH-1901 .
+<https://gtfs.org/stops/TRIM_TEST> <https://w3id.org/gtfs2rdf#stopDesc> "   desc with surrounding spaces   "@de-CH-1901 .
+<https://gtfs.org/stops/TRIM_TEST> <http://www.w3.org/2003/01/geo/wgs84_pos#lat> "48.000000"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://gtfs.org/stops/TRIM_TEST> <http://www.w3.org/2003/01/geo/wgs84_pos#long> "7.000000"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<https://gtfs.org/stops/TRIM_TEST> <http://www.opengis.net/ont/geosparql#hasGeometry> <https://w3id.org/gtfs2rdf/geometry#stop_STATION_1> .
+<https://gtfs.org/stops/TRIM_TEST> <https://w3id.org/gtfs2rdf#stopUrl> "https://example.com/trim"^^<http://www.w3.org/2001/XMLSchema#anyURI> .
+<https://gtfs.org/stops/TRIM_TEST> <https://w3id.org/gtfs2rdf#locationTypeEnum> "stop" .
+<https://gtfs.org/stops/TRIM_TEST> <https://w3id.org/gtfs2rdf#wheelchairBoarding> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://gtfs.org/stops/TRIM_TEST> <https://w3id.org/gtfs2rdf#stopTimezone> "Europe/Berlin" .
+<https://gtfs.org/stops/TRIM_TEST> <https://w3id.org/gtfs2rdf#tag> "a" .
+<https://gtfs.org/stops/TRIM_TEST> <https://w3id.org/gtfs2rdf#tag> "b" .
+<https://gtfs.org/stops/TRIM_TEST> <https://w3id.org/gtfs2rdf#tag> "c" .
