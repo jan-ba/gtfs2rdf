@@ -101,8 +101,12 @@ export int gtfs2rdf(const runtime::Settings& settings,
 	std::vector<size_t> num_depending_schemas(files_in_dir.size(), 0);
 	for (size_t i = 0; i < files_in_dir.size(); i++) {
 		toposort.addNode(i);
-		for (const auto& dep : used_schemas[i].getDependencies()) {
-			// TODO: debug info
+		const auto& deps = used_schemas[i].getDependencies();
+		if (deps.empty()) {
+			continue;
+		}
+		std::string dep_list;
+		for (const auto& dep : deps) {
 			if (!schema_name_to_index.contains(dep)) {
 				zip_close(z_arch);
 				throw diagnostics::Error("Schema error: dependency '" + dep + "' of schema '" +
@@ -110,7 +114,12 @@ export int gtfs2rdf(const runtime::Settings& settings,
 			}
 			toposort.addEdge(schema_name_to_index[dep], i, true); // dep must come before i
 			num_depending_schemas[schema_name_to_index[dep]]++;
+			dep_list += dep + " ";
 		}
+		rtc.getWarningCollector().addLeaf("Schema '" + used_schemas[i].getName() + "' depends on " +
+		                                      dep_list,
+		                                  diagnostics::WarningLevel::DEBUG,
+		                                  true);
 	}
 
 	// deactivate all storage writes from schemas that are not needed later on
@@ -120,7 +129,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 			rtc.getWarningCollector().addLeaf("Deactivated storage writes for schema '" +
 			                                      used_schemas[i].getName() +
 			                                      "' (not required by another schema)",
-			                                  diagnostics::WarningLevel::INFO,
+			                                  diagnostics::WarningLevel::DEBUG,
 			                                  true);
 		}
 	}
@@ -139,10 +148,10 @@ export int gtfs2rdf(const runtime::Settings& settings,
 	}
 
 	rtc.getWarningCollector().addLeaf(
-	    "Processing Gtfs files in order: ", diagnostics::WarningLevel::INFO, true);
+	    "Processing Gtfs files in order: ", diagnostics::WarningLevel::DEBUG, true);
 	for (size_t i = 0; i < files_in_dir.size(); i++) {
 		rtc.getWarningCollector().appendToLeaf(files_in_dir[order[i]],
-		                                       diagnostics::WarningLevel::INFO);
+		                                       diagnostics::WarningLevel::DEBUG);
 	}
 
 	writer::Writer writer =
@@ -180,7 +189,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 					rtc.getWarningCollector().addLeaf(
 					    "Cleared storage for schema '" + dep + "' after last dependent schema '" +
 					        used_schemas[order[i]].getName() + "' was processed.",
-					    diagnostics::WarningLevel::INFO,
+					    diagnostics::WarningLevel::DEBUG,
 					    true);
 				}
 			}
@@ -246,7 +255,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 			}
 		}
 		rtc.getWarningCollector().addLeaf(
-		    "Wrote ontology spec to " + spec_path.string(), diagnostics::WarningLevel::INFO, true);
+		    "Wrote ontology spec to " + spec_path.string(), diagnostics::WarningLevel::DEBUG, true);
 	}
 
 	rtc.getWarningCollector().printWarningSummary();

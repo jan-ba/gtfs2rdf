@@ -152,9 +152,9 @@ export class Instruction {
 					if (idx == -1) {
 						// header missing required column -> skip this instruction
 						is_valid_ = false;
-						rtc_.getWarningCollector().addLeaf("Column '" + arg.name +
-						                                       "' not found in header. Skipping",
-						                                   diagnostics::WarningLevel::INFO);
+						rtc_.getWarningCollector().addLeaf(
+						    "Column '" + arg.name + "' not found in file header. Skipping",
+						    diagnostics::WarningLevel::DEBUG);
 						return;
 					}
 					src.kind = ArgSourceKind::COLUMN_INDEX;
@@ -399,9 +399,10 @@ export class Instruction {
 							percentEncodeLiteral(out_, cur_sv_);
 							break;
 						case RenderKind::LANG_TAG:
-							out_.append(cur_sv_); // language tags do not need escaping
+							out_.append(
+							    cur_sv_); // [TODO]: language tags should be validated <future work>
 							break;
-						case RenderKind::RAW: // TODO: think about this
+						case RenderKind::RAW:
 						default:
 							out_.append(cur_sv_);
 							break;
@@ -438,9 +439,9 @@ export class Instruction {
 						percentEncodeLiteral(out_, val);
 						break;
 					case RenderKind::LANG_TAG:
-						out_.append(val); // language tags do not need escaping
+						out_.append(val); // [TODO]: language tags should be validated <future work>
 						break;
-					case RenderKind::RAW: // TODO: think about this
+					case RenderKind::RAW:
 					default:
 						out_.append(val);
 						break;
@@ -676,9 +677,9 @@ export class Schema {
 			if (column_map_.contains(header[file_idx])) {
 				column_map_[header[file_idx]] = static_cast<int>(file_idx);
 			} else {
-				rtc_.getWarningCollector().addLeaf("Schema does not use header column '" +
-				                                       header[file_idx] + "'",
-				                                   diagnostics::WarningLevel::INFO);
+				rtc_.getWarningCollector().addLeaf("Schema does not define column '" +
+				                                       header[file_idx] + "' used in file header",
+				                                   diagnostics::WarningLevel::DEBUG);
 			}
 		}
 		// build instructions_

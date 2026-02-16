@@ -2,9 +2,9 @@ module;
 
 #include "util/diagnostics.h"
 
+#include <algorithm>
 #include <cctype>
 #include <charconv>
-#include <iostream> // remove later
 #include <stdexcept>
 #include <string>
 
@@ -13,13 +13,13 @@ import field_transforms;
 
 using namespace field_transforms;
 
-// TODO: camelCase for function names? Because this will contrast nicely with Gtfs field names
-//       which are usually snake_case
-
 // library of field transforms that could be useful for multiple schemas
 // functions will need to be registered in the TransformRegistry (see below) in order to be
 // available
 namespace t_lib {
+
+// [TODO]: for each function in this library, add its counterpart that can be used inside a
+// user transform (e.g. bool isValidInt(std::string_view sv)) [future work]
 
 // _____________________________________________________________________________________________
 // factory for range-checking transform
@@ -144,6 +144,32 @@ export void isUnsigned(Args args, Out1& out) {
 	out = svw;
 }
 
+// converts an input string to a boolean value ("true" or "false")
+// evaluates to false if string matches any entry FALSE_STRINGS (case-insensitive),
+// otherwise evaluates to true
+export void toBool(Args args, Out1& out) {
+	static constexpr std::string FALSE_STRINGS[] = {
+	    "0", "false", "no", "off", "none", "null", "nan"};
+	if (args.size() != 1) {
+		throw diagnostics::Error("Transform error in 'toBool': expected exactly 1 argument, got " +
+		                         std::to_string(args.size()));
+	}
+	std::string_view svw = args[0];
+	if (svw.empty()) {
+		return; // leave empty
+	}
+	std::string lower(svw.size(), '\0');
+	std::transform(
+	    svw.begin(), svw.end(), lower.begin(), [](unsigned char c) { return std::tolower(c); });
+	for (const auto& false_string : FALSE_STRINGS) {
+		if (lower == false_string) {
+			out = "false";
+			return;
+		}
+	}
+	out = "true";
+}
+
 // check whether a numerical value falls within a specified range [min, max]
 // ARGS: args[0] = value to check, args[1] = min, args[2] = max
 export void isInRange(Args args, Out1& out) {
@@ -184,7 +210,7 @@ export void isInRange(Args args, Out1& out) {
 	out = args[0];
 }
 
-// TODO: add more type checks as needed, e.g. for dates, times, datetimes, etc.
+// [TODO]: add more type checks as needed, e.g. for dates, times, datetimes, etc. <future work>
 
 // _________________________________________________________________________________________________
 // Functions for format conversions

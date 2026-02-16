@@ -581,7 +581,7 @@ export class PersistentStorageSqlite {
 		}
 		std::cerr << "\n";
 #endif
-		// TODO: add formatting here such that large numbers get K/M/G suffixes
+
 		// DB size
 		std::error_code err_code;
 		const auto DB_SIZE = std::filesystem::file_size(db_path_, err_code);
@@ -592,7 +592,7 @@ export class PersistentStorageSqlite {
 		}
 
 #if GTFS2RDF_FULL_STATS
-		// Timing block , TODO: same here
+		// Timing block
 		std::cerr << "Timing statistics\n"
 		          << "  initialization: " << formatValueWithPaddedUnits(init_ns_, UnitType::TIME)
 		          << " \n"

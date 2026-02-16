@@ -86,7 +86,7 @@ export class Settings {
 		    "Dump ontology spec to disk",
 		    cxxopts::value<bool>()->default_value("false")->implicit_value("true"))(
 		    "warning-level",
-		    "Warning verbosity: quiet|warning|info",
+		    "Warning verbosity: quiet|warning|debug",
 		    cxxopts::value<std::string>()->default_value("quiet"))(
 		    "stats",
 		    "Statistics output: quiet (none), brief (overview), verbose (overview per-file)",
@@ -171,11 +171,11 @@ export class Settings {
 			warning_verbosity_ = diagnostics::VerbosityLevelWarnings::QUIET;
 		} else if (warning_level == "warning") {
 			warning_verbosity_ = diagnostics::VerbosityLevelWarnings::WARNING;
-		} else if (warning_level == "info") {
-			warning_verbosity_ = diagnostics::VerbosityLevelWarnings::INFO;
+		} else if (warning_level == "debug") {
+			warning_verbosity_ = diagnostics::VerbosityLevelWarnings::DEBUG;
 		} else {
 			throw diagnostics::Error("Settings error: unsupported warning level '" + warning_level +
-			                         "'. Supported levels are 'quiet', 'warning', and 'info'.\n");
+			                         "'. Supported levels are 'quiet', 'warning', and 'debug'.\n");
 		}
 
 		// statistics output level
@@ -249,6 +249,9 @@ export class Settings {
 	}
 	[[nodiscard]] const std::filesystem::path& getInputPath() const {
 		return input_path_;
+	}
+	[[nodiscard]] const std::string getInputFileName() const {
+		return input_path_.filename().string();
 	}
 	[[nodiscard]] bool isOutputToStdout() const {
 		return output_stdout_;

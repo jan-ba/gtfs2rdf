@@ -63,11 +63,11 @@ inline void printErrorChain(const std::exception& excpt) {
 // to be assigned to a Warning in code
 // beware that the ordering matters for proper filtering based on verbosity level, such that
 // less severe < more severe
-enum class WarningLevel : uint8_t { INFO, WARNING };
+enum class WarningLevel : uint8_t { DEBUG, WARNING };
 
 // beware that ordering matters for proper filtering based on verbosity level, such that
 // more verbose < less verbose
-enum class VerbosityLevelWarnings : uint8_t { INFO, WARNING, QUIET };
+enum class VerbosityLevelWarnings : uint8_t { DEBUG, WARNING, QUIET };
 
 class Warning {
   public:
@@ -113,7 +113,7 @@ class Warning {
 		switch (level) {
 			case WarningLevel::WARNING:
 				return "⚠️  ";
-			case WarningLevel::INFO:
+			case WarningLevel::DEBUG:
 				return "ℹ️  ";
 		}
 		return "";
@@ -151,7 +151,7 @@ class WarningCollector {
 		}
 		warnings_.back().appendWarningMessage(message);
 	}
-	// TODO: check why sometimes the processed file is not added here
+
 	void addNode(std::string_view message, size_t depth) {
 		for (const auto& idx : unclosed_warning_indices_) {
 			warnings_[idx].addContext(message, depth);

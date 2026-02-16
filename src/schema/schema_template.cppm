@@ -17,6 +17,87 @@ order to support another GTFS file with this converter.
 For built-in/library transforms, see: transform_lib.cppm (imported via `import t_lib;`).
 
 ------------------------------------------------------------------------------
+0) RDF TERM / TRIPLE SYNTAX IN THIS ENGINE (IMPORTANT)
+------------------------------------------------------------------------------
+You do NOT write Turtle/N-Triples syntax as raw strings for whole triples.
+Instead you construct rdf::IRI / rdf::Object / rdf::Triple in C++:
+
+  - Subject:    rdf::IRI
+  - Predicate:  rdf::IRI
+  - Object:     rdf::Object   (either IRI object or literal object)
+
+The engine will serialise either Turtle (default) or N-Triples depending on runtime settings.
+
+### 0.1 IRI(term)
+Construct an IRI via:
+
+  rdf::IRI(prefix, local_name)
+
+Examples (Turtle output prefers prefixed names):
+  IRI("gtfs", "Stop")                  -> gtfs:Stop
+  IRI("ex",   "{id}")                  -> ex:{id}
+
+Placeholders inside the LOCAL NAME are supported and will be escaped depending on context:
+  - In Turtle prefixed names, placeholders in the local part are encoded more strictly
+    (letters/digits/_/- are kept; everything else gets percent-encoded).
+  - In N-Triples, IRIs are serialized as <...> and placeholders inside become IRIREF-safe
+    via percent-encoding (RFC3986 "unreserved" kept; '%' is always encoded).
+
+Already-serialized tokens:
+  If you pass an EMPTY prefix, the engine assumes the `local_name` is already a valid RDF token
+  (e.g. "<http://...>" or another full token) and will emit it as-is:
+
+    IRI("", "<https://example.org/{id}>")
+
+Placeholders inside that string are still escaped as IRIREF placeholders.
+(So write proper brackets yourself when using prefix="".)
+
+Blank nodes:
+  Not supported yet. Using prefix "_" is rejected.
+
+### 0.2 Object(term)
+An object is either an IRI (resource) or a literal.
+
+(A) IRI object:
+    rdf::Object( rdf::IRI("ex", "{id}") )
+    -> ex:{id}
+
+(B) Plain literal (no lang, no datatype):
+    rdf::Object("{name}")
+    -> "{name}"
+
+(C) Language-tagged literal:
+    rdf::Object("{name}", "de")
+    -> "{name}"@de
+
+  Language tags are rendered as raw tokens after '@'. Placeholders are allowed there, e.g.:
+    rdf::Object("{name}", "{FEED_LANG@feed_info.txt}")
+    -> "{name}"@{FEED_LANG@feed_info.txt}
+
+  NOTE: The engine does not “invent” tags; whatever you output must be acceptable in Turtle.
+        For interoperability, use BCP 47-style tags (e.g. "en", "en-US", "de-CH") or private-use
+        tags like "x-mycode".
+
+(D) Typed literal:
+    rdf::Object("{stop_sequence}", rdf::IRI("xs","integer"))
+    -> "{stop_sequence}"^^xs:integer
+
+  Placeholders are allowed in the datatype IRI local name too:
+    rdf::Object("{val}", rdf::IRI("ex","dt/{dtype}"))
+    -> "{val}"^^ex:dt/{dtype}
+
+Language tag vs datatype:
+  If you provide a language tag (non-empty), the datatype is not emitted. (Standard RDF rule.)
+
+### 0.3 Escaping / quoting rules are automatic
+You DO NOT manually escape placeholder values for RDF output. The engine tracks, per placeholder,
+which RenderKind it belongs to and escapes accordingly:
+  - inside <...> IRIREF: percent-encode non-unreserved bytes
+  - inside prefixed local names: percent-encode non [A-Za-z0-9_-]
+  - inside "..." literals: escape control chars and quotes/backslashes
+  - inside @lang tags: inserted as token text (so ensure it contains only valid characters)
+
+------------------------------------------------------------------------------
 1) Placeholders: `{ ... }` (args + transform chain + optional storage)
 ------------------------------------------------------------------------------
 In instruction strings, `{...}` is a placeholder evaluated per GTFS row.
@@ -107,6 +188,9 @@ IMPORTANT:
 
 STORAGE is available to transforms (for reading variables/maps written by storage placeholders).
 
+Tip:
+  For common string operations, see util/strings.cppm (import util; then use util::strings::*).
+
 ------------------------------------------------------------------------------
 4) Argument kinds (what you can write before the first `|`)
 ------------------------------------------------------------------------------
@@ -128,7 +212,8 @@ STORAGE is available to transforms (for reading variables/maps written by storag
 ------------------------------------------------------------------------------
 5) Writing to storage (use `>` inside the placeholder)
 ------------------------------------------------------------------------------
-Storage writes happen as a side effect during rendering (before output escaping/writing).
+Storage writes happen as a side effect during rendering (row-wise).
+Storage-only instructions are the usual way to do “pure storage setup” (see §6).
 
 In general, storage uses:
   - VARIABLE: one string value
@@ -337,6 +422,13 @@ export Schema buildSchemaTemplateSchema(runtime::RuntimeContainer& rtc) {
 
 	    // Storage-backed fan-out (MULTI_MAP -> many values -> many triples):
 	    {SUBJ, {"gtfs", "alias"}, {"{id|exLookupAliases@schema_template.txt}"}},
+
+	    // Language-tagged literal (tag can be dynamic via storage variable):
+	    // Emits: "..."@EN (because NO_WRITE_INSTRUCTIONS upper-cases feed_lang in this template).
+	    {SUBJ, {"gtfs", "name"}, Object("{name}", "{FEED_LANG@schema_template.txt}")},
+
+	    // Typed literal example:
+	    {SUBJ, {"gtfs", "idLexical"}, Object("{id}", IRI("xs", "string"))},
 	};
 
 	// -------------------------------------------------------------------------
@@ -361,12 +453,3 @@ export Schema buildSchemaTemplateSchema(runtime::RuntimeContainer& rtc) {
 }
 
 } // namespace schema
-
-// TODO:
-// storage writes sind ebenfalls zeilenweise bloß eben vor den triple writes.
-// engine takes care of escaping depending on type (literal, IRI etc.)
-// users may also want to make use of functions for string operations in util/strings.cppm
-
-// add how the exact triple syntax is, that is, how to write IRIs, literals, language tags,
-// datatypes, and combinations thereof (e.g. "{col|trf|trf2@ctx}^^{xs:string}" or
-// "{col|trf|trf2@ctx}@en") with my engine

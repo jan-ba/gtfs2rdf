@@ -43,23 +43,10 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 		if (type_id < '0' || type_id > '4') {
 			TRANSFORM_ERROR("Unknown location_type code: " + std::string(ARGS[0]));
 		}
-		switch (type_id) {
-			case '0':
-				OUT_VAL = "stop";
-				break;
-			case '1':
-				OUT_VAL = "station";
-				break;
-			case '2':
-				OUT_VAL = "entrance_exit";
-				break;
-			case '3':
-				OUT_VAL = "generic_node";
-				break;
-			case '4':
-				OUT_VAL = "boarding_area";
-				break;
-		}
+
+		static constexpr std::array<const char*, 5> LOCATION_TYPE_STRINGS = {
+		    "Stop/platform", "Station", "Entrance/Exit", "Generic node", "Boarding area"};
+		OUT_VAL = LOCATION_TYPE_STRINGS[type_id - '0'];
 	}
 	TRANSFORM_END
 
@@ -99,13 +86,6 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Stop")}},
 	    {SUBJ, {"gtfs", "stopName"}, {"{stop_name}", "{FEED_LANG@feed_info.txt}"}},
 
-	    // Using translation transform to get translated stop names
-	    // expected args of get_translation: table_name, field_name, field_value
-	    // TODO: if  transform not found, ignore instruction (i.e., no translation available)
-	    // { SUBJ,  {"gtfs", "stopName"},    { "{\"stops\", \"stop_name\", stop_name"
-	    //                                         "| get_translation@translations.txt}",
-	    //                                     "{latest_translation_lookup@translations.txt}" } },
-
 	    {SUBJ, {"gtfs", "stopDesc"}, {"{stop_desc}", "{FEED_LANG@feed_info.txt}"}},
 	    {SUBJ, {"gtfs", "stopCode"}, {"{stop_code}"}},
 	    {SUBJ, {"gtfs", "stopUrl"}, {"{stop_url}", IRI("xs", "anyURI")}},
@@ -121,7 +101,7 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 	    // Hierarchy / location type
 	    {SUBJ, {"gtfs", "locationType"}, {"{location_type}", IRI("xs", "integer")}},
 	    {SUBJ, {"gtfs", "locationTypeEnum"}, {"{location_type | loc2Enum}"}},
-	    {SUBJ, {"gtfs", "parent_station"}, {IRI("stops", "{parent_station}")}},
+	    {SUBJ, {"gtfs", "parentStation"}, {IRI("stops", "{parent_station}")}},
 
 	    // Misc
 	    {SUBJ, {"gtfs", "zoneId"}, {"{zone_id}"}},

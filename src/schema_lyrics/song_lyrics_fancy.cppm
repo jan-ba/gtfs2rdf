@@ -10,7 +10,7 @@ module;
 #include <unordered_map>
 #include <vector>
 
-export module schema:song_lyrics;
+export module schema:song_lyrics_fancy;
 
 import :core;
 import rdf_components;
@@ -23,7 +23,7 @@ using namespace rdf;
 
 namespace schema {
 
-export Schema buildSongLyricsSchema(runtime::RuntimeContainer& rtc) {
+export Schema buildSongLyricsFancySchema(runtime::RuntimeContainer& rtc) {
 	// -------------------------------------------------------------------------
 	// Small helpers
 	// -------------------------------------------------------------------------
