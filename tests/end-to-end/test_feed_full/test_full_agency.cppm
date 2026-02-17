@@ -44,7 +44,7 @@ export Schema buildTestFullAgencySchema(runtime::RuntimeContainer& rtc) {
 	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"agencies", "https://gtfs.org/agencies/"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
 	const IRI SUBJ = IRI("agencies", "{agency_id}");
@@ -52,11 +52,11 @@ export Schema buildTestFullAgencySchema(runtime::RuntimeContainer& rtc) {
 	const std::vector<Triple> TRIPLES = {
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Agency")}},
 	    {SUBJ, {"gtfs", "agencyName"}, {"{agency_name}"}},
-	    {SUBJ, {"gtfs", "agencyUrl"}, {"{agency_url}", IRI("xs", "anyURI")}},
+	    {SUBJ, {"gtfs", "agencyUrl"}, {"{agency_url}", IRI("xsd", "anyURI")}},
 	    {SUBJ, {"gtfs", "agencyTimezone"}, {"{agency_timezone}"}},
-	    {SUBJ, {"gtfs", "agencyLang"}, {"{agency_lang}", IRI("xs", "language")}},
+	    {SUBJ, {"gtfs", "agencyLang"}, {"{agency_lang}", IRI("xsd", "language")}},
 	    {SUBJ, {"gtfs", "agencyPhone"}, {"{agency_phone}"}},
-	    {SUBJ, {"gtfs", "agencyFareUrl"}, {"{agency_fare_url}", IRI("xs", "anyURI")}},
+	    {SUBJ, {"gtfs", "agencyFareUrl"}, {"{agency_fare_url}", IRI("xsd", "anyURI")}},
 	    {SUBJ, {"gtfs", "agencyEmail"}, {"{agency_email}"}}};
 	Schema sch("test_full_agency.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
 	return sch;

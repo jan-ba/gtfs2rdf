@@ -50,7 +50,7 @@ export Schema buildRoutesSchema(runtime::RuntimeContainer& rtc) {
 	    {"networks", "https://gtfs.org/networks/"},
 
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
 	const IRI SUBJ = IRI("routes", "{route_id}");
@@ -70,24 +70,26 @@ export Schema buildRoutesSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ, {"gtfs", "routeDesc"}, {"{route_desc}", "{FEED_LANG@feed_info.txt}"}},
 
 	    // Type (required)
-	    {SUBJ, {"gtfs", "routeType"}, {"{route_type}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "routeType"}, {"{route_type}", IRI("xsd", "integer")}},
 
 	    // URL
-	    {SUBJ, {"gtfs", "routeUrl"}, {"{route_url}", IRI("xs", "anyURI")}},
+	    {SUBJ, {"gtfs", "routeUrl"}, {"{route_url}", IRI("xsd", "anyURI")}},
 
 	    // Colors
 	    {SUBJ, {"gtfs", "routeColor"}, {"{route_color}"}},
 	    {SUBJ, {"gtfs", "routeTextColor"}, {"{route_text_color}"}},
 
 	    // Sort order (non-negative integer)
-	    {SUBJ, {"gtfs", "routeSortOrder"}, {"{route_sort_order}", IRI("xs", "nonNegativeInteger")}},
+	    {SUBJ,
+	     {"gtfs", "routeSortOrder"},
+	     {"{route_sort_order}", IRI("xsd", "nonNegativeInteger")}},
 
 	    // Continuous pickup/drop-off (enums)
-	    {SUBJ, {"gtfs", "continuousPickup"}, {"{continuous_pickup}", IRI("xs", "integer")}},
-	    {SUBJ, {"gtfs", "continuousDropOff"}, {"{continuous_drop_off}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "continuousPickup"}, {"{continuous_pickup}", IRI("xsd", "integer")}},
+	    {SUBJ, {"gtfs", "continuousDropOff"}, {"{continuous_drop_off}", IRI("xsd", "integer")}},
 
 	    // cEMV support (enum)
-	    {SUBJ, {"gtfs", "cemvSupport"}, {"{cemv_support}", IRI("xs", "integer")}}};
+	    {SUBJ, {"gtfs", "cemvSupport"}, {"{cemv_support}", IRI("xsd", "integer")}}};
 
 	Schema sch("routes.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
 	return sch;

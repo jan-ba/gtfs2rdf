@@ -60,7 +60,7 @@ export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rtc) {
 	    {"services", "https://gtfs.org/services/"},
 
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
 	const IRI SUBJ = IRI("caldates", "{service_id}");
@@ -75,7 +75,7 @@ export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rtc) {
 	     {"gtfs", "serviceDate"},
 	     {"{ date, exception_type | ignore_disabled_dates"
 	      "| convertDate2xs_unchecked }",
-	      IRI("xs", "date")}},
+	      IRI("xsd", "date")}},
 	};
 
 	const std::vector<std::string> STORAGE_ONLY = {

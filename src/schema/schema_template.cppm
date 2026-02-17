@@ -79,8 +79,8 @@ An object is either an IRI (resource) or a literal.
         tags like "x-mycode".
 
 (D) Typed literal:
-    rdf::Object("{stop_sequence}", rdf::IRI("xs","integer"))
-    -> "{stop_sequence}"^^xs:integer
+    rdf::Object("{stop_sequence}", rdf::IRI("xsd","integer"))
+    -> "{stop_sequence}"^^xsd:integer
 
   Placeholders are allowed in the datatype IRI local name too:
     rdf::Object("{val}", rdf::IRI("ex","dt/{dtype}"))
@@ -401,7 +401,7 @@ export Schema buildSchemaTemplateSchema(runtime::RuntimeContainer& rtc) {
 	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"ex", "https://example.org/resource/"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"},
 	};
 
@@ -428,7 +428,7 @@ export Schema buildSchemaTemplateSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ, {"gtfs", "name"}, Object("{name}", "{FEED_LANG@schema_template.txt}")},
 
 	    // Typed literal example:
-	    {SUBJ, {"gtfs", "idLexical"}, Object("{id}", IRI("xs", "string"))},
+	    {SUBJ, {"gtfs", "idLexical"}, Object("{id}", IRI("xsd", "string"))},
 	};
 
 	// -------------------------------------------------------------------------

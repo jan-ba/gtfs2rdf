@@ -40,7 +40,7 @@ export Schema buildTestFullStopTimesSchema(runtime::RuntimeContainer& rtc) {
 	    {"stop_times", "https://gtfs.org/stop_times/"},
 	    {"trips", "https://gtfs.org/trips/"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
 	const IRI SUBJ = IRI("stop_times", "{trip_id}_{stop_sequence}");
@@ -49,14 +49,14 @@ export Schema buildTestFullStopTimesSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "StopTime")}},
 	    {SUBJ, {"gtfs", "trip"}, {IRI("trips", "{trip_id}")}},
 	    {SUBJ, {"gtfs", "stop"}, {IRI("stops", "{stop_id}")}},
-	    {SUBJ, {"gtfs", "stopSequence"}, {"{stop_sequence}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "stopSequence"}, {"{stop_sequence}", IRI("xsd", "integer")}},
 	    {SUBJ,
 	     {"gtfs", "arrivalTime"},
-	     {"{arrival_time | convertTime2xs_unchecked}", IRI("xs", "time")}},
+	     {"{arrival_time | convertTime2xs_unchecked}", IRI("xsd", "time")}},
 	    {SUBJ,
 	     {"gtfs", "departureTime"},
-	     {"{departure_time | convertTime2xs_unchecked}", IRI("xs", "time")}},
-	    {SUBJ, {"gtfs", "timepoint"}, {"{timepoint}", IRI("xs", "integer")}}};
+	     {"{departure_time | convertTime2xs_unchecked}", IRI("xsd", "time")}},
+	    {SUBJ, {"gtfs", "timepoint"}, {"{timepoint}", IRI("xsd", "integer")}}};
 	Schema sch("test_full_stop_times.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
 	return sch;
 }

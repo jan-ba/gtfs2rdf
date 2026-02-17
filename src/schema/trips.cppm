@@ -99,7 +99,7 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rtc) {
 	    {"shapes", "https://gtfs.org/shapes/"},
 	    {"geo", "http://www.opengis.net/ont/geosparql#"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs2rdfgeom", "https://w3id.org/gtfs2rdf/geometry#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
@@ -117,7 +117,7 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ, {"gtfs", "tripShortName"}, {"{trip_short_name}"}},
 
 	    // Direction (0/1)
-	    {SUBJ, {"gtfs", "directionId"}, {"{direction_id}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "directionId"}, {"{direction_id}", IRI("xsd", "integer")}},
 
 	    // Block and shape
 	    {SUBJ, {"gtfs", "block"}, {IRI("blocks", "{block_id}")}},
@@ -128,9 +128,11 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rtc) {
 	     {{"{shape_id | get_linestring@shapes.txt}"}, IRI("geo", "wktLiteral")}},
 
 	    // Accessibility / allowances (enums: 0/1/2)
-	    {SUBJ, {"gtfs", "wheelchairAccessible"}, {"{wheelchair_accessible}", IRI("xs", "integer")}},
-	    {SUBJ, {"gtfs", "bikesAllowed"}, {"{bikes_allowed}", IRI("xs", "integer")}},
-	    {SUBJ, {"gtfs", "carsAllowed"}, {"{cars_allowed}", IRI("xs", "integer")}}};
+	    {SUBJ,
+	     {"gtfs", "wheelchairAccessible"},
+	     {"{wheelchair_accessible}", IRI("xsd", "integer")}},
+	    {SUBJ, {"gtfs", "bikesAllowed"}, {"{bikes_allowed}", IRI("xsd", "integer")}},
+	    {SUBJ, {"gtfs", "carsAllowed"}, {"{cars_allowed}", IRI("xsd", "integer")}}};
 
 	Schema sch("trips.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
 	return sch;

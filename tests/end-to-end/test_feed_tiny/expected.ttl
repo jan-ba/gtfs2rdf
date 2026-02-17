@@ -1,7 +1,7 @@
 @prefix stops: <https://gtfs.org/stops/> .
 @prefix stop_times: <https://gtfs.org/stop_times/> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-@prefix xs: <http://www.w3.org/2001/XMLSchema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix feed: <https://gtfs.org/feed/> .
 @prefix gtfs: <https://w3id.org/gtfs2rdf#> .
 @prefix wgs: <http://www.w3.org/2003/01/geo/wgs84_pos#> .
@@ -13,21 +13,21 @@ feed:1 gtfs:feedPublisherName "Tiny Transit \"Co\"" .
 feed:1 gtfs:feedPublisherUrl "https://example.com/publisher?x=1&y=2" .
 feed:1 gtfs:feedLanguage "de-CH-1901" .
 feed:1 gtfs:defaultLanguage "en" .
-feed:1 gtfs:feedStartDate "2025-01-01"^^xs:date .
-feed:1 gtfs:feedEndDate "2025-12-31"^^xs:date .
+feed:1 gtfs:feedStartDate "2025-01-01"^^xsd:date .
+feed:1 gtfs:feedEndDate "2025-12-31"^^xsd:date .
 feed:1 gtfs:feedVersion "v1.0test" .
 feed:1 gtfs:feedContactEmail "support+gtfs@example.com" .
 feed:1 gtfs:feedContactUrl "https://example.com/contact us" .
 stops:STATION_1 rdf:type gtfs:Stop .
 stops:STATION_1 gtfs:stopName "Central Station"@de-CH-1901 .
 stops:STATION_1 gtfs:stopDesc "Main hub; has \"quotes\" and, comma"@de-CH-1901 .
-stops:STATION_1 wgs:lat "48.000000"^^xs:decimal .
-stops:STATION_1 wgs:long "7.000000"^^xs:decimal .
+stops:STATION_1 wgs:lat "48.000000"^^xsd:decimal .
+stops:STATION_1 wgs:long "7.000000"^^xsd:decimal .
 gtfs2rdfgeom:stop_STATION_1 geo:asWKT "POINT(7.000000 48.000000)"^^geo:wktLiteral .
 stops:STATION_1 geo:hasGeometry gtfs2rdfgeom:stop_STATION_1 .
-stops:STATION_1 gtfs:stopUrl "https://example.com/station/central"^^xs:anyURI .
+stops:STATION_1 gtfs:stopUrl "https://example.com/station/central"^^xsd:anyURI .
 stops:STATION_1 gtfs:locationTypeEnum "station" .
-stops:STATION_1 gtfs:wheelchairBoarding "1"^^xs:integer .
+stops:STATION_1 gtfs:wheelchairBoarding "1"^^xsd:integer .
 stops:STATION_1 gtfs:stopTimezone "Europe/Berlin" .
 stops:STATION_1 gtfs:tag "alpha" .
 stops:STATION_1 gtfs:tag "beta" .
@@ -35,39 +35,39 @@ stops:STATION_1 gtfs:tag "gamma" .
 stops:STATION_1%3APlatform%20A rdf:type gtfs:Stop .
 stops:STATION_1%3APlatform%20A gtfs:stopName "Central Station, Platform \"A\""@de-CH-1901 .
 stops:STATION_1%3APlatform%20A gtfs:stopDesc "Backslash \\\\ and unicode ✓"@de-CH-1901 .
-stops:STATION_1%3APlatform%20A wgs:lat "48.000100"^^xs:decimal .
-stops:STATION_1%3APlatform%20A wgs:long "7.000100"^^xs:decimal .
+stops:STATION_1%3APlatform%20A wgs:lat "48.000100"^^xsd:decimal .
+stops:STATION_1%3APlatform%20A wgs:long "7.000100"^^xsd:decimal .
 gtfs2rdfgeom:stop_STATION_1%3APlatform%20A geo:asWKT "POINT(7.000100 48.000100)"^^geo:wktLiteral .
 stops:STATION_1%3APlatform%20A geo:hasGeometry gtfs2rdfgeom:stop_STATION_1%3APlatform%20A .
-stops:STATION_1%3APlatform%20A gtfs:stopUrl "https://example.com/station/central platform?x=1&y=2"^^xs:anyURI .
+stops:STATION_1%3APlatform%20A gtfs:stopUrl "https://example.com/station/central platform?x=1&y=2"^^xsd:anyURI .
 stops:STATION_1%3APlatform%20A gtfs:locationTypeEnum "stop" .
 stops:STATION_1%3APlatform%20A gtfs:parent_station stops:STATION_1 .
 stops:STATION_1%3APlatform%20A gtfs:platformCode "A" .
-stops:STATION_1%3APlatform%20A gtfs:wheelchairBoarding "2"^^xs:integer .
+stops:STATION_1%3APlatform%20A gtfs:wheelchairBoarding "2"^^xsd:integer .
 stops:STATION_1%3APlatform%20A gtfs:stopTimezone "Europe/Berlin" .
 stops:STATION_1%3APlatform%20A gtfs:tag "x%y" .
 stops:STATION_1%3APlatform%20A gtfs:tag "😀" .
 stops:M%C3%BCnsterplatz rdf:type gtfs:Stop .
 stops:M%C3%BCnsterplatz gtfs:stopName "Münsterplatz - Süd"@de-CH-1901 .
 stops:M%C3%BCnsterplatz gtfs:stopDesc "Accented chars: é, ö, ß"@de-CH-1901 .
-stops:M%C3%BCnsterplatz wgs:lat "48.001234"^^xs:decimal .
-stops:M%C3%BCnsterplatz wgs:long "7.001234"^^xs:decimal .
+stops:M%C3%BCnsterplatz wgs:lat "48.001234"^^xsd:decimal .
+stops:M%C3%BCnsterplatz wgs:long "7.001234"^^xsd:decimal .
 gtfs2rdfgeom:stop_M%C3%BCnsterplatz geo:asWKT "POINT(7.001234 48.001234)"^^geo:wktLiteral .
 stops:M%C3%BCnsterplatz geo:hasGeometry gtfs2rdfgeom:stop_M%C3%BCnsterplatz .
-stops:M%C3%BCnsterplatz gtfs:stopUrl "https://example.com/äöü?city=Freiburg"^^xs:anyURI .
+stops:M%C3%BCnsterplatz gtfs:stopUrl "https://example.com/äöü?city=Freiburg"^^xsd:anyURI .
 stops:M%C3%BCnsterplatz gtfs:locationTypeEnum "stop" .
-stops:M%C3%BCnsterplatz gtfs:wheelchairBoarding "0"^^xs:integer .
+stops:M%C3%BCnsterplatz gtfs:wheelchairBoarding "0"^^xsd:integer .
 stops:M%C3%BCnsterplatz gtfs:stopTimezone "Europe/Berlin" .
 stops:100%25%20stop rdf:type gtfs:Stop .
 stops:100%25%20stop gtfs:stopName "Percent & spaces"@de-CH-1901 .
 stops:100%25%20stop gtfs:stopDesc "Needs encoding: % and space"@de-CH-1901 .
-stops:100%25%20stop wgs:lat "48.002000"^^xs:decimal .
-stops:100%25%20stop wgs:long "7.002000"^^xs:decimal .
+stops:100%25%20stop wgs:lat "48.002000"^^xsd:decimal .
+stops:100%25%20stop wgs:long "7.002000"^^xsd:decimal .
 gtfs2rdfgeom:stop_100%25%20stop geo:asWKT "POINT(7.002000 48.002000)"^^geo:wktLiteral .
 stops:100%25%20stop geo:hasGeometry gtfs2rdfgeom:stop_100%25%20stop .
-stops:100%25%20stop gtfs:stopUrl "https://example.com/stop info?q=a b&x=<y>"^^xs:anyURI .
+stops:100%25%20stop gtfs:stopUrl "https://example.com/stop info?q=a b&x=<y>"^^xsd:anyURI .
 stops:100%25%20stop gtfs:locationTypeEnum "stop" .
-stops:100%25%20stop gtfs:wheelchairBoarding "1"^^xs:integer .
+stops:100%25%20stop gtfs:wheelchairBoarding "1"^^xsd:integer .
 stops:100%25%20stop gtfs:stopTimezone "Europe/Berlin" .
 stops:100%25%20stop gtfs:tag "one" .
 stops:100%25%20stop gtfs:tag "two" .
@@ -75,25 +75,25 @@ stops:100%25%20stop gtfs:tag "three" .
 stops:SafeChars-_%2E123 rdf:type gtfs:Stop .
 stops:SafeChars-_%2E123 gtfs:stopName "SafeChars-_.123"@de-CH-1901 .
 stops:SafeChars-_%2E123 gtfs:stopDesc "Period in ID should be encoded if you use prefixed-local"@de-CH-1901 .
-stops:SafeChars-_%2E123 wgs:lat "48.003000"^^xs:decimal .
-stops:SafeChars-_%2E123 wgs:long "7.003000"^^xs:decimal .
+stops:SafeChars-_%2E123 wgs:lat "48.003000"^^xsd:decimal .
+stops:SafeChars-_%2E123 wgs:long "7.003000"^^xsd:decimal .
 gtfs2rdfgeom:stop_SafeChars-_%2E123 geo:asWKT "POINT(7.003000 48.003000)"^^geo:wktLiteral .
 stops:SafeChars-_%2E123 geo:hasGeometry gtfs2rdfgeom:stop_SafeChars-_%2E123 .
-stops:SafeChars-_%2E123 gtfs:stopUrl "https://example.com/safe"^^xs:anyURI .
+stops:SafeChars-_%2E123 gtfs:stopUrl "https://example.com/safe"^^xsd:anyURI .
 stops:SafeChars-_%2E123 gtfs:locationTypeEnum "stop" .
-stops:SafeChars-_%2E123 gtfs:wheelchairBoarding "0"^^xs:integer .
+stops:SafeChars-_%2E123 gtfs:wheelchairBoarding "0"^^xsd:integer .
 stops:SafeChars-_%2E123 gtfs:stopTimezone "Europe/Berlin" .
 stops:SafeChars-_%2E123 gtfs:tag "k1" .
 stops:SafeChars-_%2E123 gtfs:tag "k2" .
 stops:TRIM_TEST rdf:type gtfs:Stop .
 stops:TRIM_TEST gtfs:stopName "  Leading and trailing spaces  "@de-CH-1901 .
 stops:TRIM_TEST gtfs:stopDesc "   desc with surrounding spaces   "@de-CH-1901 .
-stops:TRIM_TEST wgs:lat "48.000000"^^xs:decimal .
-stops:TRIM_TEST wgs:long "7.000000"^^xs:decimal .
+stops:TRIM_TEST wgs:lat "48.000000"^^xsd:decimal .
+stops:TRIM_TEST wgs:long "7.000000"^^xsd:decimal .
 stops:TRIM_TEST geo:hasGeometry gtfs2rdfgeom:stop_STATION_1 .
-stops:TRIM_TEST gtfs:stopUrl "https://example.com/trim"^^xs:anyURI .
+stops:TRIM_TEST gtfs:stopUrl "https://example.com/trim"^^xsd:anyURI .
 stops:TRIM_TEST gtfs:locationTypeEnum "stop" .
-stops:TRIM_TEST gtfs:wheelchairBoarding "0"^^xs:integer .
+stops:TRIM_TEST gtfs:wheelchairBoarding "0"^^xsd:integer .
 stops:TRIM_TEST gtfs:stopTimezone "Europe/Berlin" .
 stops:TRIM_TEST gtfs:tag "a" .
 stops:TRIM_TEST gtfs:tag "b" .

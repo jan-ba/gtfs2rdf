@@ -31,7 +31,7 @@ namespace t_lib {
 // if no value is given no output will be generated (empty string)
 // if the value is invalid, a custom error 'Error' will be thrown
 
-// checks if the input is a valid xs:integer and returns it unchanged if valid, otherwise throws
+// checks if the input is a valid xsd:integer and returns it unchanged if valid, otherwise throws
 // valid integers consist of an optional leading '-' followed by one or more digits, and must not
 // have leading zeros (except for the number '0' itself)
 export void isValidInt(Args args, Out1& out) {
@@ -64,7 +64,7 @@ export void isValidInt(Args args, Out1& out) {
 	out = svw;
 }
 
-// checks if the input is a valid xs:decimal and returns it unchanged if valid, otherwise throws
+// checks if the input is a valid xsd:decimal and returns it unchanged if valid, otherwise throws
 // valid decimals consist of an optional leading '-' followed by digits, with at most one decimal
 // point, and must not have leading zeros (except for the number '0' itself or '0.x'). Decimal point
 // must be followed by at least one digit if present.
@@ -215,7 +215,7 @@ export void isInRange(Args args, Out1& out) {
 // _________________________________________________________________________________________________
 // Functions for format conversions
 
-// convert Gtfs date "YYYYMMDD" to xs:date "YYYY-MM-DD"
+// convert Gtfs date "YYYYMMDD" to xsd:date "YYYY-MM-DD"
 export void convertDate2xs_unchecked(Args args, Out1& out) {
 	if (args.size() != 1) {
 		throw diagnostics::Error(
@@ -240,7 +240,7 @@ export void convertDate2xs_unchecked(Args args, Out1& out) {
 	// NOLINTEND
 }
 
-// convert Gtfs time "H+:MM:SS" to xs:time "HH:MM:SS" by wrapping hours mod 24
+// convert Gtfs time "H+:MM:SS" to xsd:time "HH:MM:SS" by wrapping hours mod 24
 // GIGO: no validation of minutes/seconds
 // NOLINTBEGIN : magic numbers and variable names in this function are clear in this context
 export void convertTime2xs_unchecked(Args args, Out1& out) {

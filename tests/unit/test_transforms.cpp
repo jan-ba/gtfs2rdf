@@ -161,7 +161,7 @@ TEST_CASE("t_lib::isInRange checks if a value is within a specified range") {
 	}
 }
 
-TEST_CASE("t_lib::convertDate2xs_unchecked converts GTFS date to xs:date format") {
+TEST_CASE("t_lib::convertDate2xs_unchecked converts GTFS date to xsd:date format") {
 	// correctly formatted input date will result in a correctly formatted output date, else garbage
 	SECTION("Valid") {
 		REQUIRE(getTransResult(t_lib::convertDate2xs_unchecked, {"20240101"}) == "2024-01-01");
@@ -184,7 +184,7 @@ TEST_CASE("t_lib::convertDate2xs_unchecked converts GTFS date to xs:date format"
 	}
 }
 
-TEST_CASE("t_lib::convertTime2xs_unchecked converts GTFS time to xs:time format") {
+TEST_CASE("t_lib::convertTime2xs_unchecked converts GTFS time to xsd:time format") {
 	SECTION("Valid") {
 		REQUIRE(getTransResult(t_lib::convertTime2xs_unchecked, {"23:59:59"}) == "23:59:59");
 		REQUIRE(getTransResult(t_lib::convertTime2xs_unchecked, {"00:00:00"}) == "00:00:00");

@@ -52,7 +52,7 @@ export Schema buildTestFullRoutesSchema(runtime::RuntimeContainer& rtc) {
 	    {"agencies", "https://gtfs.org/agencies/"},
 	    {"networks", "https://gtfs.org/networks/"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
 	const IRI SUBJ = IRI("routes", "{route_id}");
@@ -64,8 +64,8 @@ export Schema buildTestFullRoutesSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ,
 	     {"gtfs", "routeLongName"},
 	     {"{route_long_name}", "{FEED_LANG@test_full_feed_info.txt}"}},
-	    {SUBJ, {"gtfs", "routeType"}, {"{route_type}", IRI("xs", "integer")}},
-	    {SUBJ, {"gtfs", "routeUrl"}, {"{route_url}", IRI("xs", "anyURI")}},
+	    {SUBJ, {"gtfs", "routeType"}, {"{route_type}", IRI("xsd", "integer")}},
+	    {SUBJ, {"gtfs", "routeUrl"}, {"{route_url}", IRI("xsd", "anyURI")}},
 	    {SUBJ, {"gtfs", "routeColor"}, {"{route_color}"}},
 	    {SUBJ, {"gtfs", "routeTextColor"}, {"{route_text_color}"}}};
 	Schema sch("test_full_routes.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);

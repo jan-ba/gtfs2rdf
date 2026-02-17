@@ -42,7 +42,7 @@ export Schema buildAgencySchema(runtime::RuntimeContainer& rtc) {
 	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"agencies", "https://gtfs.org/agencies/"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
 	// since subject does not change per triple, we can use placeholders for agency_id for easier
@@ -56,17 +56,17 @@ export Schema buildAgencySchema(runtime::RuntimeContainer& rtc) {
 
 	    // Core fields
 	    {SUBJ, {"gtfs", "agencyName"}, {"{agency_name}"}},
-	    {SUBJ, {"gtfs", "agencyUrl"}, {"{agency_url}", IRI("xs", "anyURI")}},
+	    {SUBJ, {"gtfs", "agencyUrl"}, {"{agency_url}", IRI("xsd", "anyURI")}},
 	    {SUBJ, {"gtfs", "agencyTimezone"}, {"{agency_timezone}"}},
 
 	    // Optional fields
-	    {SUBJ, {"gtfs", "agencyLang"}, {"{agency_lang}", IRI("xs", "language")}},
+	    {SUBJ, {"gtfs", "agencyLang"}, {"{agency_lang}", IRI("xsd", "language")}},
 	    {SUBJ, {"gtfs", "agencyPhone"}, {"{agency_phone}"}},
-	    {SUBJ, {"gtfs", "agencyFareUrl"}, {"{agency_fare_url}", IRI("xs", "anyURI")}},
+	    {SUBJ, {"gtfs", "agencyFareUrl"}, {"{agency_fare_url}", IRI("xsd", "anyURI")}},
 	    {SUBJ, {"gtfs", "agencyEmail"}, {"{agency_email}"}},
 
 	    // cEMV support enum (0/1/2)
-	    {SUBJ, {"gtfs", "cemvSupport"}, {"{cemv_support}", IRI("xs", "integer")}}};
+	    {SUBJ, {"gtfs", "cemvSupport"}, {"{cemv_support}", IRI("xsd", "integer")}}};
 
 	Schema sch("agencies.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
 	return sch;

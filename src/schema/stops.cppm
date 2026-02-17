@@ -70,7 +70,7 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 	    {"stops", "https://gtfs.org/stops/"},
 	    {"stop_times", "https://gtfs.org/stop_times/"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"},
 	    {"wgs", "http://www.w3.org/2003/01/geo/wgs84_pos#"},
 	    {"geo", "http://www.opengis.net/ont/geosparql#"},
@@ -88,25 +88,25 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 
 	    {SUBJ, {"gtfs", "stopDesc"}, {"{stop_desc}", "{FEED_LANG@feed_info.txt}"}},
 	    {SUBJ, {"gtfs", "stopCode"}, {"{stop_code}"}},
-	    {SUBJ, {"gtfs", "stopUrl"}, {"{stop_url}", IRI("xs", "anyURI")}},
+	    {SUBJ, {"gtfs", "stopUrl"}, {"{stop_url}", IRI("xsd", "anyURI")}},
 
 	    // Geometry (WGS84 + GeoSPARQL WKT)
-	    {SUBJ, {"wgs", "lat"}, {"{stop_lat, \"-90\", \"90\" | isInRange}", IRI("xs", "decimal")}},
+	    {SUBJ, {"wgs", "lat"}, {"{stop_lat, \"-90\", \"90\" | isInRange}", IRI("xsd", "decimal")}},
 	    {SUBJ,
 	     {"wgs", "long"},
-	     {"{stop_lon, \"-180\", \"180\" | isInRange}", IRI("xs", "decimal")}},
+	     {"{stop_lon, \"-180\", \"180\" | isInRange}", IRI("xsd", "decimal")}},
 	    {SUBJ, {"geo", "hasGeometry"}, {IRI("gtfs2rdfgeom", "stop_{stop_id}")}},
 	    {SUBJ, {"geo", "asWKT"}, {"POINT({stop_lon} {stop_lat})", IRI("geo", "wktLiteral")}},
 
 	    // Hierarchy / location type
-	    {SUBJ, {"gtfs", "locationType"}, {"{location_type}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "locationType"}, {"{location_type}", IRI("xsd", "integer")}},
 	    {SUBJ, {"gtfs", "locationTypeEnum"}, {"{location_type | loc2Enum}"}},
 	    {SUBJ, {"gtfs", "parentStation"}, {IRI("stops", "{parent_station}")}},
 
 	    // Misc
 	    {SUBJ, {"gtfs", "zoneId"}, {"{zone_id}"}},
 	    {SUBJ, {"gtfs", "stopTimezone"}, {"{stop_timezone}"}},
-	    {SUBJ, {"gtfs", "wheelchairBoarding"}, {"{wheelchair_boarding}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "wheelchairBoarding"}, {"{wheelchair_boarding}", IRI("xsd", "integer")}},
 	    {SUBJ, {"gtfs", "levelId"}, {"{level_id}"}},
 	    {SUBJ, {"gtfs", "platformCode"}, {"{platform_code}"}},
 	};

@@ -101,7 +101,7 @@ export Schema buildTestFullTripsSchema(runtime::RuntimeContainer& rtc) {
 	    {"blocks", "https://gtfs.org/blocks/"},
 	    {"geo", "http://www.opengis.net/ont/geosparql#"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs2rdfgeom", "https://w3id.org/gtfs2rdf/geometry#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
@@ -114,13 +114,13 @@ export Schema buildTestFullTripsSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ,
 	     {"gtfs", "tripHeadsign"},
 	     {"{trip_headsign}", "{FEED_LANG@test_full_feed_info.txt}"}},
-	    {SUBJ, {"gtfs", "directionId"}, {"{direction_id}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "directionId"}, {"{direction_id}", IRI("xsd", "integer")}},
 	    {SUBJ, {"gtfs", "block"}, {IRI("blocks", "{block_id}")}},
 	    {SUBJ, {"geo", "hasGeometry"}, {IRI("gtfs2rdfgeom", "tripshape_{trip_id}")}},
 	    {IRI("gtfs2rdfgeom", "tripshape_{trip_id}"),
 	     {"geo", "asWKT"},
 	     {"{shape_id | get_linestring_per_trip@test_full_shapes.txt}", IRI("geo", "wktLiteral")}},
-	    {SUBJ, {"gtfs", "bikesAllowed"}, {"{bikes_allowed}", IRI("xs", "integer")}}};
+	    {SUBJ, {"gtfs", "bikesAllowed"}, {"{bikes_allowed}", IRI("xsd", "integer")}}};
 
 	Schema sch("test_full_trips.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
 	return sch;

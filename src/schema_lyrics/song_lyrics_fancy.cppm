@@ -274,7 +274,7 @@ export Schema buildSongLyricsFancySchema(runtime::RuntimeContainer& rtc) {
 	    {"lyr", "https://example.org/lyrics/vocab#"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
 	    {"rdfs", "http://www.w3.org/2000/01/rdf-schema#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"artistId", "https://example.org/lyrics/artist/id/"},
 	    {"genre", "https://example.org/lyrics/genre/"},
 	};
@@ -308,10 +308,10 @@ export Schema buildSongLyricsFancySchema(runtime::RuntimeContainer& rtc) {
 	    {SONG, {"lyr", "title"}, {"{title}"}},
 	    {SONG,
 	     {"lyr", "year"},
-	     {"{year | isValidInt | isUnsigned}", IRI("xs", "nonNegativeInteger")}},
+	     {"{year | isValidInt | isUnsigned}", IRI("xsd", "nonNegativeInteger")}},
 	    {SONG,
 	     {"lyr", "views"},
-	     {"{views | isValidInt | isUnsigned}", IRI("xs", "nonNegativeInteger")}},
+	     {"{views | isValidInt | isUnsigned}", IRI("xsd", "nonNegativeInteger")}},
 
 	    // Lyrics with optional language tag
 	    {SONG, {"lyr", "lyrics"}, {"{lyrics}", "{language | validateLanguage}"}},

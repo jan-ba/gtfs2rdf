@@ -58,7 +58,7 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rtc) {
 	    {"booking", "https://gtfs.org/booking_rules/"},
 
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"},
 	    {"wgs", "http://www.w3.org/2003/01/geo/wgs84_pos#"},
 	    {"geo", "http://www.opengis.net/ont/geosparql#"},
@@ -78,15 +78,15 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ, {"gtfs", "location"}, {IRI("locations", "{location_id}")}},
 
 	    // Core fields
-	    {SUBJ, {"gtfs", "stopSequence"}, {"{stop_sequence}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "stopSequence"}, {"{stop_sequence}", IRI("xsd", "integer")}},
 
-	    // Times (converted to xs:time, i.e. capped at 24:00:00)
+	    // Times (converted to xsd:time, i.e. capped at 24:00:00)
 	    {SUBJ,
 	     {"gtfs", "arrivalTime"},
-	     {"{arrival_time | convertTime2xs_unchecked}", IRI("xs", "time")}},
+	     {"{arrival_time | convertTime2xs_unchecked}", IRI("xsd", "time")}},
 	    {SUBJ,
 	     {"gtfs", "departureTime"},
-	     {"{departure_time | convertTime2xs_unchecked}", IRI("xs", "time")}},
+	     {"{departure_time | convertTime2xs_unchecked}", IRI("xsd", "time")}},
 
 	    // Optional headsign override
 	    {SUBJ, {"gtfs", "stopHeadsign"}, {"{stop_headsign}"}},
@@ -94,22 +94,22 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rtc) {
 	    // On-demand windows
 	    {SUBJ,
 	     {"gtfs", "startPickupDropOffWindow"},
-	     {"{start_pickup_drop_off_window | convertTime2xs_unchecked}", IRI("xs", "time")}},
+	     {"{start_pickup_drop_off_window | convertTime2xs_unchecked}", IRI("xsd", "time")}},
 	    {SUBJ,
 	     {"gtfs", "endPickupDropOffWindow"},
-	     {"{end_pickup_drop_off_window | convertTime2xs_unchecked}", IRI("xs", "time")}},
+	     {"{end_pickup_drop_off_window | convertTime2xs_unchecked}", IRI("xsd", "time")}},
 
 	    // Enums (as integers)
-	    {SUBJ, {"gtfs", "pickupType"}, {"{pickup_type}", IRI("xs", "integer")}},
-	    {SUBJ, {"gtfs", "dropOffType"}, {"{drop_off_type}", IRI("xs", "integer")}},
-	    {SUBJ, {"gtfs", "continuousPickup"}, {"{continuous_pickup}", IRI("xs", "integer")}},
-	    {SUBJ, {"gtfs", "continuousDropOff"}, {"{continuous_drop_off}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "pickupType"}, {"{pickup_type}", IRI("xsd", "integer")}},
+	    {SUBJ, {"gtfs", "dropOffType"}, {"{drop_off_type}", IRI("xsd", "integer")}},
+	    {SUBJ, {"gtfs", "continuousPickup"}, {"{continuous_pickup}", IRI("xsd", "integer")}},
+	    {SUBJ, {"gtfs", "continuousDropOff"}, {"{continuous_drop_off}", IRI("xsd", "integer")}},
 
 	    // Distance along shape
-	    {SUBJ, {"gtfs", "shapeDistTraveled"}, {"{shape_dist_traveled}", IRI("xs", "decimal")}},
+	    {SUBJ, {"gtfs", "shapeDistTraveled"}, {"{shape_dist_traveled}", IRI("xsd", "decimal")}},
 
 	    // Exact vs. approximate
-	    {SUBJ, {"gtfs", "timepoint"}, {"{timepoint}", IRI("xs", "integer")}},
+	    {SUBJ, {"gtfs", "timepoint"}, {"{timepoint}", IRI("xsd", "integer")}},
 
 	    // Booking rules
 	    {SUBJ, {"gtfs", "pickupBookingRule"}, {IRI("booking", "{pickup_booking_rule_id}")}},

@@ -37,14 +37,14 @@ export Schema buildTestFullCalendarDatesSchema(runtime::RuntimeContainer& rtc) {
 	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"services", "https://gtfs.org/services/"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
 	const IRI SUBJ = IRI("services", "{service_id}");
 
 	const std::vector<Triple> TRIPLES = {
-	    {SUBJ, {"gtfs", "serviceDate"}, {"{date | convertDate2xs_unchecked}", IRI("xs", "date")}},
-	    {SUBJ, {"gtfs", "exceptionType"}, {"{exception_type}", IRI("xs", "integer")}}};
+	    {SUBJ, {"gtfs", "serviceDate"}, {"{date | convertDate2xs_unchecked}", IRI("xsd", "date")}},
+	    {SUBJ, {"gtfs", "exceptionType"}, {"{exception_type}", IRI("xsd", "integer")}}};
 	Schema sch("test_full_calendar_dates.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
 	return sch;
 }

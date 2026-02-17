@@ -41,7 +41,7 @@ export Schema buildFeedInfoSchema(runtime::RuntimeContainer& rtc) {
 	    {"feed_info", "https://gtfs.org/feed_info/"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"}};
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"}};
 
 	const std::vector<std::string> NO_WRITE_INSTRUCTIONS = {
 	    "{ feed_lang > FEED_LANG }",

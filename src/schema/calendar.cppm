@@ -89,7 +89,7 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
 	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"services", "https://gtfs.org/services/"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"},
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
 	const IRI SUBJ = IRI("services", "{service_id}");
@@ -100,13 +100,13 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Service")}},
 
 	    // Weekday flags (0/1), these are not really meaningful in Rdf but included for completeness
-	    //   { SUBJ,        {"gtfs","monday"},        { "{monday}", IRI("xs","integer") } },
-	    //   { SUBJ,        {"gtfs","tuesday"},       { "{tuesday}", IRI("xs","integer") } },
-	    //   { SUBJ,        {"gtfs","wednesday"},     { "{wednesday}", IRI("xs","integer") } },
-	    //   { SUBJ,        {"gtfs","thursday"},      { "{thursday}", IRI("xs","integer") } },
-	    //   { SUBJ,        {"gtfs","friday"},        { "{friday}", IRI("xs","integer") } },
-	    //   { SUBJ,        {"gtfs","saturday"},      { "{saturday}", IRI("xs","integer") } },
-	    //   { SUBJ,        {"gtfs","sunday"},        { "{sunday}", IRI("xs","integer") } },
+	    //   { SUBJ,        {"gtfs","monday"},        { "{monday}", IRI("xsd","integer") } },
+	    //   { SUBJ,        {"gtfs","tuesday"},       { "{tuesday}", IRI("xsd","integer") } },
+	    //   { SUBJ,        {"gtfs","wednesday"},     { "{wednesday}", IRI("xsd","integer") } },
+	    //   { SUBJ,        {"gtfs","thursday"},      { "{thursday}", IRI("xsd","integer") } },
+	    //   { SUBJ,        {"gtfs","friday"},        { "{friday}", IRI("xsd","integer") } },
+	    //   { SUBJ,        {"gtfs","saturday"},      { "{saturday}", IRI("xsd","integer") } },
+	    //   { SUBJ,        {"gtfs","sunday"},        { "{sunday}", IRI("xsd","integer") } },
 
 	    // Operating dates (generated from weekday flags + start_date + end_date)
 	    // uses calendar_dates.txt to ignore disabled dates
@@ -115,13 +115,13 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
 	     {"{sunday, monday, tuesday, wednesday, thursday,"
 	      "friday, saturday, start_date, end_date,"
 	      "service_id | generate_dates@calendar_dates.txt }",
-	      IRI("xs", "date")}},
+	      IRI("xsd", "date")}},
 
 	    // Date range
 	    {SUBJ,
 	     {"gtfs", "startDate"},
-	     {"{start_date | convertDate2xs_unchecked }", IRI("xs", "date")}},
-	    {SUBJ, {"gtfs", "endDate"}, {"{end_date | convertDate2xs_unchecked}", IRI("xs", "date")}}};
+	     {"{start_date | convertDate2xs_unchecked }", IRI("xsd", "date")}},
+	    {SUBJ, {"gtfs", "endDate"}, {"{end_date | convertDate2xs_unchecked}", IRI("xsd", "date")}}};
 
 	Schema sch("calendar.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
 	return sch;

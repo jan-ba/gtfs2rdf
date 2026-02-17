@@ -46,7 +46,7 @@ export Schema buildTestTinyFeedInfoSchema(runtime::RuntimeContainer& rtc) {
 	    {"feed", "https://gtfs.org/feed/"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"},
 	    {"rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-	    {"xs", "http://www.w3.org/2001/XMLSchema#"}};
+	    {"xsd", "http://www.w3.org/2001/XMLSchema#"}};
 
 	const std::vector<std::string> NO_WRITE_INSTRUCTIONS = {
 	    "{ feed_lang > FEED_LANG }",
@@ -62,10 +62,10 @@ export Schema buildTestTinyFeedInfoSchema(runtime::RuntimeContainer& rtc) {
 	    {{"feed", "1"}, {"gtfs", "defaultLanguage"}, {"{default_lang}"}},
 	    {{"feed", "1"},
 	     {"gtfs", "feedStartDate"},
-	     {"{feed_start_date | convertDate2xs_unchecked}", IRI("xs", "date")}},
+	     {"{feed_start_date | convertDate2xs_unchecked}", IRI("xsd", "date")}},
 	    {{"feed", "1"},
 	     {"gtfs", "feedEndDate"},
-	     {"{feed_end_date | convertDate2xs_unchecked}", IRI("xs", "date")}},
+	     {"{feed_end_date | convertDate2xs_unchecked}", IRI("xsd", "date")}},
 	    {{"feed", "1"}, {"gtfs", "feedVersion"}, {"{feed_version}"}},
 	    {{"feed", "1"}, {"gtfs", "feedContactEmail"}, {"{feed_contact_email}"}},
 	    {{"feed", "1"}, {"gtfs", "feedContactUrl"}, {"{feed_contact_url}"}}};
