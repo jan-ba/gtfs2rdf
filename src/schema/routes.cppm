@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-// Chair of Algorithms and Data Structures, University of Freiburg
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 module;
 
 #include "transform_macros.h"
@@ -56,7 +48,6 @@ export Schema buildRoutesSchema(runtime::RuntimeContainer& rtc) {
 	const IRI SUBJ = IRI("routes", "{route_id}");
 
 	const std::vector<Triple> TRIPLES = {
-	    // SUBJECT  PREDICATE                  OBJECT
 	    // Identity / type
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Route")}},
 
@@ -66,16 +57,16 @@ export Schema buildRoutesSchema(runtime::RuntimeContainer& rtc) {
 
 	    // Names / description
 	    {SUBJ, {"gtfs", "routeShortName"}, {"{route_short_name}"}},
-	    {SUBJ, {"gtfs", "routeLongName"}, {"{route_long_name}", "{FEED_LANG@feed_info.txt}"}},
-	    {SUBJ, {"gtfs", "routeDesc"}, {"{route_desc}", "{FEED_LANG@feed_info.txt}"}},
-
+	    {SUBJ, {"gtfs", "routeLongName"}, {"{route_long_name}"}},
+	    {SUBJ, {"gtfs", "routeDesc"}, {"{route_desc}"}},
+		
 	    // Type (required)
 	    {SUBJ, {"gtfs", "routeType"}, {"{route_type}", IRI("xsd", "integer")}},
 
 	    // URL
 	    {SUBJ, {"gtfs", "routeUrl"}, {"{route_url}", IRI("xsd", "anyURI")}},
 
-	    // Colors
+	    // Colours
 	    {SUBJ, {"gtfs", "routeColor"}, {"{route_color}"}},
 	    {SUBJ, {"gtfs", "routeTextColor"}, {"{route_text_color}"}},
 

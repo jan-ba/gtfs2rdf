@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-// Chair of Algorithms and Data Structures, University of Freiburg
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 module;
 
 #include "third_party/cxxopts/cxxopts.hpp"
@@ -162,7 +154,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 	                         false) // pre-run: don't write actual output, only small alibi buffer
 	    : settings.isOutputToStdout()
 	        ? writer::Writer(std::cout, rtc, true)                 // normal run to stdout
-	        : writer::Writer(settings.getOutputPath(), rtc, true); // file output
+	        : writer::Writer(settings.getOutputPath(), rtc, true); // normal run to file output
 
 	gtfs::GtfsParserWorkspace wsp(rtc, writer);
 	auto merged_prefixes = schema::mergePrefixes(used_schemas, rtc.getWarningCollector(), true);
@@ -303,7 +295,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 		          << formatValueWithPaddedUnits(settings.getEstimatedPeakRAM_MB() * 1024 * 1024,
 		                                        UnitType::SIZE)
 		          << "\n"
-		          << "  est. output size: "
+		          << "  est output size: "
 		          << formatValueWithPaddedUnits(total_stats.num_chars, UnitType::SIZE) << "\n\n"
 		          << " ⚠️  Note: These are only estimates based on a sample data run. Actual output "
 		             "may vary significantly depending on the data present in the Gtfs feed as "

@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-// Chair of Algorithms and Data Structures, University of Freiburg
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 module;
 
 #include "macros.h"
@@ -97,7 +89,7 @@ export class GtfsParser {
 		stats_.name = FILENAME_;
 		buffer_size_ = wsp.getReadBufferCapacity();
 		row_.clear();
-		cache_.clear();
+		cache_.clear();  // TODO: consider renaming row and cache to e.g. row_buffer and field_buffer
 		cache_.reserve(256); // NOLINT(readability-magic-numbers): typical field size, avoids many
 		                     // small resizes while building fields char by char
 

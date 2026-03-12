@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-// Chair of Algorithms and Data Structures, University of Freiburg
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 module;
 
 #include "transform_macros.h"
@@ -45,13 +37,10 @@ export Schema buildAgencySchema(runtime::RuntimeContainer& rtc) {
 	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
-	// since subject does not change per triple, we can use placeholders for agency_id for easier
-	// readability
+
 	const IRI SUBJ = IRI("agencies", "{agency_id}");
 
 	const std::vector<Triple> TRIPLES = {
-	    // SUBJECT                         PREDICATE           OBJECT
-	    // Type
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Agency")}},
 
 	    // Core fields

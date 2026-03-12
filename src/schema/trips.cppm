@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-// Chair of Algorithms and Data Structures, University of Freiburg
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 module;
 
 #include "transform_macros.h"
@@ -33,7 +25,7 @@ namespace schema {
 export Schema buildTripsSchema(runtime::RuntimeContainer& rtc) {
 	// args: shape_id
 	// output: WKT linestring of all shape points for this shape_id
-	TRANSFORM2ONE(get_linestring, ARGS, OUT_VAL, STORAGE) {
+	TRANSFORM2ONE(getLinestring, ARGS, OUT_VAL, STORAGE) {
 		struct Row {
 			size_t seq;
 			std::string_view lon;
@@ -121,11 +113,10 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rtc) {
 
 	    // Block and shape
 	    {SUBJ, {"gtfs", "block"}, {IRI("blocks", "{block_id}")}},
-	    // {SUBJ, {"gtfs", "shape"}, {IRI("shapes", "{shape_id}")}},
 	    {SUBJ, {"geo", "hasGeometry"}, {IRI("gtfs2rdfgeom", "shapes_{shape_id}")}},
 	    {IRI("gtfs2rdfgeom", "shapes_{shape_id}"),
 	     {"geo", "asWKT"},
-	     {{"{shape_id | get_linestring@shapes.txt}"}, IRI("geo", "wktLiteral")}},
+	     {{"{shape_id | getLinestring@shapes.txt}"}, IRI("geo", "wktLiteral")}},
 
 	    // Accessibility / allowances (enums: 0/1/2)
 	    {SUBJ,

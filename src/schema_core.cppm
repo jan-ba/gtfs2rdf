@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-// Chair of Algorithms and Data Structures, University of Freiburg
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 module;
 
 #include "util/diagnostics.h"
@@ -516,7 +508,7 @@ export class Schema {
 		}
 
 		for (const auto& col : POSSIBLE_COLUMNS) {
-			column_map_[col] = -1; // initialize all to -1 (not found)
+			column_map_[col] = -1; // initialise all to -1 (not found)
 		}
 
 		// build raw_instructions_ from triples

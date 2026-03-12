@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-// Chair of Algorithms and Data Structures, University of Freiburg
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 #include "../../src/schema/transform_macros.h"
 
 #include <algorithm>
@@ -66,8 +58,8 @@ std::vector<std::string> readLinesFromFile(const std::filesystem::path& path) {
 // This tests the output against a curated-by-hand expected output, which itself was validated to be
 // correct RDF. The feed is designed to test various branches, such as missing fields, Transform2One
 // and Transform2Many (making use of persistent storage functions), various data types, proper
-// escaping, etc. but is still small enough to be easily manageable and understandable by hand
-TEST_CASE("End-to-end test on tiny feed") {
+// escaping, etc. but is still small enough to be easily manageable and understandable by a human
+TEST_CASE("End-to-end test on tiny feed (ttl output)") {
 	gtfs2rdf_runner::Factories factories = {
 	    {"test_tiny_feed_info.txt", test::buildTestTinyFeedInfoSchema},
 	    {"test_tiny_stops.txt", test::buildTestTinyStopsSchema}};
@@ -90,7 +82,7 @@ TEST_CASE("End-to-end test on tiny feed") {
 	std::filesystem::remove(base / "got.ttl");
 }
 
-TEST_CASE("End-to-end test on tiny feed with ntriples output") {
+TEST_CASE("End-to-end test on tiny feed (nt output)") {
 	gtfs2rdf_runner::Factories factories = {
 	    {"test_tiny_feed_info.txt", test::buildTestTinyFeedInfoSchema},
 	    {"test_tiny_stops.txt", test::buildTestTinyStopsSchema}};

@@ -594,7 +594,7 @@ export class PersistentStorageSqlite {
 #if GTFS2RDF_FULL_STATS
 		// Timing block
 		std::cerr << "Timing statistics\n"
-		          << "  initialization: " << formatValueWithPaddedUnits(init_ns_, UnitType::TIME)
+		          << "  initialisation: " << formatValueWithPaddedUnits(init_ns_, UnitType::TIME)
 		          << " \n"
 		          << "  store:          " << formatValueWithPaddedUnits(store_ns_, UnitType::TIME)
 		          << " \n"
@@ -712,7 +712,7 @@ export class PersistentStorageSqlite {
 		if (RET_CODE != SQLITE_DONE) {
 			sqlite3* db =
 			    sqlite3_db_handle(stmt); // NOLINT(readability-identifier-length) : 'db' unambiguous
-			std::string msg = db ? sqlite3_errmsg(db) : "sqlite step failed";
+			std::string msg = db ? sqlite3_errmsg(db) : "unknown error";
 			resetStmt_(stmt);
 			throw diagnostics::Error("Storage error: sqlite step failed: " + msg);
 		}

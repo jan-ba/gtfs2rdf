@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-// Chair of Algorithms and Data Structures, University of Freiburg
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 module;
 
 #include "transform_macros.h"
@@ -33,11 +25,12 @@ namespace schema {
 
 // Gtfs -> Rdf schema for calendar.txt
 export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
+
 	// Transform function to generate operating days string from weekday flags
 	// ignores disables dates from calendar_dates.txt
 	// Expects 10 arguments (Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday,
 	//                       start_date, end_date, service_id)
-	TRANSFORM2MANY(generate_dates, ARGS, OUT_VAL, STORAGE) {
+	TRANSFORM2MANY(generateDates, ARGS, OUT_VAL, STORAGE) {
 		if (ARGS[7].size() != 8 || ARGS[8].size() != 8) {
 			TRANSFORM_ERROR("invalid date string format, expected 'YYYYMMDD', got '" +
 			                std::string(ARGS[7]) + "' and '" + std::string(ARGS[8]) + "'");
@@ -66,7 +59,7 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
 				std::ostringstream oss;
 				oss << std::chrono::year_month_day{current};
 				auto date = oss.str();
-				// this is a quick lookup (log n) whether the date is disabled in calendar_dates.txt
+				// this is a quick lookup whether the date is disabled in calendar_dates.txt
 				if (!STORAGE.containsValue("calendar_dates.txt", "disabled_dates", ARGS[9], date)) {
 					OUT_VAL.push_back(date);
 				}
@@ -95,18 +88,7 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
 	const IRI SUBJ = IRI("services", "{service_id}");
 
 	const std::vector<Triple> TRIPLES = {
-	    // SUBJECT        PREDICATE                 OBJECT
-	    // Type
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Service")}},
-
-	    // Weekday flags (0/1), these are not really meaningful in Rdf but included for completeness
-	    //   { SUBJ,        {"gtfs","monday"},        { "{monday}", IRI("xsd","integer") } },
-	    //   { SUBJ,        {"gtfs","tuesday"},       { "{tuesday}", IRI("xsd","integer") } },
-	    //   { SUBJ,        {"gtfs","wednesday"},     { "{wednesday}", IRI("xsd","integer") } },
-	    //   { SUBJ,        {"gtfs","thursday"},      { "{thursday}", IRI("xsd","integer") } },
-	    //   { SUBJ,        {"gtfs","friday"},        { "{friday}", IRI("xsd","integer") } },
-	    //   { SUBJ,        {"gtfs","saturday"},      { "{saturday}", IRI("xsd","integer") } },
-	    //   { SUBJ,        {"gtfs","sunday"},        { "{sunday}", IRI("xsd","integer") } },
 
 	    // Operating dates (generated from weekday flags + start_date + end_date)
 	    // uses calendar_dates.txt to ignore disabled dates
@@ -114,7 +96,7 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
 	     {"gtfs", "serviceDate"},
 	     {"{sunday, monday, tuesday, wednesday, thursday,"
 	      "friday, saturday, start_date, end_date,"
-	      "service_id | generate_dates@calendar_dates.txt }",
+	      "service_id | generateDates@calendar_dates.txt }",
 	      IRI("xsd", "date")}},
 
 	    // Date range

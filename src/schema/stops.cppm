@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-// Chair of Algorithms and Data Structures, University of Freiburg
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 module;
 
 #include "transform_macros.h"
@@ -84,9 +76,9 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 
 	    // Type
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Stop")}},
-	    {SUBJ, {"gtfs", "stopName"}, {"{stop_name}", "{FEED_LANG@feed_info.txt}"}},
+	    {SUBJ, {"gtfs", "stopName"}, {"{stop_name}"}},
+	    {SUBJ, {"gtfs", "stopDesc"}, {"{stop_desc}"}},
 
-	    {SUBJ, {"gtfs", "stopDesc"}, {"{stop_desc}", "{FEED_LANG@feed_info.txt}"}},
 	    {SUBJ, {"gtfs", "stopCode"}, {"{stop_code}"}},
 	    {SUBJ, {"gtfs", "stopUrl"}, {"{stop_url}", IRI("xsd", "anyURI")}},
 
@@ -96,7 +88,9 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 	     {"wgs", "long"},
 	     {"{stop_lon, \"-180\", \"180\" | isInRange}", IRI("xsd", "decimal")}},
 	    {SUBJ, {"geo", "hasGeometry"}, {IRI("gtfs2rdfgeom", "stop_{stop_id}")}},
-	    {SUBJ, {"geo", "asWKT"}, {"POINT({stop_lon} {stop_lat})", IRI("geo", "wktLiteral")}},
+
+		// no need to check lat/long for validity again, since triples above will throw else
+	    {{IRI("gtfs2rdfgeom", "stop_{stop_id}")}, {"geo", "asWKT"}, {"POINT({stop_lon} {stop_lat})", IRI("geo", "wktLiteral")}},
 
 	    // Hierarchy / location type
 	    {SUBJ, {"gtfs", "locationType"}, {"{location_type}", IRI("xsd", "integer")}},

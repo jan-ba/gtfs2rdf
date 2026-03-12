@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-// Chair of Algorithms and Data Structures, University of Freiburg
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 /*
 ================================================================================
 gtfs2rdf — Schema Template (copy into <your_schema>.cppm, then adapt)
@@ -264,7 +256,7 @@ instructions are the usual way to do “pure storage setup” (see §6).
 If you pass NO_WRITE_INSTRUCTIONS to Schema(...), they are executed BEFORE all
 triple-generation instructions for that schema.
 
-Use this for initializing variables/maps used later in triples (in this or other schemas).
+Use this for initialising variables/maps used later in triples (in this or other schemas).
 (B1) is a perfect example for when a storage-only makes sense: We're interested in having
 the shapes available later, but we don't want to emit any triple directly from shapes.txt.
 

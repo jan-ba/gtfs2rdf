@@ -19,7 +19,7 @@ using namespace field_transforms;
 namespace t_lib {
 
 // [TODO]: for each function in this library, add its counterpart that can be used inside a
-// user transform (e.g. bool isValidInt(std::string_view sv)) [future work]
+// user transform (e.g. bool isValidInt(std::string_view sv)) <future work>
 
 // _____________________________________________________________________________________________
 // factory for range-checking transform
