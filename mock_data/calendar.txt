@@ -1,2 +1,0 @@
-service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date
-S_AB_13_FWSC,1,1,1,1,1,0,0,20250101,20251231

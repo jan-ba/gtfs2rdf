@@ -1,10 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <string>

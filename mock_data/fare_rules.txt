@@ -1,2 +1,0 @@
-fare_id,route_id
-F_AB_13,R_AB_13

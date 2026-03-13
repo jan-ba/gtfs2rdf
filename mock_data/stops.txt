@@ -1,7 +1,0 @@
-stop_id,stop_name,stop_lat,stop_lon,location_type,stop_code,stop_url
-133,"Piața Timișoara 700 (Spitalul Militar)",45.75659,21.22482,0,133,https://smtt.ro/statie-transport-public-133
-194,"Piața Timișoara 700, ""A. Müller Guttenbrunn""",45.75808,21.22413,0,194,https://smtt.ro/statie-transport-public-194
-195,"Bd. Circumvalațiunii (Gheorghe Lazăr)",45.76050,21.21751,0,195,https://smtt.ro/statie-transport-public-195
-196,"Timiș",45.76216,21.21317,0,196,https://smtt.ro/statie-transport-public-196
-197,"Bd. Cetății (Cloșca)",45.76333,21.20986,0,197,https://smtt.ro/statie-transport-public-197
-198,"Piața Avram Iancu",45.76442,21.20582,0,198,https://smtt.ro/statie-transport-public-198

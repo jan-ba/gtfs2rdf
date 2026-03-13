@@ -1,10 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2025 Jan Babin
-//
-// This file is part of the gtfs2rdf project.
-// It is licensed under the GNU General Public License version 3.
-// See the LICENSE file in the project root for the full license text.
-
 #include "../src/util/diagnostics.h"
 
 #include <array>
@@ -71,7 +64,7 @@ TEST_CASE("PersistentStorageSqlite: stores and retrieves multimap values correct
 	REQUIRE(storage.containsValue("calendar_dates.txt", "disabled_dates", "2", "20241224"));
 	REQUIRE_FALSE(storage.containsValue("calendar_dates.txt", "disabled_dates", "2", "20241225"));
 
-	// results should be be deduplicated and ordered lexigoraphically
+	// results should be be deduplicated and ordered lexicographically
 	auto values_1 = storage.getValues("calendar_dates.txt", "disabled_dates", "1");
 	REQUIRE(values_1.size() == 3);
 	REQUIRE(values_1[0] == "20221224");

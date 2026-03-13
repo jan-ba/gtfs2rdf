@@ -1,2 +1,0 @@
-agency_id,agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url,agency_email
-STPT,Societatea de Transport Public Timisoara (test subset),https://stpt.ro,Europe/Bucharest,ro,+40 356 803 340,https://stpt.ro/bilete-si-abonamente,relatiipublice@stpt.ro

@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: 2026 Jan Babin
+// SPDX-License-Identifier: AGPL-3.0-only
+//
+// Part of gtfs2rdf. See the LICENSE file for details.
+
 module;
 
 #include <algorithm>

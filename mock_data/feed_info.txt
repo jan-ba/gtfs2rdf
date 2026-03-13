@@ -1,2 +1,0 @@
-feed_publisher_name,feed_publisher_url,feed_lang,default_lang,feed_start_date,feed_end_date,feed_version,feed_contact_email,feed_contact_url
-Societatea Metropolitana de Transport Timisoara,https://smtt.ro,ro,en,20250101,20251231,romania-mini-1,relatii.publice@smtt.ro,https://smtt.ro/contact
