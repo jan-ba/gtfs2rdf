@@ -18,7 +18,6 @@ if(NOT (CMAKE_GENERATOR STREQUAL "Ninja"
   )
 endif()
 
-
 # Default build type for single-config generators (Ninja)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -38,6 +37,9 @@ if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()
 
+include(CheckIPOSupported)
+check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error LANGUAGES C CXX)
+
 # warnings only; don't hardcode -O/-g, let build type/toolchain decide
 function(setup_warnings target)
   if(MSVC)
@@ -49,6 +51,7 @@ endfunction()
 
 # Custom options
 option(GTFS2RDF_FULL_STATS "Enable storage timing even in Release" OFF)
+option(GTFS2RDF_ENABLE_IPO "Enable IPO/LTO in Release builds" ON)
 
 # Find libzip (provided by libzip-dev)
 find_package(libzip REQUIRED)
@@ -69,7 +72,6 @@ target_compile_definitions(sqlite3_amalgamation PRIVATE
   SQLITE_THREADSAFE=1
   SQLITE_OMIT_LOAD_EXTENSION
 )
-
 
 # ------------------------------------------------------------
 # Auto-generate schema primary module + registry from src/schema/*.cppm
@@ -109,10 +111,10 @@ foreach(f IN LISTS SCHEMA_PARTITION_FILES)
   get_filename_component(stem "${f}" NAME_WE)
 
   # These are partitions you *don't* want in the auto list
-  if(stem STREQUAL "schema")          # if someone accidentally created it
+  if(stem STREQUAL "schema")
     continue()
   endif()
-  if(stem STREQUAL "registry")        # we generate registry
+  if(stem STREQUAL "registry")
     continue()
   endif()
   if(stem MATCHES ".*_impl$")
@@ -137,11 +139,6 @@ string(APPEND _schema_content "export import :registry;\n")
 file(WRITE "${GENERATED_SCHEMA_CPPM}" "${_schema_content}")
 
 # --- Generate schema_registry.cppm (schema:registry)
-#
-# MUST:
-#  - put #includes in global module fragment (module;)
-#  - imports immediately after export module line
-#
 set(_reg "")
 string(APPEND _reg "module;\n")
 string(APPEND _reg "#include <unordered_map>\n")
@@ -149,7 +146,6 @@ string(APPEND _reg "#include <string>\n\n")
 
 string(APPEND _reg "export module schema:registry;\n\n")
 
-# Imports must immediately follow module declaration:
 string(APPEND _reg "import runtime;\n")
 string(APPEND _reg "import :core;\n")
 string(APPEND _reg "import field_transforms;\n")
@@ -158,13 +154,11 @@ foreach(name IN LISTS SCHEMA_PART_NAMES)
 endforeach()
 string(APPEND _reg "\n")
 
-# Exported API
 string(APPEND _reg "export namespace schema {\n")
 string(APPEND _reg "  using Factory = Schema(*)(runtime::RuntimeContainer&);\n")
 string(APPEND _reg "  const std::unordered_map<std::string, Factory>& factories();\n")
 string(APPEND _reg "}\n\n")
 
-# Definition (not exported)
 string(APPEND _reg "const std::unordered_map<std::string, schema::Factory>& schema::factories() {\n")
 string(APPEND _reg "  static const std::unordered_map<std::string, schema::Factory> f = {\n")
 
@@ -182,22 +176,17 @@ file(WRITE "${GENERATED_SCHEMA_REG_CPPM}" "${_reg}")
 # ------------------------------------------------------------
 # collect source files automatically
 # ------------------------------------------------------------
-
-# all module units (*.cppm) anywhere in src/
 file(GLOB_RECURSE GTFS_MODULE_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_SOURCE_DIR}/src/*.cppm"
 )
 
-# Exclude any hand-written schema.cppm / schema_registry.cppm in src/ if present
 list(FILTER GTFS_MODULE_SOURCES EXCLUDE REGEX ".*/schema\\.cppm$")
 list(FILTER GTFS_MODULE_SOURCES EXCLUDE REGEX ".*/schema_registry\\.cppm$")
 
-# all standard source files (*.cpp) anywhere in src/
 file(GLOB_RECURSE GTFS_CPP_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_SOURCE_DIR}/src/*.cpp"
 )
 
-# main (gtfs2rdf.cpp) will be the executable (hence not part of library)
 list(FILTER GTFS_CPP_SOURCES EXCLUDE REGEX ".*/gtfs2rdf\\.cpp$")
 
 add_library(gtfs_modules)
@@ -231,7 +220,6 @@ setup_warnings(gtfs_modules)
 # ------------------------------------------------------------
 add_executable(gtfs2rdf src/gtfs2rdf.cpp)
 
-# set preprocessor definitions based on cl options
 target_compile_definitions(gtfs_modules PUBLIC
   $<$<BOOL:${GTFS2RDF_FULL_STATS}>:GTFS2RDF_FULL_STATS=1>
 )
@@ -239,21 +227,20 @@ target_compile_definitions(gtfs_modules PUBLIC
 # ------------------------------------------------------------
 # Performance flags (Release only)
 # ------------------------------------------------------------
-function(enable_release_native target)
-  # GCC/Clang: -march=native nur in Release
-  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(${target} PUBLIC
-      $<$<CONFIG:Release>:-march=native>
-    )
+function(enable_release_optimizations target)
+  if(GTFS2RDF_ENABLE_IPO)
+    if(ipo_supported)
+      set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+    else()
+      message(STATUS "IPO/LTO disabled for ${target}: ${ipo_error}")
+    endif()
+  else()
+    message(STATUS "IPO/LTO disabled for ${target}: GTFS2RDF_ENABLE_IPO=OFF")
   endif()
-
-  # Optional: LTO/IPO in Release (oft spürbar)
-  set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 endfunction()
 
-enable_release_native(gtfs_modules)
-enable_release_native(gtfs2rdf)
-
+enable_release_optimizations(gtfs_modules)
+enable_release_optimizations(gtfs2rdf)
 
 target_link_libraries(gtfs_modules
   PUBLIC
