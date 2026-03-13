@@ -168,7 +168,8 @@ class WarningCollector {
 			warn.print();
 			std::cerr << "\n";
 		}
-		// ensure each warning is only printed once
+		std::cerr << "\n";
+
 		warnings_.clear();
 		unclosed_warning_indices_.clear();
 	}
@@ -207,8 +208,7 @@ class Statistics {
 	[[nodiscard]] std::string fancyPrint() const {
 		std::ostringstream oss;
 
-		// oss << "\n--------------------------------------------------------------------\n";
-		oss << "📊 Statistics for " << name << "\n\n";
+		oss << "📊 Statistics for " << name << "\n";
 
 		oss << "  Chunks processed:  " << chunks << "\n";
 		oss << "  Rows parsed:       " << rows << "\n";
@@ -222,11 +222,9 @@ class Statistics {
 		oss << "  Conversion time:   " << formatValueWithPaddedUnits(conversion_ns, UnitType::TIME)
 		    << "\n";
 		oss << "  Total time:        "
-		    << formatValueWithPaddedUnits(parse_ns + write_ns + conversion_ns, UnitType::TIME)
-		    // << "\n";
+		    << formatValueWithPaddedUnits(parse_ns + write_ns + conversion_ns, UnitType::TIME);
 #endif
 
-		// oss << "--------------------------------------------------------------------\n";
 		return oss.str();
 	}
 

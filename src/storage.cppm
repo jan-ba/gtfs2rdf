@@ -64,7 +64,6 @@ export class PersistentStorageSqlite {
 	static constexpr bool TEMP_STORE_FILE_ = true;     // predictable RAM
 	static constexpr bool EXCLUSIVE_LOCK_ = true;      // speed, single-process
 	static constexpr bool JOURNAL_OFF_ = true;         // speed, temp DB (unsafe on crash)
-	// const std::string DB_DIR_ = "./.gtfs2rdf_tmp";     // path to temporary DB file directory
 
   public:
 	explicit PersistentStorageSqlite(diagnostics::WarningCollector& wcol,
@@ -559,9 +558,7 @@ export class PersistentStorageSqlite {
 	void stats() {
 		flush_();
 
-		// std::cerr << "\n\n";
-		// std::cerr << "\n--------------------------------------------------------------------\n";
-		std::cerr << "🗄️  PERSISTENT STORAGE SUMMARY\n\n";
+		std::cerr << "💿  PERSISTENT STORAGE SUMMARY\n";
 
 // only if debug flag is set in compiler
 #ifndef NDEBUG
@@ -619,8 +616,6 @@ export class PersistentStorageSqlite {
 		          << "  clear:          " << formatValueWithPaddedUnits(clear_ns_, UnitType::TIME)
 		          << " \n\n";
 #endif
-
-		// std::cerr << "--------------------------------------------------------------------\n";
 	}
 
   private:
