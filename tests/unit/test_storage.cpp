@@ -14,7 +14,7 @@ import util;
 namespace {
 
 storage::PersistentStorageSqlite makeTestStorage(diagnostics::WarningCollector& wcol) {
-	return storage::PersistentStorageSqlite(wcol, diagnostics::VerbosityLevelStats::QUIET, 20);
+	return storage::PersistentStorageSqlite(wcol, diagnostics::VerbosityLevelStats::QUIET, 20, ".");
 }
 
 } // namespace

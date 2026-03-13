@@ -207,7 +207,7 @@ class Statistics {
 	[[nodiscard]] std::string fancyPrint() const {
 		std::ostringstream oss;
 
-		oss << "\n--------------------------------------------------------------------\n";
+		// oss << "\n--------------------------------------------------------------------\n";
 		oss << "📊 Statistics for " << name << "\n\n";
 
 		oss << "  Chunks processed:  " << chunks << "\n";
@@ -223,10 +223,10 @@ class Statistics {
 		    << "\n";
 		oss << "  Total time:        "
 		    << formatValueWithPaddedUnits(parse_ns + write_ns + conversion_ns, UnitType::TIME)
-		    << "\n";
+		    // << "\n";
 #endif
 
-		oss << "--------------------------------------------------------------------\n";
+		// oss << "--------------------------------------------------------------------\n";
 		return oss.str();
 	}
 

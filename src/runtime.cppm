@@ -84,7 +84,10 @@ export class Settings {
 		    "storage-buffer-size",
 		    "Size in MB of RAM that may be allocated for persistent storage cache between Gtfs "
 		    "files (bigger = more RAM, might be faster)",
-		    cxxopts::value<double>()->default_value(std::to_string(STORAGE_BUFFER_SIZE_DEFAULT_)));
+		    cxxopts::value<double>()->default_value(std::to_string(STORAGE_BUFFER_SIZE_DEFAULT_)))(
+			"tmp-dir",
+			"Temporary directory for intermediate files",
+			cxxopts::value<std::string>()->default_value("."));
 
 		opts.add_options("Diagnostics / advanced")(
 		    "spec-dump",
@@ -170,6 +173,9 @@ export class Settings {
 
 		overwrite_output_ = result["overwrite"].as<bool>();
 
+		// temporary directory
+		tmp_dir_ = result["tmp-dir"].as<std::string>();
+
 		// warning level
 		std::string warning_level = result["warning-level"].as<std::string>();
 		if (warning_level == "quiet") {
@@ -210,6 +216,7 @@ export class Settings {
 	    std::filesystem::path input_path_ = "input.zip",
 	    bool output_to_stdout = false,
 	    std::filesystem::path output_path_ = "output.ttl",
+		std::string tmp_dir_ = ".",
 	    diagnostics::VerbosityLevelWarnings warning_verbosity_ =
 	        diagnostics::VerbosityLevelWarnings::QUIET,
 	    diagnostics::VerbosityLevelStats stats_verbosity_ = diagnostics::VerbosityLevelStats::QUIET)
@@ -223,6 +230,7 @@ export class Settings {
 	    , input_path_(input_path_)
 	    , output_stdout_(output_to_stdout)
 	    , output_path_(output_path_)
+		, tmp_dir_(tmp_dir_)
 	    , warning_verbosity_(warning_verbosity_)
 	    , stats_verbosity_(stats_verbosity_) {
 	}
@@ -264,6 +272,9 @@ export class Settings {
 	[[nodiscard]] const std::filesystem::path& getOutputPath() const {
 		return output_path_;
 	}
+	[[nodiscard]] const std::string getTmpDir() const {
+		return tmp_dir_;
+	}
 	[[nodiscard]] size_t getPreRunSampleSize() const {
 		return PRE_RUN_SAMPLE_SIZE_;
 	}
@@ -285,6 +296,7 @@ export class Settings {
 	std::filesystem::path input_path_;
 	bool output_stdout_ = false;
 	std::filesystem::path output_path_;
+	std::string tmp_dir_;
 	diagnostics::VerbosityLevelWarnings warning_verbosity_;
 	diagnostics::VerbosityLevelStats stats_verbosity_;
 };
@@ -300,7 +312,7 @@ export class RuntimeContainer {
 	    , warning_collector_(wcol)
 	    , storage_(warning_collector_,
 	               settings.getStatsVerbosity(),
-	               settings.getStorageBufferSize_MB()) {
+	               settings.getStorageBufferSize_MB(), settings.getTmpDir()) {
 	}
 
 	const Settings& getSettings() const {

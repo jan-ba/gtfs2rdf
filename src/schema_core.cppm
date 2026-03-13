@@ -363,7 +363,7 @@ export class Instruction {
 							                ArgSpan{transf_buf_sv_.data(), transf_buf_sv_.size()});
 						}
 					} else {
-						switch (dgp.storage.kind) {
+						switch (dgp.storage.kind) {  //  'NONE' and 'TUPLE_MAP' missing
 							case StorageKind::VARIABLE:
 								stor.storeVariable(
 								    dgp.storage.target_ctx, dgp.storage.target_name, cur_sv_);
@@ -376,6 +376,8 @@ export class Instruction {
 									                cur_sv_);
 									break;
 								}
+							default:
+								throw diagnostics::Error("Schema error: invalid storage kind for computed storage");
 						}
 					}
 				}

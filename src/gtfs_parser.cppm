@@ -48,7 +48,8 @@ export class GtfsParserWorkspace {
   public:
 	GtfsParserWorkspace(runtime::RuntimeContainer& rtc, writer::Writer& writer)
 	    : writer_(writer)
-	    , rtc_(rtc) {
+	    // , rtc_(rtc) 
+		{
 		read_buffer_capacity_ = rtc.getSettings().getReadBufferSize_MB() * 1024 * 1024; // NOLINT
 		read_buffer_.resize(read_buffer_capacity_);
 	}
@@ -73,7 +74,7 @@ export class GtfsParserWorkspace {
 	std::vector<char> read_buffer_;
 	zip_uint64_t read_buffer_capacity_;
 	writer::Writer& writer_;
-	runtime::RuntimeContainer& rtc_;
+	// runtime::RuntimeContainer& rtc_;  // not currently used, perhaps useful later
 };
 
 export class GtfsParser {

@@ -184,7 +184,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 				if (num_depending_schemas[schema_name_to_index[dep]] == 0) {
 					rtc.getStorage().clearContext(dep);
 					rtc.getWarningCollector().addLeaf(
-					    "Cleared storage for schema '" + dep + "' after last dependent schema '" +
+					    "Cleared storage of schema '" + dep + "' after last dependent schema '" +
 					        used_schemas[order[i]].getName() + "' was processed.",
 					    diagnostics::WarningLevel::DEBUG,
 					    true);
@@ -259,7 +259,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 
 	if (settings.isPreRun() &&
 	    !(settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::QUIET)) {
-		std::cerr << "\n--------------------------------------------------------------------\n";
+		// std::cerr << "\n--------------------------------------------------------------------\n\n";
 		std::cerr << "🧮 PRE-RUN SUMMARY for feed: " << settings.getInputPath().filename().string()
 		          << " (sample=" << settings.getPreRunSampleSize() << " rows/file)\n\n";
 
@@ -274,8 +274,9 @@ export int gtfs2rdf(const runtime::Settings& settings,
 				          << formatValueWithPaddedUnits(f_stats.num_chars, UnitType::SIZE) << "\n"
 				          << "  header: " << f_stats.header << "\n\n";
 			}
-			std::cerr << "Note: Header fields in (parentheses) were not used in any triple "
-			             "generation.\n\n";
+			std::cerr << "Note:\n"
+			          << "  - Header fields in (parentheses) were not used in any triple generation.\n"
+					  << "  - If a file shows 0 generated triples, it might still have contributed to other files' output via cross-file references\n\n";
 		}
 
 		// total summary
@@ -305,7 +306,8 @@ export int gtfs2rdf(const runtime::Settings& settings,
 		          << " ⚠️  Note: These are only estimates based on a sample data run. Actual output "
 		             "may vary significantly depending on the data present in the Gtfs feed as "
 		             "well as Transform2Many and filtering."
-		          << "\n--------------------------------------------------------------------\n";
+		        //   << "\n--------------------------------------------------------------------\n";
+				  << "\n\n";
 	} else if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::VERBOSE) {
 		for (const auto& f_stats : per_file_stats) {
 			std::cerr << f_stats.fancyPrint() << "\n";

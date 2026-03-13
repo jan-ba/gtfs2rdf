@@ -56,7 +56,7 @@ gcm.cache/*
 *.png
 
 evaluation/**
-.gtfs2rdf_tmp*/**
+.gtfs2rdf_storage*/**
 
 # allow test data
 !tests/end-to-end/**
