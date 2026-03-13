@@ -26,7 +26,6 @@ namespace schema {
 
 // Gtfs -> Rdf schema for calendar_dates.txt
 export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rtc) {
-
 	// args: date, exception_type
 	TRANSFORM2ONE(ignore_disabled_dates, ARGS, OUT_VAL, STORAGE) {
 		if (ARGS[1] == "2") {
@@ -64,8 +63,10 @@ export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rtc) {
 	const IRI SUBJ = IRI("caldates", "{service_id}");
 
 	const std::vector<Triple> TRIPLES = {
-	    {SUBJ, {"gtfs", "serviceDate"}, {"{ date, exception_type | ignore_disabled_dates | convertDate2xs_unchecked }", IRI("xsd", "date")}}
-	};
+	    {SUBJ,
+	     {"gtfs", "serviceDate"},
+	     {"{ date, exception_type | ignore_disabled_dates | convertDate2xs_unchecked }",
+	      IRI("xsd", "date")}}};
 
 	const std::vector<std::string> STORAGE_ONLY = {
 	    // store disabled dates for later use in calendar.txt

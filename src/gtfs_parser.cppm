@@ -48,8 +48,8 @@ export class GtfsParserWorkspace {
   public:
 	GtfsParserWorkspace(runtime::RuntimeContainer& rtc, writer::Writer& writer)
 	    : writer_(writer)
-	    // , rtc_(rtc) 
-		{
+	// , rtc_(rtc)
+	{
 		read_buffer_capacity_ = rtc.getSettings().getReadBufferSize_MB() * 1024 * 1024; // NOLINT
 		read_buffer_.resize(read_buffer_capacity_);
 	}
@@ -95,7 +95,7 @@ export class GtfsParser {
 		stats_.name = FILENAME_;
 		buffer_size_ = wsp.getReadBufferCapacity();
 		row_.clear();
-		cache_.clear();  // TODO: consider renaming row and cache to e.g. row_buffer and field_buffer
+		cache_.clear(); // TODO: consider renaming row and cache to e.g. row_buffer and field_buffer
 		cache_.reserve(256); // NOLINT(readability-magic-numbers): typical field size, avoids many
 		                     // small resizes while building fields char by char
 

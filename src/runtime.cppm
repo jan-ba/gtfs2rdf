@@ -85,9 +85,9 @@ export class Settings {
 		    "Size in MB of RAM that may be allocated for persistent storage cache between Gtfs "
 		    "files (bigger = more RAM, might be faster)",
 		    cxxopts::value<double>()->default_value(std::to_string(STORAGE_BUFFER_SIZE_DEFAULT_)))(
-			"tmp-dir",
-			"Temporary directory for intermediate files",
-			cxxopts::value<std::string>()->default_value("."));
+		    "tmp-dir",
+		    "Temporary directory for intermediate files",
+		    cxxopts::value<std::string>()->default_value("."));
 
 		opts.add_options("Diagnostics / advanced")(
 		    "spec-dump",
@@ -216,7 +216,7 @@ export class Settings {
 	    std::filesystem::path input_path_ = "input.zip",
 	    bool output_to_stdout = false,
 	    std::filesystem::path output_path_ = "output.ttl",
-		std::string tmp_dir_ = ".",
+	    std::string tmp_dir_ = ".",
 	    diagnostics::VerbosityLevelWarnings warning_verbosity_ =
 	        diagnostics::VerbosityLevelWarnings::QUIET,
 	    diagnostics::VerbosityLevelStats stats_verbosity_ = diagnostics::VerbosityLevelStats::QUIET)
@@ -230,7 +230,7 @@ export class Settings {
 	    , input_path_(input_path_)
 	    , output_stdout_(output_to_stdout)
 	    , output_path_(output_path_)
-		, tmp_dir_(tmp_dir_)
+	    , tmp_dir_(tmp_dir_)
 	    , warning_verbosity_(warning_verbosity_)
 	    , stats_verbosity_(stats_verbosity_) {
 	}
@@ -312,7 +312,8 @@ export class RuntimeContainer {
 	    , warning_collector_(wcol)
 	    , storage_(warning_collector_,
 	               settings.getStatsVerbosity(),
-	               settings.getStorageBufferSize_MB(), settings.getTmpDir()) {
+	               settings.getStorageBufferSize_MB(),
+	               settings.getTmpDir()) {
 	}
 
 	const Settings& getSettings() const {

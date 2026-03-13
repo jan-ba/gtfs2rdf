@@ -94,8 +94,10 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 	     {"{stop_lon, \"-180\", \"180\" | isInRange}", IRI("xsd", "decimal")}},
 	    {SUBJ, {"geo", "hasGeometry"}, {IRI("gtfs2rdfgeom", "stop_{stop_id}")}},
 
-		// no need to check lat/long for validity again, since triples above will throw else
-	    {{IRI("gtfs2rdfgeom", "stop_{stop_id}")}, {"geo", "asWKT"}, {"POINT({stop_lon} {stop_lat})", IRI("geo", "wktLiteral")}},
+	    // no need to check lat/long for validity again, since triples above will throw else
+	    {{IRI("gtfs2rdfgeom", "stop_{stop_id}")},
+	     {"geo", "asWKT"},
+	     {"POINT({stop_lon} {stop_lat})", IRI("geo", "wktLiteral")}},
 
 	    // Hierarchy / location type
 	    {SUBJ, {"gtfs", "locationType"}, {"{location_type}", IRI("xsd", "integer")}},

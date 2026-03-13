@@ -68,7 +68,8 @@ export class PersistentStorageSqlite {
   public:
 	explicit PersistentStorageSqlite(diagnostics::WarningCollector& wcol,
 	                                 diagnostics::VerbosityLevelStats verbosity_level_stats,
-	                                 double heap_mb, const std::string& tmp_dir)
+	                                 double heap_mb,
+	                                 const std::string& tmp_dir)
 	    : HEAP_BYTES_(static_cast<sqlite3_int64>(heap_mb) * 1024LL * 1024LL)
 	    , wcol_(wcol)
 	    , verbosity_level_stats_(verbosity_level_stats) {
@@ -77,7 +78,7 @@ export class PersistentStorageSqlite {
 
 		// make sqlite respect soft heap limit
 		sqlite3_soft_heap_limit64(static_cast<sqlite3_int64>(HEAP_BYTES_ * SOFT_FRAC_));
-		
+
 		std::string db_dir = tmp_dir + "/.gtfs2rdf_storage";
 
 		// create temporary directory and file
@@ -91,15 +92,16 @@ export class PersistentStorageSqlite {
 			for (int i = 2; i <= 10; ++i) {
 				if (std::filesystem::create_directory(db_dir + std::to_string(i))) {
 					auto s = std::format(
-						"{:%Y%m%d_%H%M%S}",
-						std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
+					    "{:%Y%m%d_%H%M%S}",
+					    std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
 					db_path_ = db_dir + std::to_string(i) + "/" + s + ".db";
 					dir_created = true;
 					break;
 				}
 			}
 
-			// this is to ensure that a user doesn't end up having too many db artifacts lieing around unnoticed
+			// this is to ensure that a user doesn't end up having too many db artifacts lieing
+			// around unnoticed
 			if (!dir_created) {
 				throw diagnostics::Error(
 				    "Storage error: could not create temporary directory for sqlite database at " +
@@ -109,8 +111,8 @@ export class PersistentStorageSqlite {
 			}
 		} else {
 			auto s = std::format(
-				"{:%Y%m%d_%H%M%S}",
-				std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
+			    "{:%Y%m%d_%H%M%S}",
+			    std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
 			db_path_ = db_dir + "/" + s + ".db";
 		}
 

@@ -30,7 +30,6 @@ namespace schema {
 
 // Gtfs -> Rdf schema for calendar.txt
 export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
-
 	// Transform function to generate operating days string from weekday flags
 	// ignores disables dates from calendar_dates.txt
 	// Expects 10 arguments (Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday,

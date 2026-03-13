@@ -42,7 +42,6 @@ export Schema buildAgencySchema(runtime::RuntimeContainer& rtc) {
 	    {"xsd", "http://www.w3.org/2001/XMLSchema#"},
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
-
 	const IRI SUBJ = IRI("agencies", "{agency_id}");
 
 	const std::vector<Triple> TRIPLES = {

@@ -64,7 +64,7 @@ export Schema buildRoutesSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ, {"gtfs", "routeShortName"}, {"{route_short_name}"}},
 	    {SUBJ, {"gtfs", "routeLongName"}, {"{route_long_name}"}},
 	    {SUBJ, {"gtfs", "routeDesc"}, {"{route_desc}"}},
-		
+
 	    // Type (required)
 	    {SUBJ, {"gtfs", "routeType"}, {"{route_type}", IRI("xsd", "integer")}},
 
