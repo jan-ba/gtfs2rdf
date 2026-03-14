@@ -30,7 +30,6 @@ import runtime;
 
 using namespace util;
 using util::operator<<; // only bringing in required operator
-using Rows = std::vector<std::string>;
 
 namespace gtfs {
 
@@ -44,11 +43,13 @@ void stripUTF8Bom(std::string& str) {
 }
 // NOLINTEND
 
+// workspace class to hold shared state between multiple parsers, e.g. shared buffers
+// gtfs2rdf uses one parser per GTFS file but one writer in total for the output file
 export class GtfsParserWorkspace {
   public:
 	GtfsParserWorkspace(runtime::RuntimeContainer& rtc, writer::Writer& writer)
 	    : writer_(writer)
-	// , rtc_(rtc)
+	// , rtc_(rtc)  // not currently required, perhaps needed later
 	{
 		read_buffer_capacity_ = rtc.getSettings().getReadBufferSize_MB() * 1024 * 1024; // NOLINT
 		read_buffer_.resize(read_buffer_capacity_);
@@ -77,6 +78,8 @@ export class GtfsParserWorkspace {
 	// runtime::RuntimeContainer& rtc_;  // not currently used, perhaps useful later
 };
 
+// state-machine based CSV parser that consumes the GTFS file in chunks and passes each parsed
+// row directly to the writer for conversion and output (streaming execution)
 export class GtfsParser {
   public:
 	GtfsParser(zip_file_t* z_file,
@@ -94,10 +97,10 @@ export class GtfsParser {
 #endif
 		stats_.name = FILENAME_;
 		buffer_size_ = wsp.getReadBufferCapacity();
-		row_.clear();
-		cache_.clear(); // TODO: consider renaming row and cache to e.g. row_buffer and field_buffer
-		cache_.reserve(256); // NOLINT(readability-magic-numbers): typical field size, avoids many
-		                     // small resizes while building fields char by char
+		row_buffer_.clear();
+		field_buffer_.clear();
+		field_buffer_.reserve(256); // NOLINT(readability-magic-numbers): typical field size, avoids
+		                            // many small resizes while building fields char by char
 
 		header_seen_ = false;
 		num_cols_ = 0;
@@ -105,6 +108,7 @@ export class GtfsParser {
 		state_ = CSVState::UNQUOTED_FIELD;
 	}
 
+	// parses the file in chunks until EOF
 	void parse() {
 #if GTFS2RDF_FULL_STATS
 		start_time_ = std::chrono::steady_clock::now();
@@ -126,7 +130,7 @@ export class GtfsParser {
 
 				// row offset because stats_.rows is incremented after parsing a row,
 				// but errors are detected during parsing, warnings aren't
-				// +1 in anyway to account for header row (not for stats, but for user-facing
+				// +1 in any way to account for header row (not for stats, but for user-facing
 				// messages)
 				rtc_.getWarningCollector().addNode(
 				    "while parsing row number " + std::to_string(stats_.rows + 1), 7);
@@ -138,6 +142,7 @@ export class GtfsParser {
 
 		flushRemainder_();
 
+		// aggregate triples count from all instructions for stats
 		for (const auto& instr : schema_.getInstructions()) {
 			stats_.triples += instr.getCount();
 		}
@@ -171,44 +176,50 @@ export class GtfsParser {
 	// private helper methods
 	// _____________________________________________________________________________________________
 
+	// end of field reached, adds field_buffer_ to row_buffer_ and resets for next field
 	void finishField_() {
 		if (!header_seen_) {
-			row_.push_back(cache_);
+			row_buffer_.push_back(field_buffer_);
 		} else {
 			if (col_i_ >= num_cols_) {
 				throw diagnostics::Error("Parsing error: too many columns in row number " +
 				                         std::to_string(stats_.rows + 1) + " (expected " +
 				                         std::to_string(num_cols_) + ")");
 			}
-			// overwrite in-place (reuses row_[col_i_] capacity when possible)
-			row_[col_i_].assign(cache_);
+			// overwrite in-place (reuses row_buffer_[col_i_] capacity if possible)
+			// this is because of fixed width is known after header read (else errror thrown above)
+			row_buffer_[col_i_].assign(field_buffer_);
 			++col_i_;
 		}
-		cache_.clear();
+		field_buffer_.clear();
 	}
 
+	// end of row reached (line break), passes reference to row_buffer_ on for conversion and resets for next row
 	void finishRow_() {
 		finishField_();
 
+		// if header not seen yet, the current row is the header -> handle accordingly
 		if (!header_seen_) {
-			if (row_.empty()) {
+			if (row_buffer_.empty()) {
 				throw diagnostics::Error("Parsing error: empty header row");
 			}
-			stripUTF8Bom(row_[0]);
+			stripUTF8Bom(row_buffer_[0]);
 			try {
-				schema_.setHeader(row_);
-				rtc_.getWarningCollector().addNode("while setting header '" + row_ + "'",
+				schema_.setHeader(row_buffer_);
+				rtc_.getWarningCollector().addNode("while setting header '" + row_buffer_ + "'",
 				                                   3); // NOLINT(readability-identifier-naming)
 			} catch (const std::exception& excpt) {
-				diagnostics::wrapAndRethrow("while setting header '" + row_ + "'");
+				diagnostics::wrapAndRethrow("while setting header '" + row_buffer_ + "'");
 			}
-			num_cols_ = row_.size();
+			num_cols_ = row_buffer_.size();
 
-			row_.clear();
-			row_.resize(num_cols_); // row_ size will remain fixed from now on
+			row_buffer_.clear();
+			row_buffer_.resize(num_cols_); // row_buffer_ size will remain fixed from now on
 
 			header_seen_ = true;
 			col_i_ = 0;
+
+		// if header already seen, pass data row on for conversion
 		} else {
 			// Gtfs validity: enforce fixed width
 			if (col_i_ != num_cols_) {
@@ -226,13 +237,13 @@ export class GtfsParser {
 					auto& instrs = schema_.getInstructions();
 					for (auto& instr : instrs) {
 						SCOPED_TIMER_NS(conversion_ns_);
-						stats_.num_chars += instr.render(row_).size();
+						stats_.num_chars += instr.render(row_buffer_).size();
 					}
 				}
 			}
 
 			else {
-				writer_.convertRow(schema_, row_);
+				writer_.convertRow(schema_, row_buffer_);
 			}
 
 			stats_.rows += 1;
@@ -248,6 +259,7 @@ export class GtfsParser {
 		QUOTE_IN_QUOTED_FIELD // just saw a " inside a quoted field
 	};
 
+	// state-machine based CSV parsing according to GTFS specific rules (more restrictive than general CSV)
 	void consumeByte_(char c) {
 		switch (state_) {
 			case CSVState::UNQUOTED_FIELD:
@@ -260,7 +272,7 @@ export class GtfsParser {
 				} else if (c == '\r') {
 					// ignore CR in CRLF
 				} else {
-					cache_.push_back(c);
+					field_buffer_.push_back(c);
 				}
 				break;
 
@@ -268,13 +280,13 @@ export class GtfsParser {
 				if (c == '"') {
 					state_ = CSVState::QUOTE_IN_QUOTED_FIELD;
 				} else {
-					cache_.push_back(c);
+					field_buffer_.push_back(c);
 				}
 				break;
 
 			case CSVState::QUOTE_IN_QUOTED_FIELD:
 				if (c == '"') {
-					cache_.push_back('"');
+					field_buffer_.push_back('"');
 					state_ = CSVState::IN_QUOTED_FIELD;
 				} else if (c == ',') {
 					finishField_();
@@ -301,7 +313,7 @@ export class GtfsParser {
 
 	void flushRemainder_() {
 		// if file doesn't end with newline, finalise last row/field.
-		if (!cache_.empty() || (!header_seen_ && !row_.empty()) || (header_seen_ && col_i_ > 0)) {
+		if (!field_buffer_.empty() || (!header_seen_ && !row_buffer_.empty()) || (header_seen_ && col_i_ > 0)) {
 			finishRow_();
 		}
 	}
@@ -321,12 +333,12 @@ export class GtfsParser {
 	zip_uint64_t buffer_size_ = 0;
 
 	// parsing state (needs to persist across chunk boundaries)
-	std::vector<std::string> row_; // current csv row being built / reused
-	std::string cache_;            // current csv field being built
+	std::vector<std::string> row_buffer_; // current csv row being built / reused
+	std::string field_buffer_;            // current csv field being built
 	CSVState state_ = CSVState::UNQUOTED_FIELD;
 	bool header_seen_ = false;
 	size_t num_cols_ = 0; // fixed width after header
-	size_t col_i_ = 0;    // current column index in row_ (data rows)
+	size_t col_i_ = 0;    // current column index in row_buffer_ (data rows)
 
 	// statistics
 	mutable diagnostics::Statistics stats_;

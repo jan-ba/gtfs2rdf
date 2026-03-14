@@ -23,6 +23,7 @@ using namespace rdf;
 
 namespace schema {
 
+// exemplary Gtfs -> Rdf schema for feed_info.txt
 export Schema buildFeedInfoSchema(runtime::RuntimeContainer& rtc) {
 	const std::vector<std::string> POSSIBLE_COLUMNS = {"feed_publisher_name",
 	                                                   "feed_publisher_url",

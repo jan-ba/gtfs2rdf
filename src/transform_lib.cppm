@@ -19,17 +19,11 @@ import field_transforms;
 using namespace field_transforms;
 
 // library of field transforms that could be useful for multiple schemas
-// functions will need to be registered in the TransformRegistry (see below) in order to be
-// available
+// IMPORTANT: if you add a new transform here, make sure to also register it at the end of the file!
 namespace t_lib {
 
 // [TODO]: for each function in this library, add its counterpart that can be used inside a
 // user transform (e.g. bool isValidInt(std::string_view sv)) <future work>
-
-// _____________________________________________________________________________________________
-// factory for range-checking transform
-// Use like this in a schema file:
-// registry.registerTransform("in_range_0_100", t_lib::in_range(0.0, 100.0));
 
 // _____________________________________________________________________________________________
 // Functions for type correctness checks

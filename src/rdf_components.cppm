@@ -5,6 +5,11 @@
 
 module;
 
+// [TODO]: ensure that prefixes (and their values) adhere to syntax rules and allowed chars
+// [TODO]: ensure that all static parts of user statements adhere to syntax rules and allowed chars
+// [TODO]: IRIs with empty prefix are currently utilised by Object but this may be unsafe
+// [TODO]: datatypes and language tags could be checked for syntax validity
+
 #include "./util/diagnostics.h"
 
 #include <cstdint>
@@ -19,7 +24,7 @@ import runtime;
 
 namespace rdf {
 
-// this determines how to escape strings that fill the placeholders in a Instruction during
+// this determines how to escape strings that fill the placeholders in an Instruction during
 // writing Rdf output
 export enum class RenderKind : uint8_t {
 	RAW,            // no escaping / fallback
@@ -31,7 +36,7 @@ export enum class RenderKind : uint8_t {
 
 // template string for one instruction / triple -> one RenderKind per placeholder from left to right
 export struct TemplateString {
-	std::string raw;
+	std::string raw;  // can contain placeholders like "subj {PHL1} pred {PHL2} obj {PHL3} ."
 	std::vector<RenderKind> render_kinds;
 };
 
@@ -132,6 +137,7 @@ export void percentEncodeLiteral(std::string& out, std::string_view value) {
 			break;
 		}
 	}
+	// early exit for efficiency if no escaping needed
 	if (!needsEscape) {
 		out.append(value);
 		return;
@@ -193,13 +199,13 @@ export class IRI {
 		}
 		if (PREFIX_ == "_") {
 			throw diagnostics::Error(
-			    "Schema error: this converter doesn't support blank nodes yet");
+			    "Schema error: this converter doesn't support blank nodes yet");  // [TODO]
 		}
 	}
 
 	IRI() = default; // empty IRI
 
-	// convert to template, which combines raw string with RenderKinds for its placeholders
+	// convert to template, which combines the raw string with RenderKinds for its placeholders
 	[[nodiscard]] TemplateString
 	toTemplate(const std::unordered_map<std::string, std::string>& prefixes,
 	           const runtime::RuntimeContainer& rtc) const {
@@ -221,8 +227,12 @@ export class IRI {
 				}
 				return tmpl;
 			}
-			// PREFIX_ empty: assume already serialized token (<...> or _:...)
+			// PREFIX_ empty: assume already serialized token (<...>)
 			tmpl.raw = LOCAL_NAME_;
+			// if (tmpl.raw.size() < 2 || tmpl.raw.front() != '<' || tmpl.raw.back() != '>') {
+			// 	throw diagnostics::Error(
+			// 	    "Schema error: IRI without prefix, expecting a raw IRIREF like '<http://example.com/{value}>' but got '" + tmpl.raw + "'");
+			// }
 			const size_t NUM_PHLS = countPlaceholders(LOCAL_NAME_);
 			if (NUM_PHLS) {
 				tmpl.render_kinds.assign(NUM_PHLS, RenderKind::IRI_REF);
@@ -244,6 +254,10 @@ export class IRI {
 
 		// PREFIX_ empty: treat as already-serialized token
 		tmpl.raw = LOCAL_NAME_;
+		// if (tmpl.raw.size() < 2 || tmpl.raw.front() != '<' || tmpl.raw.back() != '>') {
+		// 	throw diagnostics::Error(
+		// 	    "Schema error: IRI without prefix, expecting a raw IRIREF like '<http://example.com/{value}>' but got '" + tmpl.raw + "'");
+		// }
 		const size_t NUM_PHLS = countPlaceholders(LOCAL_NAME_);
 		if (NUM_PHLS) {
 			tmpl.render_kinds.assign(NUM_PHLS, RenderKind::IRI_REF);
@@ -258,6 +272,7 @@ export class IRI {
 	}
 };
 
+// object of a triple, can be either an IRI or a literal (with optional language tag or datatype)
 export class Object {
   private:
 	const enum class Type : uint8_t { IRI, LITERAL /*, BLANK_NODE */ } TYPE_;
@@ -300,6 +315,8 @@ export class Object {
 				}
 			case Type::LITERAL:
 				{
+					// this is unsafe: if Object is literal then Value_ has no prefix
+					// this is the way IRI knows how to return a template -> very error-prone
 					const auto LIT_TMPL = VALUE_.toTemplate(prefixes, rtc);
 
 					tmpl.raw.reserve(LIT_TMPL.raw.size());
@@ -313,6 +330,7 @@ export class Object {
 						tmpl.render_kinds.assign(NUM_LIT_PHLS, RenderKind::LITERAL);
 					}
 
+					// handle language tags ...
 					if (!LANG_.empty()) {
 						tmpl.raw += "@";
 						tmpl.raw += LANG_;
@@ -323,9 +341,10 @@ export class Object {
 							tmpl.render_kinds.insert(
 							    tmpl.render_kinds.end(), NUM_LANG_PHLS, RenderKind::LANG_TAG);
 						}
+					// ... and datatypes
 					} else {
 						const auto DT_TEMPL = DATATYPE_.toTemplate(prefixes, rtc);
-						if (!DT_TEMPL.raw.empty()) {
+						if (!DT_TEMPL.raw.empty()) {  // [TODO]: a bit indirect / unclear
 							tmpl.raw += "^^" + DT_TEMPL.raw;
 							tmpl.render_kinds.insert(tmpl.render_kinds.end(),
 							                         DT_TEMPL.render_kinds.begin(),
@@ -365,6 +384,8 @@ export class Triple {
 	    , OBJECT_(std::move(object)) {
 	}
 
+	// combine subject, predicate, and object template into one template for the whole triple
+	// with RenderKinds attached accordingly
 	[[nodiscard]] TemplateString
 	toTemplate(const std::unordered_map<std::string, std::string>& prefixes,
 	           const runtime::RuntimeContainer& rtc) const {

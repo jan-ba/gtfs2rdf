@@ -25,11 +25,15 @@ using namespace rdf;
 
 namespace schema {
 
-// this gtfs->rdf schema is preliminary and only covers a subset of all possible fields
+// exemplary Gtfs -> Rdf mapping for stops.txt
 export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
-	// prints out enum string for location_type codes
+
+	// prints out enum string explicitly for location_type codes
 	// ARGS[0]: location_type code
 	TRANSFORM2ONE(loc2Enum, ARGS, OUT_VAL, STORAGE) {
+		if (ARGS.size() != 1) {
+			TRANSFORM_ERROR("loc2Enum transform expects exactly one argument, but got " + std::to_string(ARGS.size()));
+		}
 		if (ARGS[0].empty()) {
 			return; // leave empty, triple will not be printed
 		}
@@ -75,11 +79,7 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 
 	const IRI SUBJ = IRI("stops", "{stop_id}");
 
-	// Ontology (?)
 	const std::vector<Triple> TRIPLES = {
-	    // SUBJECT                   PREDICATE          OBJECT
-
-	    // Type
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Stop")}},
 	    {SUBJ, {"gtfs", "stopName"}, {"{stop_name}"}},
 	    {SUBJ, {"gtfs", "stopDesc"}, {"{stop_desc}"}},
@@ -87,7 +87,7 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ, {"gtfs", "stopCode"}, {"{stop_code}"}},
 	    {SUBJ, {"gtfs", "stopUrl"}, {"{stop_url}", IRI("xsd", "anyURI")}},
 
-	    // Geometry (WGS84 + GeoSPARQL WKT)
+	    // geometry (WGS84 + GeoSPARQL WKT)
 	    {SUBJ, {"wgs", "lat"}, {"{stop_lat, \"-90\", \"90\" | isInRange}", IRI("xsd", "decimal")}},
 	    {SUBJ,
 	     {"wgs", "long"},
@@ -99,12 +99,10 @@ export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
 	     {"geo", "asWKT"},
 	     {"POINT({stop_lon} {stop_lat})", IRI("geo", "wktLiteral")}},
 
-	    // Hierarchy / location type
 	    {SUBJ, {"gtfs", "locationType"}, {"{location_type}", IRI("xsd", "integer")}},
 	    {SUBJ, {"gtfs", "locationTypeEnum"}, {"{location_type | loc2Enum}"}},
 	    {SUBJ, {"gtfs", "parentStation"}, {IRI("stops", "{parent_station}")}},
 
-	    // Misc
 	    {SUBJ, {"gtfs", "zoneId"}, {"{zone_id}"}},
 	    {SUBJ, {"gtfs", "stopTimezone"}, {"{stop_timezone}"}},
 	    {SUBJ, {"gtfs", "wheelchairBoarding"}, {"{wheelchair_boarding}", IRI("xsd", "integer")}},

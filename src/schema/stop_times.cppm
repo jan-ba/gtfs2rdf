@@ -24,7 +24,7 @@ using namespace rdf;
 
 namespace schema {
 
-// this gtfs->rdf schema is preliminary and only covers a subset of all possible fields
+// exemplary Gtfs -> Rdf schema for stop_times.txt
 export Schema buildStopTimesSchema(runtime::RuntimeContainer& rtc) {
 	const std::vector<std::string> POSSIBLE_COLUMNS = {"trip_id",
 	                                                   "arrival_time",
@@ -45,7 +45,6 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rtc) {
 	                                                   "pickup_booking_rule_id",
 	                                                   "drop_off_booking_rule_id"};
 
-	//
 	const std::unordered_map<std::string, std::string> PREFIXES = {
 	    {"stops", "https://gtfs.org/stops/"},
 	    {"stop_times", "https://gtfs.org/stop_times/"},
@@ -64,20 +63,16 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rtc) {
 	const IRI SUBJ = IRI("stop_times", "{trip_id}_{stop_sequence}");
 
 	const std::vector<Triple> TRIPLES = {
-	    // SUBJECT PREDICATE                          OBJECT
-	    // Identity & links
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "StopTime")}},
 	    {SUBJ, {"gtfs", "trip"}, {IRI("trips", "{trip_id}")}},
 
-	    // One of these (mutually exclusive per Gtfs)
 	    {SUBJ, {"gtfs", "stop"}, {IRI("stops", "{stop_id}")}},
 	    {SUBJ, {"gtfs", "locationGroup"}, {IRI("locationgroups", "{location_group_id}")}},
 	    {SUBJ, {"gtfs", "location"}, {IRI("locations", "{location_id}")}},
 
-	    // Core fields
 	    {SUBJ, {"gtfs", "stopSequence"}, {"{stop_sequence}", IRI("xsd", "integer")}},
 
-	    // Times (converted to xsd:time, i.e. capped at 24:00:00)
+	    // times (converted to xsd:time, i.e. hour mod 24)
 	    {SUBJ,
 	     {"gtfs", "arrivalTime"},
 	     {"{arrival_time | convertTime2xs_unchecked}", IRI("xsd", "time")}},
@@ -85,10 +80,8 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rtc) {
 	     {"gtfs", "departureTime"},
 	     {"{departure_time | convertTime2xs_unchecked}", IRI("xsd", "time")}},
 
-	    // Optional headsign override
 	    {SUBJ, {"gtfs", "stopHeadsign"}, {"{stop_headsign}"}},
 
-	    // On-demand windows
 	    {SUBJ,
 	     {"gtfs", "startPickupDropOffWindow"},
 	     {"{start_pickup_drop_off_window | convertTime2xs_unchecked}", IRI("xsd", "time")}},
@@ -96,21 +89,20 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rtc) {
 	     {"gtfs", "endPickupDropOffWindow"},
 	     {"{end_pickup_drop_off_window | convertTime2xs_unchecked}", IRI("xsd", "time")}},
 
-	    // Enums (as integers)
+	    // enums (as ints, could be resolved via transforms if desired)
 	    {SUBJ, {"gtfs", "pickupType"}, {"{pickup_type}", IRI("xsd", "integer")}},
 	    {SUBJ, {"gtfs", "dropOffType"}, {"{drop_off_type}", IRI("xsd", "integer")}},
 	    {SUBJ, {"gtfs", "continuousPickup"}, {"{continuous_pickup}", IRI("xsd", "integer")}},
 	    {SUBJ, {"gtfs", "continuousDropOff"}, {"{continuous_drop_off}", IRI("xsd", "integer")}},
 
-	    // Distance along shape
+	    // distance along shape
 	    {SUBJ, {"gtfs", "shapeDistTraveled"}, {"{shape_dist_traveled}", IRI("xsd", "decimal")}},
 
-	    // Exact vs. approximate
 	    {SUBJ, {"gtfs", "timepoint"}, {"{timepoint}", IRI("xsd", "integer")}},
 
-	    // Booking rules
 	    {SUBJ, {"gtfs", "pickupBookingRule"}, {IRI("booking", "{pickup_booking_rule_id}")}},
-	    {SUBJ, {"gtfs", "dropOffBookingRule"}, {IRI("booking", "{drop_off_booking_rule_id}")}}};
+	    {SUBJ, {"gtfs", "dropOffBookingRule"}, {IRI("booking", "{drop_off_booking_rule_id}")}}
+	};
 
 	Schema sch("stop_times.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
 	return sch;

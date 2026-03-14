@@ -19,6 +19,7 @@ import runtime;
 
 using namespace rdf;
 
+// exemplary Gtfs -> Rdf schema for shapes.txt
 namespace schema {
 
 export Schema buildShapesSchema(runtime::RuntimeContainer& rtc) {
@@ -30,13 +31,12 @@ export Schema buildShapesSchema(runtime::RuntimeContainer& rtc) {
 	    {"geo", "http://www.opengis.net/ont/geosparql#"},
 	};
 
-	// no row-based triples; we only store
+	// no row-based triples; we only store the shape points for later processing in trips.txt
 	const std::vector<Triple> TRIPLES = {};
 
 	const std::vector<std::string> NO_WRITE_INSTRUCTIONS = {
-	    // key = shape_id
-	    // value_inputs = shape_pt_sequence, shape_pt_lon, shape_pt_lat
-	    // transform output is stored as the multimap value
+		// tuple map storage instruction
+	    // shape_id -> [(shape_pt_sequence, shape_pt_lon, shape_pt_lat), ...]
 	    "{ shape_id : shape_pt_sequence, shape_pt_lon, shape_pt_lat > shapes@shapes.txt }"};
 
 	return Schema("shapes.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, NO_WRITE_INSTRUCTIONS, rtc);

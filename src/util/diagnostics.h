@@ -19,10 +19,13 @@ import util;
 
 using namespace util::strings;
 
+// namespace for diagnostics-related utilities: error handling, warning / logging aggregation, and statistics collection
 namespace diagnostics {
 
 // _________________________________________________________________________________________________
-// custom error type for diagnostic errors
+// error handling
+
+// custom error type for diagnostic errors, specific to gtfs2rdf and meant to be used with wrapAndRethrow
 struct Error : std::runtime_error {
 	explicit Error(const std::string& message)
 	    : std::runtime_error(message) {
@@ -34,20 +37,24 @@ inline void wrapAndRethrow(std::string_view context_message) {
 	std::throw_with_nested(Error(std::string(context_message)));
 }
 
-// helper function to print error chain in order 'innermost -> outermost'
+// helper function to print error chain in order 'innermost -> outermost', i.e. error cause is printed before its context
 inline void printErrorChain(const std::exception& excpt) {
 	bool printed_context = false;
 
 	auto recursion = [&](auto&& self, const std::exception& excpt) -> void {
 		try {
+			// if this doesn't throw, then excpt is the innermost exception / the error cause -> print first
 			std::rethrow_if_nested(excpt);
 		} catch (const std::exception& inner) {
-			self(self, inner); // print leaf first
+			self(self, inner); // recurse until innermost exception is reached
 
+			// ensures that the leaf / context split is set exactly once
 			if (!printed_context) {
 				std::cerr << "Context stack:\n";
 				printed_context = true;
 			}
+
+			// aggregate context messages as dashed list
 			std::cerr << "  - " << excpt.what() << "\n";
 			return;
 		} catch (...) {
@@ -55,7 +62,7 @@ inline void printErrorChain(const std::exception& excpt) {
 			std::cerr << "❌  NON-STD EXCEPTION: " << excpt.what() << "\n";
 			return;
 		}
-		// leaf
+		// leaf / error cause
 		std::cerr << "❌  " << excpt.what() << "\n";
 	};
 
@@ -65,23 +72,26 @@ inline void printErrorChain(const std::exception& excpt) {
 // _________________________________________________________________________________________________
 // warnings / logging
 
-// to be assigned to a Warning in code
-// beware that the ordering matters for proper filtering based on verbosity level, such that
-// less severe < more severe
+// severity of a warning / logging bit
+// beware that the enum order matters for proper filtering based on verbosity level, such that
+// less severe < more severe is to be ensured
 enum class WarningLevel : uint8_t { DEBUG, WARNING };
 
-// beware that ordering matters for proper filtering based on verbosity level, such that
-// more verbose < less verbose
+// beware that enum order matters for proper filtering based on verbosity level, such that
+// more verbose < less verbose is to be ensured
 enum class VerbosityLevelWarnings : uint8_t { DEBUG, WARNING, QUIET };
 
+// requires setting the depth of context information (i.e. the deeper in the program flow tree, the higher the depth value) for proper context aggregation as of now
 class Warning {
   public:
+	// closed: whether this warning closes the current context (subsequent context not appended to this warning)
 	explicit Warning(std::string_view message, WarningLevel level, bool closed = false)
 	    : level_(level)
 	    , closed_(closed)
 	    , message_(message) {
 	}
 
+	// level: level / depth of the context in the program flow (a warning in main function could be level 1)
 	void addContext(std::string_view context, size_t depth = -1) {
 		if (closed_ || depth_ <= depth) {
 			return;
@@ -147,6 +157,7 @@ class WarningCollector {
 		}
 	}
 
+	// add text the the most recently added warning
 	void appendToLeaf(std::string_view message, WarningLevel level) {
 		if (warnings_.empty()) {
 			return;
@@ -182,6 +193,7 @@ class WarningCollector {
 
 // _________________________________________________________________________________________________
 // Statistics
+
 // statistics verbosity levels
 enum class VerbosityLevelStats : uint8_t { QUIET, BRIEF, VERBOSE };
 
@@ -199,7 +211,7 @@ class Statistics {
 	uint64_t conversion_ns = 0;
 #endif
 
-	// pre-run only
+	// pre-run only: stores the header fields of the corresponding Gtfs file
 	std::vector<std::string> header;
 	uint64_t num_chars = 0;
 

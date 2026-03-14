@@ -32,6 +32,7 @@ using namespace util::misc;
 
 namespace runtime {
 
+// handles the CLI and distributes settings in various places of the program
 export class Settings {
   private:
 	// default parameters, user-overridable via command line
@@ -91,7 +92,7 @@ export class Settings {
 
 		opts.add_options("Diagnostics / advanced")(
 		    "spec-dump",
-		    "Dump ontology spec to disk",
+		    "Dump mapping spec to disk",
 		    cxxopts::value<bool>()->default_value("false")->implicit_value("true"))(
 		    "warning-level",
 		    "Warning verbosity: quiet|warning|debug",

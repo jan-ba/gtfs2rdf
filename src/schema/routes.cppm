@@ -24,7 +24,7 @@ using namespace rdf;
 
 namespace schema {
 
-// Gtfs -> Rdf schema for routes.txt
+// exemplary Gtfs -> Rdf schema for routes.txt
 export Schema buildRoutesSchema(runtime::RuntimeContainer& rtc) {
 	const std::vector<std::string> POSSIBLE_COLUMNS = {"route_id",
 	                                                   "agency_id",
@@ -53,38 +53,29 @@ export Schema buildRoutesSchema(runtime::RuntimeContainer& rtc) {
 	const IRI SUBJ = IRI("routes", "{route_id}");
 
 	const std::vector<Triple> TRIPLES = {
-	    // Identity / type
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Route")}},
 
-	    // Foreign keys
 	    {SUBJ, {"gtfs", "agency"}, {IRI("agencies", "{agency_id}")}},
 	    {SUBJ, {"gtfs", "network"}, {IRI("networks", "{network_id}")}},
 
-	    // Names / description
 	    {SUBJ, {"gtfs", "routeShortName"}, {"{route_short_name}"}},
 	    {SUBJ, {"gtfs", "routeLongName"}, {"{route_long_name}"}},
 	    {SUBJ, {"gtfs", "routeDesc"}, {"{route_desc}"}},
 
-	    // Type (required)
 	    {SUBJ, {"gtfs", "routeType"}, {"{route_type}", IRI("xsd", "integer")}},
 
-	    // URL
 	    {SUBJ, {"gtfs", "routeUrl"}, {"{route_url}", IRI("xsd", "anyURI")}},
 
-	    // Colours
 	    {SUBJ, {"gtfs", "routeColor"}, {"{route_color}"}},
 	    {SUBJ, {"gtfs", "routeTextColor"}, {"{route_text_color}"}},
 
-	    // Sort order (non-negative integer)
 	    {SUBJ,
 	     {"gtfs", "routeSortOrder"},
 	     {"{route_sort_order}", IRI("xsd", "nonNegativeInteger")}},
 
-	    // Continuous pickup/drop-off (enums)
 	    {SUBJ, {"gtfs", "continuousPickup"}, {"{continuous_pickup}", IRI("xsd", "integer")}},
 	    {SUBJ, {"gtfs", "continuousDropOff"}, {"{continuous_drop_off}", IRI("xsd", "integer")}},
 
-	    // cEMV support (enum)
 	    {SUBJ, {"gtfs", "cemvSupport"}, {"{cemv_support}", IRI("xsd", "integer")}}};
 
 	Schema sch("routes.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);

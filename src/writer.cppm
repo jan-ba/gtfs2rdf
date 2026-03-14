@@ -32,9 +32,11 @@ using namespace schema;
 
 using Rows = std::vector<std::vector<std::string>>;
 
+// [TODO]: distinction between pre-run, normal run and between file and stream output obscured this class a bit, consider refactoring
+
 namespace writer {
 
-// writer with buffered output
+// simple writer with buffered output ; writes raw strings, does not know about GTFS or RDF syntax
 // one instance per output file
 export class Writer {
   public:
@@ -88,6 +90,7 @@ export class Writer {
 	    : Writer(out_stream, rtc, rtc.getSettings().getWriteBufferSize_MB(), active) {
 	}
 
+	// given a prefix map, write to output in correct .ttl style, e.g. "@prefix ex: <http://example.com/> ."
 	void writePrefixes(const std::unordered_map<std::string, std::string>& map) {
 		SCOPED_TIMER_NS(write_ns_tmp_);
 
@@ -100,6 +103,7 @@ export class Writer {
 		append_(out);
 	}
 
+	// raw access to output buffer
 	void writeRaw(std::string_view svw) {
 		SCOPED_TIMER_NS(write_ns_tmp_);
 
@@ -112,6 +116,7 @@ export class Writer {
 
 		auto& instructions = sch.getInstructions();
 
+		// render each instruction on the given row and append to buffer
 		for (auto& instr : instructions) {
 			try {
 				std::string_view rendered;
@@ -167,6 +172,7 @@ export class Writer {
 	// private helper methods
 	// _____________________________________________________________________________________________
 
+	// flush buffer to disk or output stream, depending on settings
 	void flush_() {
 		if (!ACTIVE_ || buffer_.empty()) {
 			return;
@@ -195,6 +201,7 @@ export class Writer {
 		}
 	}
 
+	// append input to buffer and flush if threshold is exceeded
 	void append_(std::string_view svw) {
 		buffer_.append(svw.data(), svw.size());
 		if (buffer_.size() >= THRESHOLD_) {

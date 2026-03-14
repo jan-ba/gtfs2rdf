@@ -19,6 +19,8 @@ export module util:misc;
 
 export namespace util::misc {
 
+// returns reference to value for key in map: either existing or newly default-constructed
+// avoids find-or-create pattern over and over
 template <class MapType>
 typename MapType::mapped_type& getOrInsert(MapType& map, std::string_view key) {
 	auto itr = map.find(key);
@@ -29,7 +31,7 @@ typename MapType::mapped_type& getOrInsert(MapType& map, std::string_view key) {
 	return itr->second;
 }
 
-// RAII timer that accumulates elapsed nanoseconds into passed acc
+// RAII timer that accumulates elapsed nanoseconds into passed accumulator
 class ScopedTimerNS {
   public:
 	explicit ScopedTimerNS(uint64_t& acc)
@@ -56,6 +58,7 @@ class ScopedTimerNS {
 // _________________________________________________________________________________________________
 // overloaded stream and string operators for STL containers (for convenient pretty printing)
 
+// vector to stream
 template <typename T> std::ostream& operator<<(std::ostream& out, const std::vector<T>& vec) {
 	out << "[";
 	for (size_t i = 0; i < vec.size(); ++i) {
@@ -68,12 +71,14 @@ template <typename T> std::ostream& operator<<(std::ostream& out, const std::vec
 	return out;
 }
 
+// vector to string
 template <typename T> std::string operator+(const std::string& str, const std::vector<T>& vec) {
 	std::ostringstream oss;
 	oss << vec;
 	return str + oss.str();
 }
 
+// map to stream
 template <typename K, typename V>
 std::ostream& operator<<(std::ostream& out, const std::map<K, V>& map) {
 	out << "{";
@@ -87,6 +92,7 @@ std::ostream& operator<<(std::ostream& out, const std::map<K, V>& map) {
 	return out;
 }
 
+// unordered_map (with custom hash and equality) to stream
 template <typename K, typename V, typename Hash, typename Equal>
 std::ostream& operator<<(std::ostream& out, const std::unordered_map<K, V, Hash, Equal>& map) {
 	out << "{";
@@ -100,6 +106,7 @@ std::ostream& operator<<(std::ostream& out, const std::unordered_map<K, V, Hash,
 	return out;
 }
 
+// unordered_map to stream
 template <typename K, typename V>
 std::ostream& operator<<(std::ostream& out, const std::unordered_map<K, V>& map) {
 	out << "{";
@@ -113,6 +120,7 @@ std::ostream& operator<<(std::ostream& out, const std::unordered_map<K, V>& map)
 	return out;
 }
 
+// unordered_set to stream
 template <typename T>
 std::ostream& operator<<(std::ostream& out, const std::unordered_set<T>& set) {
 	out << "{";

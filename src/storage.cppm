@@ -64,6 +64,7 @@ export class PersistentStorageSqlite {
 	static constexpr bool TEMP_STORE_FILE_ = true;     // predictable RAM
 	static constexpr bool EXCLUSIVE_LOCK_ = true;      // speed, single-process
 	static constexpr bool JOURNAL_OFF_ = true;         // speed, temp DB (unsafe on crash)
+	const std::string TEMP_DIR_NAME_ = ".gtfs2rdf_storage"; // subdir for temp DB files
 
   public:
 	explicit PersistentStorageSqlite(diagnostics::WarningCollector& wcol,
@@ -79,7 +80,12 @@ export class PersistentStorageSqlite {
 		// make sqlite respect soft heap limit
 		sqlite3_soft_heap_limit64(static_cast<sqlite3_int64>(HEAP_BYTES_ * SOFT_FRAC_));
 
-		std::string db_dir = tmp_dir + "/.gtfs2rdf_storage";
+		std::string db_dir = tmp_dir + "/" + TEMP_DIR_NAME_;
+
+		auto date_time_stamp = std::format("{:%Y%m%d_%H%M%S}",
+			std::chrono::zoned_time{
+				std::chrono::current_zone(),
+				std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())});
 
 		// create temporary directory and file
 		// ensure directory didn't exist before to avoid accidental user data overwrite
@@ -91,10 +97,7 @@ export class PersistentStorageSqlite {
 			bool dir_created = false;
 			for (int i = 2; i <= 10; ++i) {
 				if (std::filesystem::create_directory(db_dir + std::to_string(i))) {
-					auto s = std::format(
-					    "{:%Y%m%d_%H%M%S}",
-					    std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
-					db_path_ = db_dir + std::to_string(i) + "/" + s + ".db";
+					db_path_ = db_dir + std::to_string(i) + "/" + date_time_stamp + ".db";
 					dir_created = true;
 					break;
 				}
@@ -110,10 +113,7 @@ export class PersistentStorageSqlite {
 				    "runs.");
 			}
 		} else {
-			auto s = std::format(
-			    "{:%Y%m%d_%H%M%S}",
-			    std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
-			db_path_ = db_dir + "/" + s + ".db";
+			db_path_ = db_dir + "/" + date_time_stamp + ".db";
 		}
 
 		// NOMUTEX is fine if you guarantee single-thread access to this connection
@@ -192,11 +192,13 @@ export class PersistentStorageSqlite {
 	}
 
 	const std::string& getVariable(std::string_view ctx, std::string_view name) {
-		auto ctx_it = variables_.find(std::string(ctx));
+		// auto ctx_it = variables_.find(std::string(ctx));
+		auto ctx_it = variables_.find(ctx);
 		if (ctx_it == variables_.end()) {
 			return EMPTY_VARIABLE_;
 		}
-		auto name_it = ctx_it->second.find(std::string(name));
+		// auto name_it = ctx_it->second.find(std::string(name));
+		auto name_it = ctx_it->second.find(name);
 		if (name_it == ctx_it->second.end()) {
 			return EMPTY_VARIABLE_;
 		}

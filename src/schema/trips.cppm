@@ -26,8 +26,9 @@ using namespace rdf;
 
 namespace schema {
 
-// Gtfs -> Rdf schema for trips.txt (covers common/optional fields)
+// exemplary Gtfs -> Rdf schema for trips.txt
 export Schema buildTripsSchema(runtime::RuntimeContainer& rtc) {
+
 	// args: shape_id
 	// output: WKT linestring of all shape points for this shape_id
 	TRANSFORM2ONE(getLinestring, ARGS, OUT_VAL, STORAGE) {
@@ -101,29 +102,23 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rtc) {
 	    {"gtfs", "https://w3id.org/gtfs2rdf#"}};
 
 	const std::vector<Triple> TRIPLES = {
-	    // SUBJECT                    PREDICATE         OBJECT
-	    // Identity
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Trip")}},
 
-	    // Foreign keys
 	    {SUBJ, {"gtfs", "route"}, {IRI("routes", "{route_id}")}},
 	    {SUBJ, {"gtfs", "service"}, {IRI("services", "{service_id}")}},
 
-	    // Labels
 	    {SUBJ, {"gtfs", "tripHeadsign"}, {"{trip_headsign}"}},
 	    {SUBJ, {"gtfs", "tripShortName"}, {"{trip_short_name}"}},
 
-	    // Direction (0/1)
 	    {SUBJ, {"gtfs", "directionId"}, {"{direction_id}", IRI("xsd", "integer")}},
 
-	    // Block and shape
 	    {SUBJ, {"gtfs", "block"}, {IRI("blocks", "{block_id}")}},
 	    {SUBJ, {"geo", "hasGeometry"}, {IRI("gtfs2rdfgeom", "shapes_{shape_id}")}},
 	    {IRI("gtfs2rdfgeom", "shapes_{shape_id}"),
 	     {"geo", "asWKT"},
 	     {{"{shape_id | getLinestring@shapes.txt}"}, IRI("geo", "wktLiteral")}},
 
-	    // Accessibility / allowances (enums: 0/1/2)
+		// enums
 	    {SUBJ,
 	     {"gtfs", "wheelchairAccessible"},
 	     {"{wheelchair_accessible}", IRI("xsd", "integer")}},

@@ -11,7 +11,6 @@ module;
 #include <cstdint>
 #include <deque>
 #include <functional>
-#include <iostream> // is this needed after debugging prints are removed?
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -31,24 +30,32 @@ using namespace rdf;
 using namespace util::strings;
 using namespace field_transforms;
 
+// this module implements core logic for several major classes of gtfs2rdf:
+// - Instruction: represents a compiled instruction template ready to be rendered for each row of a 
+//                file; specifically, implements render(row&) (i.e. the hot loop of the converter)
+// - Schema: represents a mapping from a GTFS file to RDF, consisting of multiple instructions and 
+//           metadata
+
 namespace schema {
 
+// a Datagap represents a placeholder but with all final metadata on how to render it
 struct Datagap {
 	size_t num_args = 0;
 	size_t num_transforms = 0;
 
-	// arguments for this placeholder (columns/litearls/storage/consts etc.)
+	// arguments for this placeholder (columns/literals/storage vars etc.)
 	std::array<ArgSource, field_transforms::MAX_ARGS> arg_sources;
 
-	// transforms as functors
+	// transforms as std::function objects
 	std::array<field_transforms::Transform, field_transforms::MAX_TRANSFORMS> transforms;
 	bool contains_transf2many = false;
 	size_t transf2many_index = 0;
-	StorageWriteSpec storage; // full storage spec
+	StorageWriteSpec storage; // full storage spec in case of storage writes
 
 	RenderKind render_kind = RenderKind::RAW; // how to render this placeholder
 };
 
+// pre-stage of final Instruction; placeholders not yet bound to columns / finalised
 struct InstructionTemplate {
 	std::string raw;
 	std::vector<std::string> parts;       // static parts between datagaps
@@ -57,37 +64,41 @@ struct InstructionTemplate {
 	bool suppress_output = false;         // if true, do not write to file (only store internally)
 };
 
+// contains all metadata and logic for rendering an instruction for a given row of a GTFS file
 export class Instruction {
   private:
 	std::vector<std::string> parts_; // static parts between placeholders
 	std::vector<Datagap> datagaps_;  // bound placeholders
-
 	std::array<std::string_view, field_transforms::MAX_ARGS> arg_buf_;
 
-	size_t base_len_ = 0;
-	std::string out_;
+	size_t base_len_ = 0;  // used to aggregate an estimate for the required output buffer size
+	std::string out_buffer_;      // output buffer for rendering
+
 	static constexpr std::string EMPTY_;
 	static constexpr std::string_view EMPTY_SV_{EMPTY_};
 
 	uint64_t counter_ = 0;
-	bool is_valid_ = true;
+	bool is_valid_ = true;  // whether to include this instruction in rendering
 
 	runtime::RuntimeContainer& rtc_;
 	const std::string RAW_INSTRUCTION_;
 
+	// swap buffers for transform application to avoid unnecessary copying
 	std::string cur_;         // temporary storage for transform outputs
 	std::string_view cur_sv_; // view into 'cur_'
 	std::string next_;        // temporary swap storage
 
 	bool contains_transf2many_ = false;
 	RenderKind transf2many_render_kind_ = RenderKind::RAW;
-	std::vector<std::string> transf_buf_; // buffer for Transform2Many outputs
-	std::vector<std::string_view> transf_buf_sv_;
+	std::vector<std::string> transf2many_buf_;    // buffer for Transform2Many outputs
+	std::vector<std::string_view> transf_buf_sv_; // views into the above buffer
 	size_t transf2many_placeholder_index_ = 0;
 
 	const bool SUPPRESS_OUTPUT_ = false;
 
 	// helper: resolve an ArgSource to a string_view for this row
+	// ArgSource can be a csv column (by id), a literal or a storage variable
+	// we leave them where they are stored and only resolve to string_views
 	std::string_view resolveARG_(const ArgSource& arg_src, std::span<const std::string> row) {
 		switch (arg_src.kind) {
 			case ArgSourceKind::COLUMN_INDEX:
@@ -111,6 +122,10 @@ export class Instruction {
 	}
 
   public:
+    // builds an Instruction given
+	// - InstructionTemplate with placeholders not yet bound to columns / finalised
+	// - column name to index mapping for resolving column args
+	// resolves placeholder args to column indices and literals, checks for validity and gathers metadata for rendering
 	Instruction(const InstructionTemplate& tmpl,
 	            const std::unordered_map<std::string, int>& column_map,
 	            runtime::RuntimeContainer& rtc,
@@ -126,17 +141,19 @@ export class Instruction {
 
 		datagaps_.reserve(tmpl.plhs.size());
 
+		// for each placeholder, resolve args and gather metadata for rendering and storage
 		for (size_t ph_i = 0; ph_i < tmpl.plhs.size(); ++ph_i) {
 			const auto& plh = tmpl.plhs[ph_i];
 			Datagap dgp;
 
-			// args
+			// sanity check: number of args must not exceed max supported by field_transforms
 			if (plh.args.size() > static_cast<size_t>(field_transforms::MAX_ARGS)) {
 				throw diagnostics::Error("Schema error: too many placeholder args (Max value is " +
 				                         std::to_string(field_transforms::MAX_ARGS) + ")");
 			}
 			dgp.num_args = plh.args.size();
 
+			// resolve each arg to its source (column index, literal value or storage variable)
 			for (size_t i = 0; i < plh.args.size(); ++i) {
 				const auto& arg = plh.args[i];
 				ArgSource src;
@@ -156,9 +173,11 @@ export class Instruction {
 					}
 					src.kind = ArgSourceKind::COLUMN_INDEX;
 					src.column_index = idx;
+
 				} else if (arg.kind == ArgKind::LITERAL) {
 					src.kind = ArgSourceKind::LITERAL;
 					src.literal = arg.name;
+
 				} else { // STORAGE_VAR
 					src.kind = ArgSourceKind::STORAGE_VAR;
 					src.name = arg.name;
@@ -168,7 +187,7 @@ export class Instruction {
 				dgp.arg_sources[i] = std::move(src);
 			}
 
-			// transforms
+			// sanity check: number of transforms must not exceed max supported by field_transforms
 			if (plh.transforms.size() > static_cast<size_t>(field_transforms::MAX_TRANSFORMS)) {
 				throw diagnostics::Error(
 				    "Schema error: too many chained transforms (Max value is " +
@@ -176,6 +195,7 @@ export class Instruction {
 			}
 			dgp.num_transforms = plh.transforms.size();
 
+			// just copy transforms from template to datagap
 			for (size_t j = 0; j < plh.transforms.size(); ++j) {
 				dgp.transforms[j] = plh.transforms[j].transform;
 				if (dgp.transforms[j].kind == field_transforms::TransformKind::MANY) {
@@ -189,7 +209,7 @@ export class Instruction {
 				}
 			}
 
-			// storage
+			// storage write directives are transferred, involving sanity checks
 			dgp.storage = plh.storage;
 			if (dgp.storage.kind != StorageKind::NONE) {
 				if (dgp.storage.target_ctx.empty()) {
@@ -201,7 +221,7 @@ export class Instruction {
 				}
 			}
 
-			// some sanity checks
+			// sanity check: Transform2Many can never be used with a VARIABLE
 			if (dgp.storage.kind == StorageKind::VARIABLE && dgp.contains_transf2many) {
 				throw diagnostics::Error(
 				    "Schema error: cannot store Transform2Many output into a variable");
@@ -217,35 +237,47 @@ export class Instruction {
 		parts_.back().append("\n");
 		base_len_ += 1;
 
-		out_.reserve(base_len_ + 256); // NOLINT(readability-magic-numbers)
+		// space pre-allocation based on approximation
+		out_buffer_.reserve(base_len_ + 256); // NOLINT(readability-magic-numbers)
 	}
 
+	// render / hot loop of the converter: given a row of a GTFS file, produce the output string
+	// for this instruction, applying transforms and performing storage writes as needed
+	// NOTE: output string does not necessarily correspond to one triple due to Transform2Many
 	std::string_view render(std::span<const std::string> row) {
-		out_.clear();
-		out_.append(parts_[0]);
+		out_buffer_.clear();
+		out_buffer_.append(parts_[0]);  // append static part before first placeholder / datagap
 		cur_.clear();
 		next_.clear();
 		cur_sv_ = cur_;
+
+		// rationale: cur_ will change with each transform, but span_1 will always be a view
+		// of cur_ and can be passed to transforms without needing to be recreated
 		field_transforms::ArgSpan span_1{&cur_sv_, 1};
 
+		// process each datagap 
+		// resolve args, apply transforms, perform storage writes and render output for each
 		for (size_t k = 0; k < datagaps_.size(); ++k) {
 			Datagap& dgp = datagaps_[k];
 
 			cur_.clear();
 			next_.clear();
 
-			// resolve args to pointers
+			// resolve args to pointers sitting in the arg buffer for this datagap
 			for (size_t j = 0; j < dgp.num_args; ++j) {
 				arg_buf_[j] = resolveARG_(dgp.arg_sources[j], row);
 			}
 
-			// compute placeholder output (and possibly Transform2Many buffer)
+			// apply transform applications in sequence, feeding output of one as input to the next
 			if (dgp.num_transforms > 0) {
 				field_transforms::ArgSpan span_n{arg_buf_.data(), dgp.num_args};
+
+				// if there is a Transform2Many, apply preceding transforms first, then the single 
+				// Transform2Many and then the remaining transforms elementwise on the produced vector
 				if (dgp.contains_transf2many) {
 					transf2many_render_kind_ = dgp.render_kind;
-					transf_buf_.clear();
-					transf2many_placeholder_index_ = out_.size();
+					transf2many_buf_.clear();
+					transf2many_placeholder_index_ = out_buffer_.size();
 
 					// apply transforms before the 2N
 					for (size_t i = 0; i < dgp.transf2many_index; i++) {
@@ -263,20 +295,21 @@ export class Instruction {
 
 					// run the Transform2Many
 					if (dgp.transf2many_index == 0) {
-						dgp.transforms[dgp.transf2many_index].many(span_n, transf_buf_);
+						dgp.transforms[dgp.transf2many_index].many(span_n, transf2many_buf_);
 					} else {
-						dgp.transforms[dgp.transf2many_index].many(span_1, transf_buf_);
+						dgp.transforms[dgp.transf2many_index].many(span_1, transf2many_buf_);
 					}
 
 					// run remaining transforms elementwise on the produced vector
 					for (size_t i = dgp.transf2many_index + 1; i < dgp.num_transforms; i++) {
-						for (auto& buf_i : transf_buf_) {
+						for (auto& buf_i : transf2many_buf_) {
 							cur_sv_ = buf_i;
 							dgp.transforms[i].single(span_1, next_);
 							buf_i.swap(next_);
 							next_.clear();
 						}
 					}
+
 				} else { // no Transform2Many
 					dgp.transforms[0].single(span_n, cur_);
 
@@ -304,13 +337,13 @@ export class Instruction {
 				}
 			}
 
-			// early exit: either transforms filter (empty output) or empty column or empty
-			// computed Transform2Many result which need not be rendered
+			// early exit: either transforms filter (empty output) or there is a missing input
+			// (column empty etc.) and there is no Transform2Many: needs not be rendered
 			if (!dgp.contains_transf2many && cur_sv_.empty()) {
 				return EMPTY_;
 			}
 
-			// --- side effects: storage write ---
+			// process storage writes if applicable
 			if (dgp.storage.kind != StorageKind::NONE) {
 				auto& stor = rtc_.getStorage();
 
@@ -352,18 +385,19 @@ export class Instruction {
 				} else {
 					// StoreComputed
 					if (dgp.contains_transf2many) {
-						if (!transf_buf_.empty()) {
-							transf_buf_sv_.resize(transf_buf_.size());
-							for (size_t i = 0; i < transf_buf_.size(); i++) {
-								transf_buf_sv_[i] = transf_buf_[i];
+						if (!transf2many_buf_.empty()) {
+							transf_buf_sv_.resize(transf2many_buf_.size());
+							for (size_t i = 0; i < transf2many_buf_.size(); i++) {
+								transf_buf_sv_[i] = transf2many_buf_[i];
 							}
 							stor.storeTuple(dgp.storage.target_ctx,
 							                dgp.storage.target_name,
 							                ArgSpan{arg_buf_.data(), dgp.storage.key_arity},
 							                ArgSpan{transf_buf_sv_.data(), transf_buf_sv_.size()});
 						}
-					} else {
-						switch (dgp.storage.kind) { //  'NONE' and 'TUPLE_MAP' missing
+					} // store computed, no Transform2Many -> single value in cur_
+					else {
+						switch (dgp.storage.kind) {
 							case StorageKind::VARIABLE:
 								stor.storeVariable(
 								    dgp.storage.target_ctx, dgp.storage.target_name, cur_sv_);
@@ -384,75 +418,75 @@ export class Instruction {
 				}
 			}
 
-			// --- output rendering ---
-			// suppress output for the whole instruction
+			// compile output for this datagap if not SUPPRESS_OUTPUT_
+			// escape datagap according to render kind and append static part after datagap
 			if (!SUPPRESS_OUTPUT_) {
 				if (!dgp.contains_transf2many) {
-					switch (dgp.render_kind) { // how to escape the placeholder
+					switch (dgp.render_kind) {
 						case RenderKind::IRI_REF:
-							percentEncodeIRIREF(out_, cur_sv_);
+							percentEncodeIRIREF(out_buffer_, cur_sv_);
 							break;
 						case RenderKind::PREFIXED_LOCAL:
-							percentEncodePrefixedLocal(out_, cur_sv_);
+							percentEncodePrefixedLocal(out_buffer_, cur_sv_);
 							break;
 						case RenderKind::LITERAL:
-							percentEncodeLiteral(out_, cur_sv_);
+							percentEncodeLiteral(out_buffer_, cur_sv_);
 							break;
 						case RenderKind::LANG_TAG:
-							out_.append(
+							out_buffer_.append(
 							    cur_sv_); // [TODO]: language tags should be validated <future work>
 							break;
 						case RenderKind::RAW:
 						default:
-							out_.append(cur_sv_);
+							out_buffer_.append(cur_sv_);
 							break;
 					}
 				}
-				out_.append(parts_[k + 1]);
+				out_buffer_.append(parts_[k + 1]);  // static bit after datagap
 			}
-		}
+		}  // !we have left the datagap loop now!
 
 		// If SUPPRESS_OUTPUT_ => side effect only, skip writing entirely
 		if (SUPPRESS_OUTPUT_) {
-			// counter_++;  // no triples written
 			return EMPTY_;
 		}
 
-		// replicate for Transform2Many
+		// replicate output compilation in case of Transform2Many
 		if (contains_transf2many_) {
-			std::string prefix = out_.substr(0, transf2many_placeholder_index_);
-			std::string suffix = out_.substr(transf2many_placeholder_index_);
-			out_.clear();
-			for (const auto& val : transf_buf_) {
+			// [TODO]: this is not very efficient
+			std::string prefix = out_buffer_.substr(0, transf2many_placeholder_index_);
+			std::string suffix = out_buffer_.substr(transf2many_placeholder_index_);
+			out_buffer_.clear();
+			for (const auto& val : transf2many_buf_) {
 				if (val.empty()) {
 					continue;
 				}
-				out_.append(prefix);
+				out_buffer_.append(prefix);
 				switch (transf2many_render_kind_) { // how to escape the placeholder
 					case RenderKind::IRI_REF:
-						percentEncodeIRIREF(out_, val);
+						percentEncodeIRIREF(out_buffer_, val);
 						break;
 					case RenderKind::PREFIXED_LOCAL:
-						percentEncodePrefixedLocal(out_, val);
+						percentEncodePrefixedLocal(out_buffer_, val);
 						break;
 					case RenderKind::LITERAL:
-						percentEncodeLiteral(out_, val);
+						percentEncodeLiteral(out_buffer_, val);
 						break;
 					case RenderKind::LANG_TAG:
-						out_.append(val); // [TODO]: language tags should be validated <future work>
+						out_buffer_.append(val); // [TODO]: language tags should be validated <future work>
 						break;
 					case RenderKind::RAW:
 					default:
-						out_.append(val);
+						out_buffer_.append(val);
 						break;
 				}
-				out_.append(suffix);
+				out_buffer_.append(suffix);
 				counter_++;
 			}
 		} else {
 			counter_++;
 		}
-		return out_;
+		return out_buffer_;
 	}
 
 	[[nodiscard]] uint64_t getCount() const {
@@ -472,6 +506,8 @@ export class Instruction {
 	}
 };
 
+// represents a schema for a GTFS file, i.e. a mapping
+// manages the lifecycle of instructions from raw instruction strings to final compiled instructions
 export class Schema {
   private:
 	const std::string NAME_; // name of file with file type, e.g. "stops.txt"
@@ -490,7 +526,7 @@ export class Schema {
 	// computed from header
 	std::unordered_map<std::string, int>
 	    column_map_;                        // column name -> index in file, -1 if not found
-	std::vector<Instruction> instructions_; // computed instructions
+	std::vector<Instruction> instructions_; // computed instructions fit for rendering
 
 	std::vector<std::string> header_;
 	std::unordered_set<std::string> referenced_columns_;
@@ -535,6 +571,7 @@ export class Schema {
 	}
 
 	// allow side-effect only instructions to be added as well and add them to the front
+	// so that they are processed before the triples such that they could be used by triples
 	Schema(std::string name,
 	       const std::vector<std::string>& POSSIBLE_COLUMNS,
 	       std::unordered_map<std::string, std::string> prefixes,
@@ -572,6 +609,8 @@ export class Schema {
 				size_t start = 0;
 				size_t pos = 0;
 
+				// find each placeholder (e.g. {arg | transf | store@ctx}) and parse it into a
+				// PlaceholderSpec, while also gathering static parts between placeholders
 				while ((pos = raw_inst.find('{', start)) != std::string::npos) {
 					size_t end = raw_inst.find('}', pos);
 					if (end == std::string::npos) {
@@ -586,7 +625,7 @@ export class Schema {
 					try {
 						PlaceholderSpec spec = parsePlaceholder(placeholder, REGISTRY_);
 
-						// dependencies from args
+						// identify dependencies from other files using args after parsing
 						for (const auto& arg : spec.args) {
 							if (arg.kind == ArgKind::STORAGE_VAR) {
 								if (!arg.ctx.empty()) {
@@ -615,7 +654,7 @@ export class Schema {
 									} else {
 										dependencies_.insert(arg.ctx);
 									}
-								}
+								}  // [TODO]: ctx empty, perhaps this should throw?
 							} else if (arg.kind == ArgKind::COLUMN) {
 								referenced_columns_.insert(arg.name);
 							}
@@ -657,6 +696,9 @@ export class Schema {
 			}
 		}
 
+		// marks storage-only instructions to suppress output
+		// note that this requires that storage-only instructions are added in front of the 
+		// instruction list as should be enforced via the two-ctor approach of Schema
 		for (size_t i = 0; i < num_storage_only_instructions_; ++i) {
 			templates_[i].suppress_output = true;
 		}
@@ -672,32 +714,33 @@ export class Schema {
 			throw diagnostics::Error(
 			    "Internal error: schema must be compiled before setting header");
 		}
-		// compute column_map_ from header
+
+		// compute column_map_ from header, i.e. column_name -> column_index in file, -1 if not found
 		for (size_t file_idx = 0; file_idx < header.size(); ++file_idx) {
 			if (column_map_.contains(header[file_idx])) {
 				column_map_[header[file_idx]] = static_cast<int>(file_idx);
 			} else {
 				rtc_.getWarningCollector().addLeaf("Schema does not define column '" +
 				                                       header[file_idx] + "' used in file header",
-				                                   diagnostics::WarningLevel::DEBUG);
+				                                   diagnostics::WarningLevel::WARNING);
 			}
 		}
+
 		// build instructions_
 		// skip storage-only instructions if storage writes are forbidden which would be triggered
-		// if no other schema actually depends on storage from this one
+		// if no other schema or schema itself depends on storage from this one
 		size_t start_idx = allow_storage_writes_ ? 0 : num_storage_only_instructions_;
 		for (size_t i = start_idx; i < templates_.size(); ++i) {
 			const auto& tmp = templates_[i];
 			try {
 				Instruction instr(tmp, column_map_, rtc_, NAME_);
 
-				// for logging / warning context
 				rtc_.getWarningCollector().addNode(
 				    "while building instruction from template '" + tmp.raw + "'", 5);
 
 				if (!instr.isValid()) {
 					continue;
-				} // skip invalid instructions
+				} 
 				if (!allow_storage_writes_) {
 					for (auto& dgp : instr.getModifiableDatagaps()) {
 						dgp.storage.kind = StorageKind::NONE;
@@ -729,6 +772,7 @@ export class Schema {
 		return dependencies_;
 	}
 
+	// returns the header with unused columns enclosed in parentheses
 	std::vector<std::string> formatHeaderWithUnused() const {
 		std::vector<std::string> out;
 		for (const auto& col : header_) {

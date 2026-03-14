@@ -70,8 +70,8 @@ TEST_CASE("rdf: percentEncodeLiteral makes control characters explicit and escap
 TEST_CASE("rdf: percentEncodeLiteral leaves UTF-8 characters as is") {
 	std::string out = "LITERAL: "; // should not modify already in the output
 	rdf::percentEncodeLiteral(
-	    out, "Emoji:😀, Accented:é , Góðan daginn, ef þú ert að lesa þetta\nþá ertu fræbart");
+	    out, "Emoji:😀, Accented:é , Góðan daginn, ef þú ert að lesa þetta\nþá ertu frábær");
 	REQUIRE(
 	    out ==
-	    "LITERAL: Emoji:😀, Accented:é , Góðan daginn, ef þú ert að lesa þetta\\nþá ertu fræbart");
+	    "LITERAL: Emoji:😀, Accented:é , Góðan daginn, ef þú ert að lesa þetta\\nþá ertu frábær");
 }

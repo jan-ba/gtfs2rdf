@@ -145,6 +145,7 @@ TransformCallSpec parseTransform(std::string_view svw,
 	return out;
 }
 
+// parses the storage target part after '>' in a placeholder spec, e.g. "TARGET@ctx"
 void parseTarget(std::string_view svw, StorageWriteSpec& stg) {
 	auto [name, ctx] = util::splitAt(svw, '@');
 	if (name.empty()) {
@@ -165,8 +166,7 @@ void parseTarget(std::string_view svw, StorageWriteSpec& stg) {
 	}
 }
 
-// ---------- main parser ----------
-
+// main parser for the full placeholder spec, e.g. "{ arg1, arg2 | transform1 | transform2 > TARGET }"
 export PlaceholderSpec parsePlaceholder(std::string_view raw,
                                         const field_transforms::TransformRegistry& reg) {
 	// normalise whitespace but keep spaces in quoted literals
@@ -262,7 +262,8 @@ export PlaceholderSpec parsePlaceholder(std::string_view raw,
 			}
 			spec.storage.value_arity = static_cast<uint8_t>(val_toks.size());
 
-			// extras
+			// extras, i.e. additional fields that are not stored but passed to transforms
+			// syntax: {keys : (values), extra1, extra2 | transforms > target} 
 			if (!after.empty()) {
 				if (after.front() != ',') {
 					throw diagnostics::Error(
@@ -346,7 +347,7 @@ export PlaceholderSpec parsePlaceholder(std::string_view raw,
 		}
 	}
 
-	// --- ensure correctness of the parsed spec ---
+	// --- correctness checks ---
 
 	if (spec.args.empty()) {
 		throw diagnostics::Error("Syntax error: Placeholder must have at least 1 argument");

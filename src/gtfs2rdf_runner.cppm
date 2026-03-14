@@ -32,6 +32,12 @@ using namespace util;
 // type for schema factories
 export using Factories = std::unordered_map<std::string, schema::Factory>;
 
+// main runner function:
+// - opens zip file
+// - determines which files/schemas to use based on presence of files in zip
+// - compiles schemas and determines processing order based on dependencies
+// - processes files in order and writes output via Writer
+// - collects and prints warnings and statistics
 export int gtfs2rdf(const runtime::Settings& settings,
                     diagnostics::WarningCollector& wcol,
                     const Factories& factories) {
@@ -49,6 +55,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 		                         std::string(zip_error_strerror(&error)) + "')");
 	}
 
+	// init data structures for schema handling and processing
 	std::vector<std::string> files_in_dir;
 	std::vector<schema::Schema> used_schemas;
 	std::unordered_map<std::string, size_t> schema_name_to_index; // map from schema name to index
@@ -80,7 +87,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 		    settings.getInputPath().string() + "'.\n");
 	}
 
-	// compile schemas such that they are ready for use and dependency info is available
+	// compile schemas such that they are ready for use -> dependency info will be aggregated inside of each schema during compilation
 	for (auto& sch : used_schemas) {
 		try {
 			sch.compile();
@@ -91,10 +98,10 @@ export int gtfs2rdf(const runtime::Settings& settings,
 		}
 	}
 
-	// determine processing order via topological sort of dependencies
-	// this whole section is not very efficient, but then again we're looking at Gtfs feeds
-	// such that n < 50 in practice
+	// initialise toposort with schemas as nodes and dependencies as edges
 	TopologicalSort toposort(files_in_dir.size());
+
+	// count how many other schemas depend on schema at index i
 	std::vector<size_t> num_depending_schemas(files_in_dir.size(), 0);
 	for (size_t i = 0; i < files_in_dir.size(); i++) {
 		toposort.addNode(i);
@@ -120,6 +127,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 	}
 
 	// deactivate all storage writes from schemas that are not needed later on
+	// note that a schema may depend on itself in which case storage writes are not deactivated
 	for (size_t i = 0; i < files_in_dir.size(); i++) {
 		if (num_depending_schemas[i] == 0) {
 			used_schemas[i].forbidStorageWrites();
@@ -131,6 +139,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 		}
 	}
 
+	// perform topological sort to determine processing order of files/schemas based on dependencies
 	// allow loops (schema may read from its own previously written storage)
 	std::vector<size_t> order(files_in_dir.size());
 	try {
@@ -151,6 +160,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 		                                       diagnostics::WarningLevel::DEBUG);
 	}
 
+	// initialise writer based on settings (pre-run with small buffer, normal run to stdout, normal run to file output)
 	writer::Writer writer =
 	    settings.isPreRun()
 	        ? writer::Writer(std::cout,
@@ -164,6 +174,8 @@ export int gtfs2rdf(const runtime::Settings& settings,
 	gtfs::GtfsParserWorkspace wsp(rtc, writer);
 	auto merged_prefixes = schema::mergePrefixes(used_schemas, rtc.getWarningCollector(), true);
 	std::vector<diagnostics::Statistics> per_file_stats(files_in_dir.size());
+
+	// conversion loop of files in topologically sorted order
 	for (size_t i = 0; i < files_in_dir.size(); i++) {
 		zip_file_t* z_file = nullptr;
 		try {
@@ -176,7 +188,9 @@ export int gtfs2rdf(const runtime::Settings& settings,
 				writer.writePrefixes(merged_prefixes);
 			}
 			gtfs::GtfsParser parser(z_file, used_schemas[order[i]], wsp, rtc);
-			parser.parse();
+			parser.parse();  // parses and passes data on for rendering and writing
+
+			// after processing the file, check if any of its dependencies can have their storage cleared
 			for (const auto& dep : used_schemas[order[i]].getDependencies()) {
 #ifdef NDEBUG
 				num_depending_schemas[schema_name_to_index[dep]]--;
@@ -191,6 +205,9 @@ export int gtfs2rdf(const runtime::Settings& settings,
 				}
 			}
 			zip_fclose(z_file);
+
+			// collect statistics for this file, depending on whether pre-run or normal run
+			// pre-run requires extrapolation of stats based on sample size
 			if (settings.isPreRun()) {
 				diagnostics::Statistics stats;
 				stats.name = files_in_dir[order[i]];
@@ -230,37 +247,37 @@ export int gtfs2rdf(const runtime::Settings& settings,
 			                            "'");
 		}
 	}
-	zip_close(z_arch);
+	zip_close(z_arch);  // done with input zip archive
 
+	// aggregate total statistics across all processed files
 	diagnostics::Statistics total_stats;
 	total_stats.name = "Total Gtfs Feed";
 	for (size_t i = 0; i < files_in_dir.size(); i++) {
 		total_stats = total_stats + per_file_stats[i];
 	}
 
-	// dump ontology spec if requested
+	// dump mapping spec if requested
 	if (settings.isSpecDump() && !used_schemas.empty()) {
 		std::filesystem::path spec_path = settings.getOutputPath();
 		spec_path.replace_extension(".spec.txt");
-		writer::Writer onth_writer(spec_path, rtc, 1.0); // small buffer for spec writing
+		writer::Writer spec_writer(spec_path, rtc, 1.0); // small buffer for spec writing
 		if (!settings.isNTriplesOutput()) {
-			onth_writer.writePrefixes(merged_prefixes);
+			spec_writer.writePrefixes(merged_prefixes);
 		}
 		for (auto& schema : used_schemas) {
 			for (auto& inst : schema.getInstructions()) {
-				onth_writer.writeRaw(inst.getRawInstruction() + "\n");
+				spec_writer.writeRaw(inst.getRawInstruction() + "\n");
 			}
 		}
 		rtc.getWarningCollector().addLeaf(
-		    "Wrote ontology spec to " + spec_path.string(), diagnostics::WarningLevel::DEBUG, true);
+		    "Wrote mapping spec to " + spec_path.string(), diagnostics::WarningLevel::DEBUG, true);
 	}
 
 	rtc.getWarningCollector().printWarningSummary();
 
+	// print statistics summary, with different levels of detail depending on settings
 	if (settings.isPreRun() &&
 	    !(settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::QUIET)) {
-		// std::cerr <<
-		// "\n--------------------------------------------------------------------\n\n";
 		std::cerr << "🧮 PRE-RUN SUMMARY for feed: " << settings.getInputPath().filename().string()
 		          << " (sample=" << settings.getPreRunSampleSize() << " rows/file)\n\n";
 
@@ -306,12 +323,14 @@ export int gtfs2rdf(const runtime::Settings& settings,
 		    << "\n"
 		    << "  est output size: "
 		    << formatValueWithPaddedUnits(total_stats.num_chars, UnitType::SIZE) << "\n\n"
-		    << " ⚠️  Note: These are only estimates based on a sample data run. Actual output "
+		    << "⚠️  Note: These are only estimates based on a sample data run. Actual output "
 		       "may vary significantly depending on the data present in the Gtfs feed as "
 		       "well as Transform2Many and filtering."
 		    //   << "\n--------------------------------------------------------------------\n";
 		    << "\n\n";
-	} else if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::VERBOSE) {
+	} 
+	// print statistics summary in case of normal run
+	else if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::VERBOSE) {
 		for (const auto& f_stats : per_file_stats) {
 			std::cerr << f_stats.fancyPrint() << "\n";
 		}

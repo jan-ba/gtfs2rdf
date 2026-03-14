@@ -24,7 +24,7 @@ using namespace rdf;
 
 namespace schema {
 
-// Gtfs -> Rdf schema for calendar_dates.txt
+// exemplary Gtfs -> Rdf schema for calendar_dates.txt
 export Schema buildCalendarDatesSchema(runtime::RuntimeContainer& rtc) {
 	// args: date, exception_type
 	TRANSFORM2ONE(ignore_disabled_dates, ARGS, OUT_VAL, STORAGE) {

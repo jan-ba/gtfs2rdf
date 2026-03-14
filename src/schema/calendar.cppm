@@ -28,7 +28,7 @@ using namespace util;
 
 namespace schema {
 
-// Gtfs -> Rdf schema for calendar.txt
+// exemplary Gtfs -> Rdf schema for calendar.txt
 export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
 	// Transform function to generate operating days string from weekday flags
 	// ignores disables dates from calendar_dates.txt
@@ -94,7 +94,7 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
 	const std::vector<Triple> TRIPLES = {
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Service")}},
 
-	    // Operating dates (generated from weekday flags + start_date + end_date)
+	    // operating dates (generated from weekday flags + start_date + end_date)
 	    // uses calendar_dates.txt to ignore disabled dates
 	    {SUBJ,
 	     {"gtfs", "serviceDate"},
@@ -103,7 +103,7 @@ export Schema buildCalendarSchema(runtime::RuntimeContainer& rtc) {
 	      "service_id | generateDates@calendar_dates.txt }",
 	      IRI("xsd", "date")}},
 
-	    // Date range
+	    // date range
 	    {SUBJ,
 	     {"gtfs", "startDate"},
 	     {"{start_date | convertDate2xs_unchecked }", IRI("xsd", "date")}},

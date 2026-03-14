@@ -24,7 +24,7 @@ using namespace rdf;
 
 namespace schema {
 
-// Gtfs -> Rdf schema for agency.txt
+// exemplary Gtfs -> Rdf schema for agency.txt
 export Schema buildAgencySchema(runtime::RuntimeContainer& rtc) {
 	const std::vector<std::string> POSSIBLE_COLUMNS = {"agency_id",
 	                                                   "agency_name",
@@ -47,18 +47,15 @@ export Schema buildAgencySchema(runtime::RuntimeContainer& rtc) {
 	const std::vector<Triple> TRIPLES = {
 	    {SUBJ, {"rdf", "type"}, {IRI("gtfs", "Agency")}},
 
-	    // Core fields
 	    {SUBJ, {"gtfs", "agencyName"}, {"{agency_name}"}},
 	    {SUBJ, {"gtfs", "agencyUrl"}, {"{agency_url}", IRI("xsd", "anyURI")}},
 	    {SUBJ, {"gtfs", "agencyTimezone"}, {"{agency_timezone}"}},
 
-	    // Optional fields
 	    {SUBJ, {"gtfs", "agencyLang"}, {"{agency_lang}", IRI("xsd", "language")}},
 	    {SUBJ, {"gtfs", "agencyPhone"}, {"{agency_phone}"}},
 	    {SUBJ, {"gtfs", "agencyFareUrl"}, {"{agency_fare_url}", IRI("xsd", "anyURI")}},
 	    {SUBJ, {"gtfs", "agencyEmail"}, {"{agency_email}"}},
 
-	    // cEMV support enum (0/1/2)
 	    {SUBJ, {"gtfs", "cemvSupport"}, {"{cemv_support}", IRI("xsd", "integer")}}};
 
 	Schema sch("agencies.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);

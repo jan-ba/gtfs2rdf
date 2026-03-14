@@ -127,7 +127,6 @@ export Schema buildTestTinyStopsSchema(runtime::RuntimeContainer& rtc) {
 
 	const IRI SUBJ = IRI("stops", "{stop_id}");
 
-	// Ontology (?)
 	const std::vector<Triple> TRIPLES = {
 	    // SUBJECT                   PREDICATE          OBJECT
 

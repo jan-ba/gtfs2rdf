@@ -21,6 +21,8 @@ export module field_transforms;
 import util;
 using namespace util;
 
+// defines the field_transforms module, which provides a registry for field transform functions that
+// can be applied inside of placeholders (e.g. {stop_name | toUpper})
 namespace field_transforms {
 
 export const int MAX_ARGS =
@@ -49,6 +51,7 @@ export struct Transform {
 	Transform2Many many;  // valid if kind == MANY
 };
 
+// manages the transforms. Ensures no duplicate names and only valid characters for names
 export class TransformRegistry {
   public:
 	void registerTransform(const std::string& name, Transform2One transform) {
@@ -75,6 +78,7 @@ export class TransformRegistry {
 		registry_[name] = Transform{name, TransformKind::MANY, {}, std::move(transform)};
 	}
 
+	// [TODO]: this will still be copied in code I think. Check if that can be avoided
 	const Transform& getTransform(const std::string& name) const {
 		if (!registry_.contains(name)) {
 			throw diagnostics::Error("Transform error: unknown transform '" + name + "'");
@@ -85,7 +89,7 @@ export class TransformRegistry {
   private:
 	std::unordered_map<std::string, Transform> registry_;
 
-	// function that finds permitted characters in transform names
+	// function that enforces only permitted characters in transform names
 	// these include: a-z, A-Z, 0-9, _
 	// NOLINTBEGIN : no need to simplify boolean expression since this is more readable
 	static bool isPermittedName_(const std::string& str) {

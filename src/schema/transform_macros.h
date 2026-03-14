@@ -31,6 +31,7 @@
               [[maybe_unused]] constexpr std::string_view __gtfs2rdf_transform_name = #NAME;    \
               [[maybe_unused]] auto& (STORAGE) = rtc.getStorage();                              \
               try {
+
 #define TRANSFORM2MANY(NAME, ARGS, OUT_VALS, STORAGE)                                              \
 	rtc.getTransformRegistry().registerTransform(                                               \
         #NAME,                                                                                  \
@@ -39,6 +40,7 @@
               [[maybe_unused]] constexpr std::string_view __gtfs2rdf_transform_name = #NAME;    \
               [[maybe_unused]] auto& (STORAGE) = rtc.getStorage();                              \
               try {
+                
 #define TRANSFORM_END                                                                              \
 	}                                                                                              \
 	catch (...) {                                                                                  \

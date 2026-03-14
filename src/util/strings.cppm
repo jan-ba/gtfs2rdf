@@ -24,6 +24,7 @@ export namespace util::strings {
 
 // custom hash for string_view and string to be used in unordered_map
 // taken from https://www.cppstories.com/2021/heterogeneous-access-cpp20/
+// enables using string_view as keys in unordered_map without needing to construct temporary strings
 struct StringHash {
 	using is_transparent =
 	    void; // NOLINT(readability-identifier-naming): required for heterogeneous lookup
