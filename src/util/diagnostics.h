@@ -19,13 +19,15 @@ import util;
 
 using namespace util::strings;
 
-// namespace for diagnostics-related utilities: error handling, warning / logging aggregation, and statistics collection
+// namespace for diagnostics-related utilities: error handling, warning / logging aggregation, and
+// statistics collection
 namespace diagnostics {
 
 // _________________________________________________________________________________________________
 // error handling
 
-// custom error type for diagnostic errors, specific to gtfs2rdf and meant to be used with wrapAndRethrow
+// custom error type for diagnostic errors, specific to gtfs2rdf and meant to be used with
+// wrapAndRethrow
 struct Error : std::runtime_error {
 	explicit Error(const std::string& message)
 	    : std::runtime_error(message) {
@@ -37,13 +39,15 @@ inline void wrapAndRethrow(std::string_view context_message) {
 	std::throw_with_nested(Error(std::string(context_message)));
 }
 
-// helper function to print error chain in order 'innermost -> outermost', i.e. error cause is printed before its context
+// helper function to print error chain in order 'innermost -> outermost', i.e. error cause is
+// printed before its context
 inline void printErrorChain(const std::exception& excpt) {
 	bool printed_context = false;
 
 	auto recursion = [&](auto&& self, const std::exception& excpt) -> void {
 		try {
-			// if this doesn't throw, then excpt is the innermost exception / the error cause -> print first
+			// if this doesn't throw, then excpt is the innermost exception / the error cause ->
+			// print first
 			std::rethrow_if_nested(excpt);
 		} catch (const std::exception& inner) {
 			self(self, inner); // recurse until innermost exception is reached
@@ -81,17 +85,20 @@ enum class WarningLevel : uint8_t { DEBUG, WARNING };
 // more verbose < less verbose is to be ensured
 enum class VerbosityLevelWarnings : uint8_t { DEBUG, WARNING, QUIET };
 
-// requires setting the depth of context information (i.e. the deeper in the program flow tree, the higher the depth value) for proper context aggregation as of now
+// requires setting the depth of context information (i.e. the deeper in the program flow tree, the
+// higher the depth value) for proper context aggregation as of now
 class Warning {
   public:
-	// closed: whether this warning closes the current context (subsequent context not appended to this warning)
+	// closed: whether this warning closes the current context (subsequent context not appended to
+	// this warning)
 	explicit Warning(std::string_view message, WarningLevel level, bool closed = false)
 	    : level_(level)
 	    , closed_(closed)
 	    , message_(message) {
 	}
 
-	// level: level / depth of the context in the program flow (a warning in main function could be level 1)
+	// level: level / depth of the context in the program flow (a warning in main function could be
+	// level 1)
 	void addContext(std::string_view context, size_t depth = -1) {
 		if (closed_ || depth_ <= depth) {
 			return;

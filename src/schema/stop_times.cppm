@@ -101,8 +101,7 @@ export Schema buildStopTimesSchema(runtime::RuntimeContainer& rtc) {
 	    {SUBJ, {"gtfs", "timepoint"}, {"{timepoint}", IRI("xsd", "integer")}},
 
 	    {SUBJ, {"gtfs", "pickupBookingRule"}, {IRI("booking", "{pickup_booking_rule_id}")}},
-	    {SUBJ, {"gtfs", "dropOffBookingRule"}, {IRI("booking", "{drop_off_booking_rule_id}")}}
-	};
+	    {SUBJ, {"gtfs", "dropOffBookingRule"}, {IRI("booking", "{drop_off_booking_rule_id}")}}};
 
 	Schema sch("stop_times.txt", POSSIBLE_COLUMNS, PREFIXES, TRIPLES, rtc);
 	return sch;

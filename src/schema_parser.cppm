@@ -166,7 +166,8 @@ void parseTarget(std::string_view svw, StorageWriteSpec& stg) {
 	}
 }
 
-// main parser for the full placeholder spec, e.g. "{ arg1, arg2 | transform1 | transform2 > TARGET }"
+// main parser for the full placeholder spec, e.g. "{ arg1, arg2 | transform1 | transform2 > TARGET
+// }"
 export PlaceholderSpec parsePlaceholder(std::string_view raw,
                                         const field_transforms::TransformRegistry& reg) {
 	// normalise whitespace but keep spaces in quoted literals
@@ -263,7 +264,7 @@ export PlaceholderSpec parsePlaceholder(std::string_view raw,
 			spec.storage.value_arity = static_cast<uint8_t>(val_toks.size());
 
 			// extras, i.e. additional fields that are not stored but passed to transforms
-			// syntax: {keys : (values), extra1, extra2 | transforms > target} 
+			// syntax: {keys : (values), extra1, extra2 | transforms > target}
 			if (!after.empty()) {
 				if (after.front() != ',') {
 					throw diagnostics::Error(

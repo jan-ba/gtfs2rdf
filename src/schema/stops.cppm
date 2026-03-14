@@ -27,12 +27,12 @@ namespace schema {
 
 // exemplary Gtfs -> Rdf mapping for stops.txt
 export Schema buildStopsSchema(runtime::RuntimeContainer& rtc) {
-
 	// prints out enum string explicitly for location_type codes
 	// ARGS[0]: location_type code
 	TRANSFORM2ONE(loc2Enum, ARGS, OUT_VAL, STORAGE) {
 		if (ARGS.size() != 1) {
-			TRANSFORM_ERROR("loc2Enum transform expects exactly one argument, but got " + std::to_string(ARGS.size()));
+			TRANSFORM_ERROR("loc2Enum transform expects exactly one argument, but got " +
+			                std::to_string(ARGS.size()));
 		}
 		if (ARGS[0].empty()) {
 			return; // leave empty, triple will not be printed

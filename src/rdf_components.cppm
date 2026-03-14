@@ -36,7 +36,7 @@ export enum class RenderKind : uint8_t {
 
 // template string for one instruction / triple -> one RenderKind per placeholder from left to right
 export struct TemplateString {
-	std::string raw;  // can contain placeholders like "subj {PHL1} pred {PHL2} obj {PHL3} ."
+	std::string raw; // can contain placeholders like "subj {PHL1} pred {PHL2} obj {PHL3} ."
 	std::vector<RenderKind> render_kinds;
 };
 
@@ -199,7 +199,7 @@ export class IRI {
 		}
 		if (PREFIX_ == "_") {
 			throw diagnostics::Error(
-			    "Schema error: this converter doesn't support blank nodes yet");  // [TODO]
+			    "Schema error: this converter doesn't support blank nodes yet"); // [TODO]
 		}
 	}
 
@@ -231,7 +231,8 @@ export class IRI {
 			tmpl.raw = LOCAL_NAME_;
 			// if (tmpl.raw.size() < 2 || tmpl.raw.front() != '<' || tmpl.raw.back() != '>') {
 			// 	throw diagnostics::Error(
-			// 	    "Schema error: IRI without prefix, expecting a raw IRIREF like '<http://example.com/{value}>' but got '" + tmpl.raw + "'");
+			// 	    "Schema error: IRI without prefix, expecting a raw IRIREF like
+			// '<http://example.com/{value}>' but got '" + tmpl.raw + "'");
 			// }
 			const size_t NUM_PHLS = countPlaceholders(LOCAL_NAME_);
 			if (NUM_PHLS) {
@@ -256,7 +257,8 @@ export class IRI {
 		tmpl.raw = LOCAL_NAME_;
 		// if (tmpl.raw.size() < 2 || tmpl.raw.front() != '<' || tmpl.raw.back() != '>') {
 		// 	throw diagnostics::Error(
-		// 	    "Schema error: IRI without prefix, expecting a raw IRIREF like '<http://example.com/{value}>' but got '" + tmpl.raw + "'");
+		// 	    "Schema error: IRI without prefix, expecting a raw IRIREF like
+		// '<http://example.com/{value}>' but got '" + tmpl.raw + "'");
 		// }
 		const size_t NUM_PHLS = countPlaceholders(LOCAL_NAME_);
 		if (NUM_PHLS) {
@@ -341,10 +343,10 @@ export class Object {
 							tmpl.render_kinds.insert(
 							    tmpl.render_kinds.end(), NUM_LANG_PHLS, RenderKind::LANG_TAG);
 						}
-					// ... and datatypes
+						// ... and datatypes
 					} else {
 						const auto DT_TEMPL = DATATYPE_.toTemplate(prefixes, rtc);
-						if (!DT_TEMPL.raw.empty()) {  // [TODO]: a bit indirect / unclear
+						if (!DT_TEMPL.raw.empty()) { // [TODO]: a bit indirect / unclear
 							tmpl.raw += "^^" + DT_TEMPL.raw;
 							tmpl.render_kinds.insert(tmpl.render_kinds.end(),
 							                         DT_TEMPL.render_kinds.begin(),

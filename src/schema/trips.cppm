@@ -28,7 +28,6 @@ namespace schema {
 
 // exemplary Gtfs -> Rdf schema for trips.txt
 export Schema buildTripsSchema(runtime::RuntimeContainer& rtc) {
-
 	// args: shape_id
 	// output: WKT linestring of all shape points for this shape_id
 	TRANSFORM2ONE(getLinestring, ARGS, OUT_VAL, STORAGE) {
@@ -118,7 +117,7 @@ export Schema buildTripsSchema(runtime::RuntimeContainer& rtc) {
 	     {"geo", "asWKT"},
 	     {{"{shape_id | getLinestring@shapes.txt}"}, IRI("geo", "wktLiteral")}},
 
-		// enums
+	    // enums
 	    {SUBJ,
 	     {"gtfs", "wheelchairAccessible"},
 	     {"{wheelchair_accessible}", IRI("xsd", "integer")}},

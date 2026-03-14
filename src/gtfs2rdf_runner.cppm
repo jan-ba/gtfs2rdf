@@ -87,7 +87,8 @@ export int gtfs2rdf(const runtime::Settings& settings,
 		    settings.getInputPath().string() + "'.\n");
 	}
 
-	// compile schemas such that they are ready for use -> dependency info will be aggregated inside of each schema during compilation
+	// compile schemas such that they are ready for use -> dependency info will be aggregated inside
+	// of each schema during compilation
 	for (auto& sch : used_schemas) {
 		try {
 			sch.compile();
@@ -160,7 +161,8 @@ export int gtfs2rdf(const runtime::Settings& settings,
 		                                       diagnostics::WarningLevel::DEBUG);
 	}
 
-	// initialise writer based on settings (pre-run with small buffer, normal run to stdout, normal run to file output)
+	// initialise writer based on settings (pre-run with small buffer, normal run to stdout, normal
+	// run to file output)
 	writer::Writer writer =
 	    settings.isPreRun()
 	        ? writer::Writer(std::cout,
@@ -188,9 +190,10 @@ export int gtfs2rdf(const runtime::Settings& settings,
 				writer.writePrefixes(merged_prefixes);
 			}
 			gtfs::GtfsParser parser(z_file, used_schemas[order[i]], wsp, rtc);
-			parser.parse();  // parses and passes data on for rendering and writing
+			parser.parse(); // parses and passes data on for rendering and writing
 
-			// after processing the file, check if any of its dependencies can have their storage cleared
+			// after processing the file, check if any of its dependencies can have their storage
+			// cleared
 			for (const auto& dep : used_schemas[order[i]].getDependencies()) {
 #ifdef NDEBUG
 				num_depending_schemas[schema_name_to_index[dep]]--;
@@ -247,7 +250,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 			                            "'");
 		}
 	}
-	zip_close(z_arch);  // done with input zip archive
+	zip_close(z_arch); // done with input zip archive
 
 	// aggregate total statistics across all processed files
 	diagnostics::Statistics total_stats;
@@ -328,7 +331,7 @@ export int gtfs2rdf(const runtime::Settings& settings,
 		       "well as Transform2Many and filtering."
 		    //   << "\n--------------------------------------------------------------------\n";
 		    << "\n\n";
-	} 
+	}
 	// print statistics summary in case of normal run
 	else if (settings.getStatsVerbosity() == diagnostics::VerbosityLevelStats::VERBOSE) {
 		for (const auto& f_stats : per_file_stats) {

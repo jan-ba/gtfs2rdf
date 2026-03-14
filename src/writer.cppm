@@ -32,7 +32,8 @@ using namespace schema;
 
 using Rows = std::vector<std::vector<std::string>>;
 
-// [TODO]: distinction between pre-run, normal run and between file and stream output obscured this class a bit, consider refactoring
+// [TODO]: distinction between pre-run, normal run and between file and stream output obscured this
+// class a bit, consider refactoring
 
 namespace writer {
 
@@ -90,7 +91,8 @@ export class Writer {
 	    : Writer(out_stream, rtc, rtc.getSettings().getWriteBufferSize_MB(), active) {
 	}
 
-	// given a prefix map, write to output in correct .ttl style, e.g. "@prefix ex: <http://example.com/> ."
+	// given a prefix map, write to output in correct .ttl style, e.g. "@prefix ex:
+	// <http://example.com/> ."
 	void writePrefixes(const std::unordered_map<std::string, std::string>& map) {
 		SCOPED_TIMER_NS(write_ns_tmp_);
 

@@ -194,7 +194,8 @@ export class GtfsParser {
 		field_buffer_.clear();
 	}
 
-	// end of row reached (line break), passes reference to row_buffer_ on for conversion and resets for next row
+	// end of row reached (line break), passes reference to row_buffer_ on for conversion and resets
+	// for next row
 	void finishRow_() {
 		finishField_();
 
@@ -219,7 +220,7 @@ export class GtfsParser {
 			header_seen_ = true;
 			col_i_ = 0;
 
-		// if header already seen, pass data row on for conversion
+			// if header already seen, pass data row on for conversion
 		} else {
 			// Gtfs validity: enforce fixed width
 			if (col_i_ != num_cols_) {
@@ -259,7 +260,8 @@ export class GtfsParser {
 		QUOTE_IN_QUOTED_FIELD // just saw a " inside a quoted field
 	};
 
-	// state-machine based CSV parsing according to GTFS specific rules (more restrictive than general CSV)
+	// state-machine based CSV parsing according to GTFS specific rules (more restrictive than
+	// general CSV)
 	void consumeByte_(char c) {
 		switch (state_) {
 			case CSVState::UNQUOTED_FIELD:
@@ -313,7 +315,8 @@ export class GtfsParser {
 
 	void flushRemainder_() {
 		// if file doesn't end with newline, finalise last row/field.
-		if (!field_buffer_.empty() || (!header_seen_ && !row_buffer_.empty()) || (header_seen_ && col_i_ > 0)) {
+		if (!field_buffer_.empty() || (!header_seen_ && !row_buffer_.empty()) ||
+		    (header_seen_ && col_i_ > 0)) {
 			finishRow_();
 		}
 	}

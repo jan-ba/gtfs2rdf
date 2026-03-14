@@ -82,10 +82,11 @@ export class PersistentStorageSqlite {
 
 		std::string db_dir = tmp_dir + "/" + TEMP_DIR_NAME_;
 
-		auto date_time_stamp = std::format("{:%Y%m%d_%H%M%S}",
-			std::chrono::zoned_time{
-				std::chrono::current_zone(),
-				std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())});
+		auto date_time_stamp =
+		    std::format("{:%Y%m%d_%H%M%S}",
+		                std::chrono::zoned_time{std::chrono::current_zone(),
+		                                        std::chrono::floor<std::chrono::seconds>(
+		                                            std::chrono::system_clock::now())});
 
 		// create temporary directory and file
 		// ensure directory didn't exist before to avoid accidental user data overwrite

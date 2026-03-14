@@ -31,9 +31,9 @@ using namespace util::strings;
 using namespace field_transforms;
 
 // this module implements core logic for several major classes of gtfs2rdf:
-// - Instruction: represents a compiled instruction template ready to be rendered for each row of a 
+// - Instruction: represents a compiled instruction template ready to be rendered for each row of a
 //                file; specifically, implements render(row&) (i.e. the hot loop of the converter)
-// - Schema: represents a mapping from a GTFS file to RDF, consisting of multiple instructions and 
+// - Schema: represents a mapping from a GTFS file to RDF, consisting of multiple instructions and
 //           metadata
 
 namespace schema {
@@ -71,14 +71,14 @@ export class Instruction {
 	std::vector<Datagap> datagaps_;  // bound placeholders
 	std::array<std::string_view, field_transforms::MAX_ARGS> arg_buf_;
 
-	size_t base_len_ = 0;  // used to aggregate an estimate for the required output buffer size
-	std::string out_buffer_;      // output buffer for rendering
+	size_t base_len_ = 0;    // used to aggregate an estimate for the required output buffer size
+	std::string out_buffer_; // output buffer for rendering
 
 	static constexpr std::string EMPTY_;
 	static constexpr std::string_view EMPTY_SV_{EMPTY_};
 
 	uint64_t counter_ = 0;
-	bool is_valid_ = true;  // whether to include this instruction in rendering
+	bool is_valid_ = true; // whether to include this instruction in rendering
 
 	runtime::RuntimeContainer& rtc_;
 	const std::string RAW_INSTRUCTION_;
@@ -122,10 +122,11 @@ export class Instruction {
 	}
 
   public:
-    // builds an Instruction given
+	// builds an Instruction given
 	// - InstructionTemplate with placeholders not yet bound to columns / finalised
 	// - column name to index mapping for resolving column args
-	// resolves placeholder args to column indices and literals, checks for validity and gathers metadata for rendering
+	// resolves placeholder args to column indices and literals, checks for validity and gathers
+	// metadata for rendering
 	Instruction(const InstructionTemplate& tmpl,
 	            const std::unordered_map<std::string, int>& column_map,
 	            runtime::RuntimeContainer& rtc,
@@ -246,7 +247,7 @@ export class Instruction {
 	// NOTE: output string does not necessarily correspond to one triple due to Transform2Many
 	std::string_view render(std::span<const std::string> row) {
 		out_buffer_.clear();
-		out_buffer_.append(parts_[0]);  // append static part before first placeholder / datagap
+		out_buffer_.append(parts_[0]); // append static part before first placeholder / datagap
 		cur_.clear();
 		next_.clear();
 		cur_sv_ = cur_;
@@ -255,7 +256,7 @@ export class Instruction {
 		// of cur_ and can be passed to transforms without needing to be recreated
 		field_transforms::ArgSpan span_1{&cur_sv_, 1};
 
-		// process each datagap 
+		// process each datagap
 		// resolve args, apply transforms, perform storage writes and render output for each
 		for (size_t k = 0; k < datagaps_.size(); ++k) {
 			Datagap& dgp = datagaps_[k];
@@ -272,8 +273,9 @@ export class Instruction {
 			if (dgp.num_transforms > 0) {
 				field_transforms::ArgSpan span_n{arg_buf_.data(), dgp.num_args};
 
-				// if there is a Transform2Many, apply preceding transforms first, then the single 
-				// Transform2Many and then the remaining transforms elementwise on the produced vector
+				// if there is a Transform2Many, apply preceding transforms first, then the single
+				// Transform2Many and then the remaining transforms elementwise on the produced
+				// vector
 				if (dgp.contains_transf2many) {
 					transf2many_render_kind_ = dgp.render_kind;
 					transf2many_buf_.clear();
@@ -442,9 +444,9 @@ export class Instruction {
 							break;
 					}
 				}
-				out_buffer_.append(parts_[k + 1]);  // static bit after datagap
+				out_buffer_.append(parts_[k + 1]); // static bit after datagap
 			}
-		}  // !we have left the datagap loop now!
+		} // !we have left the datagap loop now!
 
 		// If SUPPRESS_OUTPUT_ => side effect only, skip writing entirely
 		if (SUPPRESS_OUTPUT_) {
@@ -473,7 +475,8 @@ export class Instruction {
 						percentEncodeLiteral(out_buffer_, val);
 						break;
 					case RenderKind::LANG_TAG:
-						out_buffer_.append(val); // [TODO]: language tags should be validated <future work>
+						out_buffer_.append(
+						    val); // [TODO]: language tags should be validated <future work>
 						break;
 					case RenderKind::RAW:
 					default:
@@ -654,7 +657,7 @@ export class Schema {
 									} else {
 										dependencies_.insert(arg.ctx);
 									}
-								}  // [TODO]: ctx empty, perhaps this should throw?
+								} // [TODO]: ctx empty, perhaps this should throw?
 							} else if (arg.kind == ArgKind::COLUMN) {
 								referenced_columns_.insert(arg.name);
 							}
@@ -697,7 +700,7 @@ export class Schema {
 		}
 
 		// marks storage-only instructions to suppress output
-		// note that this requires that storage-only instructions are added in front of the 
+		// note that this requires that storage-only instructions are added in front of the
 		// instruction list as should be enforced via the two-ctor approach of Schema
 		for (size_t i = 0; i < num_storage_only_instructions_; ++i) {
 			templates_[i].suppress_output = true;
@@ -715,7 +718,8 @@ export class Schema {
 			    "Internal error: schema must be compiled before setting header");
 		}
 
-		// compute column_map_ from header, i.e. column_name -> column_index in file, -1 if not found
+		// compute column_map_ from header, i.e. column_name -> column_index in file, -1 if not
+		// found
 		for (size_t file_idx = 0; file_idx < header.size(); ++file_idx) {
 			if (column_map_.contains(header[file_idx])) {
 				column_map_[header[file_idx]] = static_cast<int>(file_idx);
@@ -740,7 +744,7 @@ export class Schema {
 
 				if (!instr.isValid()) {
 					continue;
-				} 
+				}
 				if (!allow_storage_writes_) {
 					for (auto& dgp : instr.getModifiableDatagaps()) {
 						dgp.storage.kind = StorageKind::NONE;

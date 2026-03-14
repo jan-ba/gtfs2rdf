@@ -35,7 +35,7 @@ export Schema buildShapesSchema(runtime::RuntimeContainer& rtc) {
 	const std::vector<Triple> TRIPLES = {};
 
 	const std::vector<std::string> NO_WRITE_INSTRUCTIONS = {
-		// tuple map storage instruction
+	    // tuple map storage instruction
 	    // shape_id -> [(shape_pt_sequence, shape_pt_lon, shape_pt_lat), ...]
 	    "{ shape_id : shape_pt_sequence, shape_pt_lon, shape_pt_lat > shapes@shapes.txt }"};
 
