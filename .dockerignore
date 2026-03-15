@@ -1,0 +1,9 @@
+build*/**
+
+*.ttl
+*.zip
+*.nt
+
+.git*/**
+doc/**
+.clang*
