@@ -46,15 +46,16 @@ export class Settings {
   public:
 	// checks validity of command line arguments and sets settings accordingly
 	Settings(int argc, char* argv[]) { // NOLINT(modernize-avoid-c-arrays)
-		cxxopts::Options opts("gtfs2rdf",
-		                      "Gtfs->Rdf converter\n"
-		                      "Note: garbage in, garbage out. Validate your Gtfs feed first.\n"
-		                      "A pre-run is recommended to validate schemas and estimate "
-		                      "requirements before conversion.\n"
-		                      "\n"
-		                      "Examples:\n"
-		                      "  gtfs2rdf feed.zip --format nt\n"
-		                      "  gtfs2rdf --feed feed.zip --output out/\n");
+		cxxopts::Options opts(
+		    "gtfs2rdf",
+		    "Gtfs->Rdf converter\n"
+		    "Note: garbage in, garbage out. Validate your Gtfs feed first.\n"
+		    "A pre-run with stats enabled is recommended to validate schemas and\n"
+		    "estimate requirements before conversion.\n"
+		    "\n"
+		    "Examples:\n"
+		    "  gtfs2rdf feed.zip --format nt\n"
+		    "  gtfs2rdf --feed feed.zip --output out/\n");
 
 		opts.custom_help("[options]");
 
@@ -64,10 +65,9 @@ export class Settings {
 		    "Output directory or 'stdout'",
 		    cxxopts::value<std::string>()->default_value("."))(
 		    "p,pre-run",
-		    "Validate schemas, print file headers, and roughly estimate output size and estimated "
-		    "peak RAM usage without writing output. The level of statistics output determines how "
-		    "much information is provided. It is recommended to run this in combination "
-		    "with --spec-dump to get conversion details before actual conversion.",
+		    "Validate schemas and perform a dry run: with stats enabled, print file headers and "
+		    "roughly estimate output size and peak RAM usage without writing output. "
+		    "Recommended with --spec-dump to inspect conversion details before conversion.",
 		    cxxopts::value<bool>()->default_value("false")->implicit_value("true"))(
 		    "format", "Output format: ttl|nt", cxxopts::value<std::string>()->default_value("ttl"))(
 		    "overwrite",

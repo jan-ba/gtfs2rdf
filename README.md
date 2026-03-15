@@ -2,13 +2,15 @@
 
 A command-line C++ tool for converting public transport data from **GTFS** to **RDF**.
 
-`gtfs2rdf` is designed for fast, practical conversion of real-world transit feeds. It focuses on efficient processing, bounded memory usage, and flexible mappings so that different GTFS feeds can be turned into RDF in a way that fits the needs of downstream applications such as search, analysis, and visualisation.
+`gtfs2rdf` is designed for fast, practical conversion of GTFS feeds. It focusses on efficient processing, bounded memory usage, and flexible mappings so that different GTFS feeds can be turned into RDF in a way that fits the needs of downstream applications such as search, analysis, and visualisation.
+
+The converter is intended to handle large real-world feeds and has been tested on feeds with multi-gigabyte shapes.txt files.
 
 ## What it does
 
 Given a GTFS feed as a `.zip` archive, `gtfs2rdf` reads the feed and writes RDF output in either **Turtle** (`ttl`) or **N-Triples** (`nt`) format.
 
-The tool is built around the idea that GTFS feeds are not always uniform in practice. For that reason, mappings are customisable: users can define how GTFS fields should be turned into RDF by providing schema modules for the relevant GTFS files.
+The tool is built around the idea that GTFS feeds are not always uniform, that the GTFS standard is constantly evolving, and that the required output semantics differ across users. For that reason, mappings are customisable: users can define how GTFS fields should be turned into RDF by providing schema modules for the relevant GTFS files.
 
 In short, the project aims to provide:
 
@@ -99,7 +101,7 @@ When run without arguments beyond the input file, the tool writes output to the 
 ### Standard options
 
 * **-o, --output arg** Output directory or stdout (Default: `.`)
-* **-p, --pre-run** Validate schemas, print file headers, and estimate output size and peak RAM usage without writing output
+* **-p, --pre-run** Validate schemas and perform a dry run, recommended in combination with stats and --spec-dump enabled
 * **--format arg** Output format: `ttl` or `nt` (Default: `ttl`)
 * **--overwrite** Overwrite existing output files
 * **-h, --help** Show help
@@ -119,7 +121,8 @@ When run without arguments beyond the input file, the tool writes output to the 
 
 ## Recommended workflow
 
-For unfamiliar or large feeds, a pre-run is recommended before actual conversion:
+For unfamiliar, messy, or large feeds, a pre-run is recommended before actual conversion. Validating and tidying the feed beforehand can also improve results and runtime, for example with [`gtfstidy`](https://github.com/patrickbr/gtfstidy), which is designed to validate, sanitise, 
+and minimise GTFS feeds. For syntactically correct output to be guaranteed, input and mapping need to be valid.
 
 ```bash
 build-release/gtfs2rdf --pre-run --stats verbose --spec-dump feed.zip
