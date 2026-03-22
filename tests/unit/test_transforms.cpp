@@ -205,3 +205,25 @@ TEST_CASE("t_lib::convertTime2xs_unchecked converts GTFS time to xsd:time format
 		REQUIRE_THROWS(getTransResult(t_lib::convertTime2xs_unchecked, {"12:34:56", "extra"}));
 	}
 }
+
+TEST_CASE("t_lib::enumToString converts enum integer to corresponding string value") {
+	SECTION("Valid") {
+		REQUIRE(getTransResult(t_lib::enumToString, {"0", "Zero", "One", "Two"}) == "Zero");
+		REQUIRE(getTransResult(t_lib::enumToString, {"1", "Zero", "One", "Two"}) == "One");
+		REQUIRE(getTransResult(t_lib::enumToString, {"2", "Zero", "One", "Two"}) == "Two");
+	}
+
+	SECTION("Empty") {
+		REQUIRE(getTransResult(t_lib::enumToString, {"", "Zero", "One", "Two"}) == "");
+	}
+
+	SECTION("Invalid enum integer") {
+		REQUIRE_THROWS(getTransResult(t_lib::enumToString, {"3", "Zero", "One", "Two"}));
+		REQUIRE_THROWS(getTransResult(t_lib::enumToString, {"-1", "Zero", "One", "Two"}));
+	}
+
+	SECTION("Arity") {
+		REQUIRE_THROWS(getTransResult(t_lib::enumToString, {}));
+		REQUIRE_THROWS(getTransResult(t_lib::enumToString, {"0"}));
+	}
+}

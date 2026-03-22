@@ -277,6 +277,30 @@ export void convertTime2xs_unchecked(Args args, Out1& out) {
 }
 // NOLINTEND
 
+// materialises an enum value as a string
+// ARG: args[0] = enum integer, args[1...n] = possible enum strings
+// invariant: enum integer must be in range [0, 9] and less than number of provided enum strings
+export void enumToString(Args args, Out1& out) {
+	if (args.size() < 2) {
+		throw diagnostics::Error(
+		    "Transform error in 'enumToString': expected at least 2 arguments (value, possible "
+		    "enum values), got " +
+		    std::to_string(args.size()));
+	}
+	std::string_view value = args[0];
+	if (value.empty()) {
+		return; // leave empty
+	}
+	size_t enum_int = args[0][0] - '0'; // convert first character to integer
+	if (enum_int >= args.size() - 1) {
+		throw diagnostics::Error("Transform error in 'enumToString': got enum integer " + std::to_string(enum_int) + ", expected in range [0, " + std::to_string(args.size() - 2) + "]");
+	}
+	if (enum_int < 0 || enum_int > 9) {
+		throw diagnostics::Error("Transform error in 'enumToString': expected enum integer in range [0, 9], got " + std::to_string(enum_int));
+	}
+	out = args[enum_int + 1];
+}
+
 // register functions in the TransformRegistry to make them available for use in schema files
 export void registerLibTransforms(TransformRegistry& registry) {
 	registry.registerTransform("isValidInt", isValidInt);
@@ -285,5 +309,7 @@ export void registerLibTransforms(TransformRegistry& registry) {
 	registry.registerTransform("isInRange", isInRange);
 	registry.registerTransform("convertDate2xs_unchecked", convertDate2xs_unchecked);
 	registry.registerTransform("convertTime2xs_unchecked", convertTime2xs_unchecked);
+	registry.registerTransform("toBool", toBool);
+	registry.registerTransform("enumToString", enumToString);
 }
 } // namespace t_lib
