@@ -293,10 +293,14 @@ export void enumToString(Args args, Out1& out) {
 	}
 	size_t enum_int = args[0][0] - '0'; // convert first character to integer
 	if (enum_int >= args.size() - 1) {
-		throw diagnostics::Error("Transform error in 'enumToString': got enum integer " + std::to_string(enum_int) + ", expected in range [0, " + std::to_string(args.size() - 2) + "]");
+		throw diagnostics::Error("Transform error in 'enumToString': got enum integer " +
+		                         std::to_string(enum_int) + ", expected in range [0, " +
+		                         std::to_string(args.size() - 2) + "]");
 	}
 	if (enum_int < 0 || enum_int > 9) {
-		throw diagnostics::Error("Transform error in 'enumToString': expected enum integer in range [0, 9], got " + std::to_string(enum_int));
+		throw diagnostics::Error(
+		    "Transform error in 'enumToString': expected enum integer in range [0, 9], got " +
+		    std::to_string(enum_int));
 	}
 	out = args[enum_int + 1];
 }
