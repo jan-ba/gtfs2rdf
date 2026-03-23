@@ -267,22 +267,31 @@ TEST_CASE("t_lib::enumToString converts enum integer to corresponding string val
 	}
 }
 
-TEST_CASE("t_lib::enumToStringWithDefault converts enum integer to corresponding string value with default") {
+TEST_CASE("t_lib::enumToStringWithDefault converts enum integer to corresponding string value with "
+          "default") {
 	SECTION("Valid") {
-		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"0", "1", "Zero", "One", "Two"}) == "Zero");
-		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"1", "1", "Zero", "One", "Two"}) == "One");
-		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"2", "1", "Zero", "One", "Two"}) == "Two");
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"0", "1", "Zero", "One", "Two"}) ==
+		        "Zero");
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"1", "1", "Zero", "One", "Two"}) ==
+		        "One");
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"2", "1", "Zero", "One", "Two"}) ==
+		        "Two");
 	}
 
 	SECTION("Empty value uses default") {
-		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"", "1", "Zero", "One", "Two"}) == "One");
-		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"", "0", "Zero", "One", "Two"}) == "Zero");
-		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"", "2", "Zero", "One", "Two"}) == "Two");
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"", "1", "Zero", "One", "Two"}) ==
+		        "One");
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"", "0", "Zero", "One", "Two"}) ==
+		        "Zero");
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"", "2", "Zero", "One", "Two"}) ==
+		        "Two");
 	}
 
 	SECTION("Invalid enum integer") {
-		REQUIRE_THROWS(getTransResult(t_lib::enumToStringWithDefault, {"3", "1", "Zero", "One", "Two"}));
-		REQUIRE_THROWS(getTransResult(t_lib::enumToStringWithDefault, {"-1", "1", "Zero", "One", "Two"}));
+		REQUIRE_THROWS(
+		    getTransResult(t_lib::enumToStringWithDefault, {"3", "1", "Zero", "One", "Two"}));
+		REQUIRE_THROWS(
+		    getTransResult(t_lib::enumToStringWithDefault, {"-1", "1", "Zero", "One", "Two"}));
 	}
 
 	SECTION("Arity") {

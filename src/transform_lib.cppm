@@ -355,10 +355,10 @@ export void enumToString(Args args, Out1& out) {
 // ARG: args[0] = enum integer, args[1] = default enum index, args[2...n] = possible enum strings
 export void enumToStringWithDefault(Args args, Out1& out) {
 	if (args.size() < 3) {
-		throw diagnostics::Error(
-		    "Transform error in 'enumToStringWithDefault': expected at least 3 arguments (value, default index, possible "
-		    "enum values), got " +
-		    std::to_string(args.size()));
+		throw diagnostics::Error("Transform error in 'enumToStringWithDefault': expected at least "
+		                         "3 arguments (value, default index, possible "
+		                         "enum values), got " +
+		                         std::to_string(args.size()));
 	}
 	std::string_view value = args[0];
 	std::string_view default_index_str = args[1];
@@ -384,13 +384,12 @@ export void enumToStringWithDefault(Args args, Out1& out) {
 		                         std::to_string(args.size() - 3) + "]");
 	}
 	if (enum_int < 0 || enum_int > 9) {
-		throw diagnostics::Error(
-		    "Transform error in 'enumToStringWithDefault': expected enum integer in range [0, 9], got " +
-		    std::to_string(enum_int));
+		throw diagnostics::Error("Transform error in 'enumToStringWithDefault': expected enum "
+		                         "integer in range [0, 9], got " +
+		                         std::to_string(enum_int));
 	}
 	out = args[enum_int + 2];
 }
-
 
 // register functions in the TransformRegistry to make them available for use in schema files
 export void registerLibTransforms(TransformRegistry& registry) {
