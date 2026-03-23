@@ -206,6 +206,45 @@ TEST_CASE("t_lib::convertTime2xs_unchecked converts GTFS time to xsd:time format
 	}
 }
 
+TEST_CASE("t_lib::toBool converts GTFS boolean values to xsd:boolean") {
+	SECTION("Valid") {
+		REQUIRE(getTransResult(t_lib::toBool, {"1"}) == "true");
+		REQUIRE(getTransResult(t_lib::toBool, {"0"}) == "false");
+	}
+
+	SECTION("Empty") {
+		REQUIRE(getTransResult(t_lib::toBool, {""}) == "");
+	}
+
+	SECTION("Arity") {
+		REQUIRE_THROWS(getTransResult(t_lib::toBool, {}));
+		REQUIRE_THROWS(getTransResult(t_lib::toBool, {"1", "extra"}));
+	}
+}
+
+TEST_CASE("t_lib::gtfsTimeToSeconds converts GTFS time to total seconds after midnight") {
+	SECTION("Valid") {
+		REQUIRE(getTransResult(t_lib::gtfsTimeToSeconds, {"00:00:00"}) == "0");
+		REQUIRE(getTransResult(t_lib::gtfsTimeToSeconds, {"01:00:00"}) == "3600");
+		REQUIRE(getTransResult(t_lib::gtfsTimeToSeconds, {"12:34:56"}) == "45296");
+		REQUIRE(getTransResult(t_lib::gtfsTimeToSeconds, {"24:00:00"}) == "86400");
+	}
+
+	SECTION("Empty") {
+		REQUIRE(getTransResult(t_lib::gtfsTimeToSeconds, {""}) == "");
+	}
+
+	SECTION("Invalid format") {
+		REQUIRE_THROWS(getTransResult(t_lib::gtfsTimeToSeconds, {"23:59"}));
+		REQUIRE_THROWS(getTransResult(t_lib::gtfsTimeToSeconds, {"abc"}));
+	}
+
+	SECTION("Arity") {
+		REQUIRE_THROWS(getTransResult(t_lib::gtfsTimeToSeconds, {}));
+		REQUIRE_THROWS(getTransResult(t_lib::gtfsTimeToSeconds, {"12:34:56", "extra"}));
+	}
+}
+
 TEST_CASE("t_lib::enumToString converts enum integer to corresponding string value") {
 	SECTION("Valid") {
 		REQUIRE(getTransResult(t_lib::enumToString, {"0", "Zero", "One", "Two"}) == "Zero");
@@ -225,5 +264,30 @@ TEST_CASE("t_lib::enumToString converts enum integer to corresponding string val
 	SECTION("Arity") {
 		REQUIRE_THROWS(getTransResult(t_lib::enumToString, {}));
 		REQUIRE_THROWS(getTransResult(t_lib::enumToString, {"0"}));
+	}
+}
+
+TEST_CASE("t_lib::enumToStringWithDefault converts enum integer to corresponding string value with default") {
+	SECTION("Valid") {
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"0", "1", "Zero", "One", "Two"}) == "Zero");
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"1", "1", "Zero", "One", "Two"}) == "One");
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"2", "1", "Zero", "One", "Two"}) == "Two");
+	}
+
+	SECTION("Empty value uses default") {
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"", "1", "Zero", "One", "Two"}) == "One");
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"", "0", "Zero", "One", "Two"}) == "Zero");
+		REQUIRE(getTransResult(t_lib::enumToStringWithDefault, {"", "2", "Zero", "One", "Two"}) == "Two");
+	}
+
+	SECTION("Invalid enum integer") {
+		REQUIRE_THROWS(getTransResult(t_lib::enumToStringWithDefault, {"3", "1", "Zero", "One", "Two"}));
+		REQUIRE_THROWS(getTransResult(t_lib::enumToStringWithDefault, {"-1", "1", "Zero", "One", "Two"}));
+	}
+
+	SECTION("Arity") {
+		REQUIRE_THROWS(getTransResult(t_lib::enumToStringWithDefault, {}));
+		REQUIRE_THROWS(getTransResult(t_lib::enumToStringWithDefault, {"0"}));
+		REQUIRE_THROWS(getTransResult(t_lib::enumToStringWithDefault, {"0", ""}));
 	}
 }

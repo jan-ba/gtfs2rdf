@@ -277,6 +277,51 @@ export void convertTime2xs_unchecked(Args args, Out1& out) {
 }
 // NOLINTEND
 
+// convert a GTFS time string "H+:MM:SS" to total seconds after midnight as an integer
+export void gtfsTimeToSeconds(Args args, Out1& out) {
+	if (args.size() != 1) {
+		throw diagnostics::Error(
+		    "Transform error in 'gtfsTimeToSeconds': expected exactly 1 argument, got " +
+		    std::to_string(args.size()));
+	}
+	std::string_view svw = args[0];
+	if (svw.empty()) {
+		return; // no input, no output
+	}
+	if (svw.size() < 7 || svw.size() > 8) {
+		throw diagnostics::Error("Transform error in 'gtfsTimeToSeconds': expected time in "
+		                         "format H+:MM:SS, got '" +
+		                         std::string(svw) + "'");
+	}
+	// find first ':'
+	size_t pos_colon = svw.find(':');
+	if (pos_colon == std::string::npos) {
+		return; // invalid format, return empty
+	}
+
+	int h = 0;
+	for (size_t i = 0; i < pos_colon; ++i) {
+		h = h * 10 + (svw[i] - '0');
+	}
+
+	int m = 0;
+	size_t i = pos_colon + 1;
+	for (; i < svw.size() && svw[i] != ':'; ++i) {
+		m = m * 10 + (svw[i] - '0');
+	}
+
+	int s = 0;
+	if (i < svw.size() && svw[i] == ':') {
+		++i;
+		for (; i < svw.size(); ++i) {
+			s = s * 10 + (svw[i] - '0');
+		}
+	}
+
+	int total_seconds = h * 3600 + m * 60 + s;
+	out = std::to_string(total_seconds);
+}
+
 // materialises an enum value as a string
 // ARG: args[0] = enum integer, args[1...n] = possible enum strings
 // invariant: enum integer must be in range [0, 9] and less than number of provided enum strings
@@ -305,6 +350,48 @@ export void enumToString(Args args, Out1& out) {
 	out = args[enum_int + 1];
 }
 
+// same as enumToString but if input is empty, index specified by args[1] points to the default
+// enum string to be used
+// ARG: args[0] = enum integer, args[1] = default enum index, args[2...n] = possible enum strings
+export void enumToStringWithDefault(Args args, Out1& out) {
+	if (args.size() < 3) {
+		throw diagnostics::Error(
+		    "Transform error in 'enumToStringWithDefault': expected at least 3 arguments (value, default index, possible "
+		    "enum values), got " +
+		    std::to_string(args.size()));
+	}
+	std::string_view value = args[0];
+	std::string_view default_index_str = args[1];
+	if (default_index_str.empty()) {
+		throw diagnostics::Error(
+		    "Transform error in 'enumToStringWithDefault': default index argument cannot be empty");
+	}
+	size_t default_index = default_index_str[0] - '0'; // convert first character to integer
+	if (default_index >= args.size() - 2) {
+		throw diagnostics::Error(
+		    "Transform error in 'enumToStringWithDefault': got default index " +
+		    std::to_string(default_index) + ", expected in range [0, " +
+		    std::to_string(args.size() - 3) + "]");
+	}
+	if (value.empty()) {
+		out = args[default_index + 2]; // use default enum value
+		return;
+	}
+	size_t enum_int = args[0][0] - '0'; // convert first character to integer
+	if (enum_int >= args.size() - 2) {
+		throw diagnostics::Error("Transform error in 'enumToStringWithDefault': got enum integer " +
+		                         std::to_string(enum_int) + ", expected in range [0, " +
+		                         std::to_string(args.size() - 3) + "]");
+	}
+	if (enum_int < 0 || enum_int > 9) {
+		throw diagnostics::Error(
+		    "Transform error in 'enumToStringWithDefault': expected enum integer in range [0, 9], got " +
+		    std::to_string(enum_int));
+	}
+	out = args[enum_int + 2];
+}
+
+
 // register functions in the TransformRegistry to make them available for use in schema files
 export void registerLibTransforms(TransformRegistry& registry) {
 	registry.registerTransform("isValidInt", isValidInt);
@@ -315,5 +402,8 @@ export void registerLibTransforms(TransformRegistry& registry) {
 	registry.registerTransform("convertTime2xs_unchecked", convertTime2xs_unchecked);
 	registry.registerTransform("toBool", toBool);
 	registry.registerTransform("enumToString", enumToString);
+	registry.registerTransform("enumToStringWithDefault", enumToStringWithDefault);
+	registry.registerTransform("gtfsTimeToSeconds", gtfsTimeToSeconds);
 }
+
 } // namespace t_lib
